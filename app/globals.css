@@ -1,0 +1,194 @@
+/* ----------------- FONTS ----------------- */
+@font-face {
+  font-family: 'Condenso';
+  src: url('/fonts/Condenso-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Condenso';
+  src: url('/fonts/Condenso-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ----------------- TAILWIND ----------------- */
+@import "tailwindcss";
+
+/* ----------------- VARIABLES ----------------- */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --font-default: 'Arial', Helvetica, sans-serif;
+  --font-condenso: 'Condenso', sans-serif;
+}
+
+/* ----------------- DARK MODE ----------------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+/* ----------------- BODY ----------------- */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-default); /* Default font applied globally */
+}
+
+/* ----------------- PORTFOLIO HEADING ----------------- */
+.portfolio-heading {
+  font-family: var(--font-condenso); /* Only this uses Condenso */
+}
+
+/* ----------------- PULSE GLOW ANIMATION ----------------- */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 6px 50px rgba(255,255,255,0.25);
+  }
+  50% {
+    box-shadow: 0 6px 60px rgba(255,255,255,0.35);
+  }
+}
+
+.animate-pulseGlow {
+  animation: pulseGlow 2.5s ease-in-out infinite;
+}
+@font-face {
+  font-family: 'CreatoDisplay';
+  src: url('/fonts/CreatoDisplay-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+
+@keyframes pulse-slow {
+  0%, 100% { transform: scale(1.2) translateY(0); opacity: 0.8; }
+  50% { transform: scale(1.25) translateY(-5px); opacity: 0.6; }
+}
+@keyframes smokeMove {
+  0% { transform: translateX(-50%) translateY(0) scale(1.4); opacity: 0.8; }
+  50% { transform: translateX(-50%) translateY(-15px) scale(1.45); opacity: 0.6; }
+  100% { transform: translateX(-50%) translateY(0) scale(1.4); opacity: 0.8; }
+}
+
+
+.animate-pulse-slow {
+  animation: pulse-slow 4s ease-in-out infinite;
+}
+
+
+/* ----------------- LOGO SHINE EFFECT ----------------- */
+.logo-shine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -30%;
+  width: 15%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.6) 50%,
+    rgba(255,255,255,0) 100%
+  );
+  transform: skewX(-25deg);
+  opacity: 0;
+  pointer-events: none;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+.portfolio-texture {
+  background-image: url('/textures/stone.jpg');
+  background-size: cover;
+  background-position: center;
+}
+
+@font-face {
+  font-family: 'CreatoDisplay';
+  src: url('/fonts/CreatoDisplay-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'CreatoDisplay';
+  src: url('/fonts/CreatoDisplay-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+/* Modal background fade-in */
+@keyframes fadeInModal {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.animate-fadeInModal {
+  animation: fadeInModal 0.3s ease-out forwards;
+}
+
+/* Modal content fade-in (with slight upward movement) */
+@keyframes fadeInModal {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.animate-fadeInModal {
+  animation: fadeInModal 0.25s ease-out forwards;
+}
+
+@keyframes fadeInContent {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeInContent {
+  animation: fadeInContent 0.35s ease-out forwards;
+}
+
+@keyframes fadeInStagger {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in-delay-1 { animation: fadeInStagger 0.4s ease-out forwards; animation-delay: 0.1s; }
+.fade-in-delay-2 { animation: fadeInStagger 0.4s ease-out forwards; animation-delay: 0.2s; }
+.fade-in-delay-3 { animation: fadeInStagger 0.4s ease-out forwards; animation-delay: 0.3s; }
+.fade-in-delay-4 { animation: fadeInStagger 0.4s ease-out forwards; animation-delay: 0.4s; }
+.fade-in-delay-5 { animation: fadeInStagger 0.4s ease-out forwards; animation-delay: 0.5s; }
+.fade-in-delay-6 { animation: fadeInStagger 0.4s ease-out forwards; animation-delay: 0.6s; }
+
+
+@keyframes shimmer {
+  0% {
+    left: -30%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  50% {
+    left: 100%;
+    opacity: 1;
+  }
+  80% {
+    opacity: 0;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+.logo-shine:nth-child(1)::before { animation-delay: 0s; }
+.logo-shine:nth-child(2)::before { animation-delay: 0.5s; }
+.logo-shine:nth-child(3)::before { animation-delay: 1s; }
+.logo-shine:nth-child(4)::before { animation-delay: 1.5s; }
+.logo-shine:nth-child(5)::before { animation-delay: 2s; }
