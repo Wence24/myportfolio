@@ -511,13 +511,16 @@ useEffect(() => {
 }, [showAddProjectModal]);
 
 useEffect(() => {
-  const shouldLockScroll = showModal || showAddProjectModal;
-  document.body.style.overflow = shouldLockScroll ? "hidden" : "";
+  const shouldLockScroll = !introDone || showModal || showAddProjectModal;
+  const overflowValue = shouldLockScroll ? "hidden" : "";
+  document.body.style.overflow = overflowValue;
+  document.documentElement.style.overflow = overflowValue;
 
   return () => {
     document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
   };
-}, [showModal, showAddProjectModal]);
+}, [introDone, showModal, showAddProjectModal]);
 
 const closeDetailsModal = () => {
   setShowModal(false);
