@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 import { Inter } from "next/font/google";
 import { Home as HomeIcon, User, Video, Award, Mail, Code, Medal, Globe, ArrowUpRight, Film, Palette, ExternalLink } from "lucide-react"; // added icons
 
@@ -24,6 +25,10 @@ const [activeBox, setActiveBox] = useState("Graphic Design"); // default Project
 const [showPortfolio, setShowPortfolio] = useState(false);
 const portfolioShown = useRef(false);
 const [showModal, setShowModal] = useState(false);
+const [selectedProject, setSelectedProject] = useState<PortfolioProject | null>(null);
+const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+const [addProjectModalVisible, setAddProjectModalVisible] = useState(false);
+const [newProjectForm, setNewProjectForm] = useState<NewProjectForm>(createEmptyProjectForm());
 
 
 const [animateTab, setAnimateTab] = useState(false);
@@ -34,16 +39,47 @@ const portfolioCategories = [
   { name: "Certificates", icon: Medal },
 ] as const;
 
-const portfolioProjects: Record<
-  string,
-  Array<{
+type PortfolioProject = {
+  title: string;
+  description: string;
+  image: string;
+  designLink: string;
+  showDetailsModal?: boolean;
+  details?: {
     title: string;
     description: string;
-    image: string;
-    designLink: string;
-    showDetailsModal?: boolean;
-  }>
-> = {
+    heroImage: string;
+    galleryImages: string[];
+  };
+};
+
+type NewProjectForm = {
+  title: string;
+  description: string;
+  image: string;
+  designLink: string;
+  showDetailsModal: boolean;
+  detailsTitle: string;
+  detailsDescription: string;
+  detailsHeroImage: string;
+  galleryImages: string[];
+};
+
+function createEmptyProjectForm(): NewProjectForm {
+  return {
+    title: "",
+    description: "",
+    image: "",
+    designLink: "",
+    showDetailsModal: true,
+    detailsTitle: "",
+    detailsDescription: "",
+    detailsHeroImage: "",
+    galleryImages: [""],
+  };
+}
+
+const initialPortfolioProjects: Record<string, PortfolioProject[]> = {
   "Graphic Design": [
     {
       title: "COMRADZ Sessions",
@@ -52,6 +88,13 @@ const portfolioProjects: Record<
       image: "/comradz.png",
       designLink: "#",
       showDetailsModal: true,
+      details: {
+        title: "COMRADZ Sessions",
+        description:
+          "A weekly poster designed to showcase the details of our Sunday dance sessions. Each poster highlights the schedule, theme, and key information for the day’s session, making it easy for participants to stay informed and join in. The design aims to be clear, engaging, and consistent, creating a recognizable visual identity for COMRADZ’s weekly gatherings.",
+        heroImage: "/comradz2.png",
+        galleryImages: ["/image1.png", "/image2.png", "/image3.png", "/image4.png"],
+      },
     },
     {
       title: "Project Two",
@@ -69,6 +112,10 @@ const portfolioProjects: Record<
   "Video Edit": [],
   Certificates: [],
 };
+
+const [portfolioProjects, setPortfolioProjects] = useState<Record<string, PortfolioProject[]>>(
+  initialPortfolioProjects
+);
 
   // About Me typing + slide-in
 const [helloVisible, setHelloVisible] = useState(false); // slide in from left
@@ -309,7 +356,7 @@ useEffect(() => {
 
   );
 
-  useEffect(() => {
+useEffect(() => {
   if (showModal) {
     const timer = setTimeout(() => setModalVisible(true), 50); // trigger fade in
     return () => clearTimeout(timer);
@@ -317,6 +364,24 @@ useEffect(() => {
     setModalVisible(false);
   }
 }, [showModal]);
+
+useEffect(() => {
+  if (showAddProjectModal) {
+    const timer = setTimeout(() => setAddProjectModalVisible(true), 50);
+    return () => clearTimeout(timer);
+  } else {
+    setAddProjectModalVisible(false);
+  }
+}, [showAddProjectModal]);
+
+useEffect(() => {
+  const shouldLockScroll = showModal || showAddProjectModal;
+  document.body.style.overflow = shouldLockScroll ? "hidden" : "";
+
+  return () => {
+    document.body.style.overflow = "";
+  };
+}, [showModal, showAddProjectModal]);
 
 // SIDE NAV BUTTON
 const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | null>) => (
@@ -335,6 +400,91 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
   </button>
 );
 
+const closeDetailsModal = () => {
+  setShowModal(false);
+  setSelectedProject(null);
+};
+
+const openAddProjectModal = () => {
+  setNewProjectForm(createEmptyProjectForm());
+  setShowAddProjectModal(true);
+};
+
+const closeAddProjectModal = () => {
+  setShowAddProjectModal(false);
+};
+
+const updateGalleryImage = (index: number, value: string) => {
+  setNewProjectForm((prev) => {
+    const nextGallery = [...prev.galleryImages];
+    nextGallery[index] = value;
+    return { ...prev, galleryImages: nextGallery };
+  });
+};
+
+const addGalleryInput = () => {
+  setNewProjectForm((prev) => ({
+    ...prev,
+    galleryImages: [...prev.galleryImages, ""],
+  }));
+};
+
+const removeGalleryInput = (index: number) => {
+  setNewProjectForm((prev) => {
+    if (prev.galleryImages.length === 1) return prev;
+    return {
+      ...prev,
+      galleryImages: prev.galleryImages.filter((_, i) => i !== index),
+    };
+  });
+};
+
+const handleAddProjectSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  event.preventDefault();
+
+  const fallbackImage = "/comradz.png";
+  const fallbackHeroImage = "/comradz2.png";
+  const trimmedTitle = newProjectForm.title.trim();
+  const trimmedDescription = newProjectForm.description.trim();
+  const trimmedCardImage = newProjectForm.image.trim();
+  const trimmedDesignLink = newProjectForm.designLink.trim();
+  const galleryImages = newProjectForm.galleryImages
+    .map((img) => img.trim())
+    .filter((img) => img.length > 0);
+
+  const projectToAdd: PortfolioProject = {
+    title: trimmedTitle || "Untitled Project",
+    description: trimmedDescription || "Project description will be added soon.",
+    image: trimmedCardImage || fallbackImage,
+    designLink: trimmedDesignLink || "#",
+    showDetailsModal: newProjectForm.showDetailsModal,
+  };
+
+  if (newProjectForm.showDetailsModal) {
+    projectToAdd.details = {
+      title: newProjectForm.detailsTitle.trim() || trimmedTitle || "Project Details",
+      description:
+        newProjectForm.detailsDescription.trim() ||
+        trimmedDescription ||
+        "Additional project details will be added soon.",
+      heroImage: newProjectForm.detailsHeroImage.trim() || trimmedCardImage || fallbackHeroImage,
+      galleryImages:
+        galleryImages.length > 0 ? galleryImages : [trimmedCardImage || fallbackImage],
+    };
+  }
+
+  setPortfolioProjects((prev) => ({
+    ...prev,
+    [activeBox]: [...(prev[activeBox] || []), projectToAdd],
+  }));
+
+  closeAddProjectModal();
+  setAnimateTab(false);
+  setTimeout(() => setAnimateTab(true), 50);
+};
+
+const isAnyModalOpen = showModal || showAddProjectModal;
+const activeProjects = portfolioProjects[activeBox] || [];
 
   return (
     <div className="relative min-h-screen bg-zinc-50 dark:bg-black overflow-y-auto">
@@ -533,13 +683,20 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
     🎥 Turning ideas into visuals that speak louder than words 🎥
   </p>
 
+  {/* GLASSMORPHISM CONNECTED CONTAINER (same style as Portfolio Showcase) */}
+  <div
+    className={`relative w-full max-w-7xl mx-auto -mt-1 rounded-xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-lg shadow-black/10 p-2 lg:p-4 overflow-hidden transition-all duration-700 ${
+      showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+    }`}
+    style={{ fontFamily: "Arial, sans-serif", transitionDelay: showAbout ? "0.4s" : "0s" }}
+  >
   {/* FLEX CONTAINER: Text Left, Circle Right */}
-  <div className="relative flex flex-col lg:flex-row items-start w-full max-w-6xl gap-8 mt-20 justify-between">
+  <div className="relative flex flex-col sm:flex-row items-start w-full max-w-7xl mx-auto px-2 lg:px-4 gap-6 lg:gap-8 mt-8 lg:mt-10 pb-8 lg:pb-10 justify-between">
     {/* Left: Text */}
-    <div className="flex-1 flex flex-col items-start lg:pr-8 -ml-27">
+    <div className="order-1 w-full sm:basis-[56%] sm:max-w-[56%] flex flex-col items-start lg:pr-8">
       {/* Hello, I'm */}
       <h3
-        className={`text-3xl sm:text-4xl font-bold mb-0.5 transition-all duration-700 ${
+        className={`text-4xl sm:text-5xl font-bold mb-0.5 transition-all duration-700 ${
           helloVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-64"
         }`}
         style={{
@@ -554,7 +711,7 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
 
       {/* Name */}
       <h4
-        className="text-3xl sm:text-4xl font-bold text-white transition-all duration-700 delay-300 flex items-center"
+        className="text-4xl sm:text-5xl font-bold text-white transition-all duration-700 delay-300 flex items-center"
         style={{
           opacity: helloVisible ? 1 : 0,
           transform: helloVisible ? "translateX(0)" : "translateX(-64px)",
@@ -732,11 +889,12 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
 </div>
 
 
+ </div>
 
-    </div>
+
 {/* Right: Image (same as v6.png style) */}
 <div
-  className={`flex-shrink-0 self-start -mt-35 -mr-23 transition-all duration-700 ease-out ${
+  className={`relative order-2 w-full sm:basis-[44%] sm:max-w-[44%] flex-shrink-0 self-start sm:ml-auto mt-2 sm:mt-0 lg:-mt-12 transition-all duration-700 ease-out ${
     helloVisible
       ? "opacity-100 translate-x-0"
       : "opacity-0 translate-x-24"
@@ -746,34 +904,32 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
   <Image
     src="/wenshe.png"
     alt="Wence portrait"
-    width={600}
-    height={600}
+    width={520}
+    height={520}
     priority
     className="
+      w-full
+      h-auto
       object-contain
       grayscale
       drop-shadow-2xl
     "
   />
   
-
- 
-</div>
-
- {/* NEW LARGE GLASSMORPHISM BUTTONS OVER IMAGE */}
-<div
-  ref={buttonsRef}
-  className="absolute -bottom-15 left-1/2 transform -translate-x-1/2 flex gap-3 z-10"
->
+  {/* NEW LARGE GLASSMORPHISM BUTTONS OVER IMAGE */}
+  <div
+    ref={buttonsRef}
+    className="absolute bottom-1 left-3 right-3 z-20 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:left-[-128%] sm:right-auto sm:w-[228%] sm:gap-3"
+  >
 
   {/* Button 1 as horizontal glass card */}
   <button 
     
-    className={`w-[448px] h-[150px] relative rounded-lg backdrop-blur-xl bg-white/10 border border-white/20 shadow-lg shadow-black/10 p-4 flex flex-col justify-start transition-all duration-700 hover:scale-105 hover:shadow-xl hover:shadow-white/20 ${
+    className={`w-full h-[150px] relative rounded-lg backdrop-blur-xl bg-black/35 border border-white/20 shadow-lg shadow-black/10 p-4 flex flex-col justify-start transition-all duration-300 hover:duration-200 hover:scale-105 hover:shadow-xl hover:shadow-white/20 ${
   buttonsVisible[0] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
 }`}
 
-    style={{ fontFamily: "Arial, sans-serif", animationDelay: "0.2s",}}
+    style={{ fontFamily: "Arial, sans-serif" }}
   >
     {/* Top row: Icon left, Number right */}
     <div className="flex justify-between items-start">
@@ -783,7 +939,7 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
       </div>
 
       {/* Number */}
-      <div className="text-2xl font-bold">{3}</div>
+      <div className="text-3xl font-bold leading-none">{3}</div>
     </div>
 
     {/* Bottom-left: Title + Description */}
@@ -798,11 +954,11 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
 
   {/* Button 2 */}
   <button
-    className={`w-[448px] h-[150px] relative rounded-lg backdrop-blur-xl bg-white/10 border border-white/20 shadow-lg shadow-black/10 p-4 flex flex-col justify-start transition-all duration-700 hover:scale-105 hover:shadow-xl hover:shadow-white/20 ${
+    className={`w-full h-[150px] relative rounded-lg backdrop-blur-xl bg-black/35 border border-white/20 shadow-lg shadow-black/10 p-4 flex flex-col justify-start transition-all duration-300 hover:duration-200 hover:scale-105 hover:shadow-xl hover:shadow-white/20 ${
   buttonsVisible[1] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
 }`}
 
-    style={{ fontFamily: "Arial, sans-serif", animationDelay: "0.6s", transitionDelay: buttonsVisible[1] ? "0.6s" : "0s" }}
+    style={{ fontFamily: "Arial, sans-serif" }}
   >
     {/* Top row: Icon left, Number right */}
     <div className="flex justify-between items-start">
@@ -812,7 +968,7 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
       </div>
 
       {/* Number */}
-      <div className="text-2xl font-bold">{0}</div>
+      <div className="text-3xl font-bold leading-none">{0}</div>
     </div>
 
     {/* Bottom-left: Title + Description */}
@@ -827,10 +983,10 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
 
   {/* Button 3 */}
   <button
-      className={`w-[448px] h-[150px] relative rounded-lg backdrop-blur-xl bg-white/10 border border-white/20 shadow-lg shadow-black/10 p-4 flex flex-col justify-start transition-all duration-700 hover:scale-105 hover:shadow-xl hover:shadow-white/20 ${
+      className={`w-full h-[150px] relative rounded-lg backdrop-blur-xl bg-black/35 border border-white/20 shadow-lg shadow-black/10 p-4 flex flex-col justify-start transition-all duration-300 hover:duration-200 hover:scale-105 hover:shadow-xl hover:shadow-white/20 ${
   buttonsVisible[2] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
 }`}
-  style={{ fontFamily: "Arial, sans-serif", animationDelay: "0.8s", transitionDelay: buttonsVisible[2] ? "1s" : "0s" }}
+  style={{ fontFamily: "Arial, sans-serif" }}
   >
     {/* Top row: Icon left, Number right */}
     <div className="flex justify-between items-start">
@@ -840,12 +996,12 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
       </div>
 
       {/* Number */}
-      <div className="text-2xl font-bold">{2}</div>
+      <div className="text-3xl font-bold leading-none">{2}</div>
     </div>
 
     {/* Bottom-left: Title + Description */}
     <div className="flex flex-col gap-0.5 mt-4">
-      <span className="text-sm uppercase opacity-80 text-left">YEARS OF EXPERIENCE</span>
+      <span className="text-[11px] uppercase opacity-80 text-left">YEARS OF EXPERIENCE</span>
       <span className="text-xs opacity-70 text-left">Continuous learning journey</span>
     </div>
 
@@ -868,19 +1024,17 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
     }
   `}</style>
 
+  </div>
 </div>
 
-
-
-
-
   </div>
+</div>
 </div>
 
 {/* ===== PORTFOLIO SHOWCASE SECTION ===== */}
 <div
   ref={portfolioRef}
-  className="relative flex flex-col items-center mt-50 transition-all duration-700 ease-out"
+  className="relative flex flex-col items-center mt-16 lg:mt-20 transition-all duration-700 ease-out"
 >
   {/* Heading */}
   <h2
@@ -915,11 +1069,17 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
 
 {/* GLASSMORPHISM CONNECTED CONTAINER */}
 <div
-  className={`w-full max-w-7xl mx-auto -mt-1 rounded-xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-lg shadow-black/10 p-2 lg:p-4 transition-all duration-700 ${
+  className={`relative w-full max-w-7xl mx-auto -mt-1 rounded-xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-lg shadow-black/10 p-2 lg:p-4 pb-8 lg:pb-10 overflow-hidden transition-all duration-700 ${
     showPortfolio ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
   }`}
   style={{ fontFamily: "Arial, sans-serif", transitionDelay: showPortfolio ? "0.4s" : "0s" }}
 >
+  <div
+    className={`pointer-events-none absolute inset-0 z-30 rounded-xl bg-black/40 transition-opacity duration-300 ${
+      isAnyModalOpen ? "opacity-100" : "opacity-0"
+    }`}
+  />
+
   <div className="flex flex-col lg:flex-row gap-4">
     {portfolioCategories.map((item) => {
       const Icon = item.icon;
@@ -950,9 +1110,9 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
   {showPortfolio && (
     <div
       key={`${activeBox}-${animateTab ? "in" : "out"}`}
-      className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+      className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-2"
     >
-      {(portfolioProjects[activeBox] || []).map((project, index) => (
+      {activeProjects.map((project, index) => (
         <div
           key={`${activeBox}-${project.title}-${index}`}
           className="bg-white/10 backdrop-blur-xl border border-white/10 shadow-lg p-4 rounded-lg transition-all duration-700 hover:scale-105 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)] hover:bg-white/20 opacity-0 translate-y-6 animate-fadeIn"
@@ -979,7 +1139,10 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
 
             {project.showDetailsModal ? (
               <button
-                onClick={() => setShowModal(true)}
+                onClick={() => {
+                  setSelectedProject(project);
+                  setShowModal(true);
+                }}
                 className="flex items-center gap-1 text-xs text-white/90 font-semibold px-2 py-1 rounded-sm backdrop-blur-md bg-white/0 border border-white/5 hover:bg-white/20 transition-all duration-300 cursor-pointer"
               >
                 Details
@@ -1006,95 +1169,310 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
           </div>
         </div>
       ))}
+
+      <div
+        key={`${activeBox}-add-project`}
+        onClick={openAddProjectModal}
+        className="bg-white/10 backdrop-blur-xl border border-dashed border-[#0099ff]/50 shadow-lg p-4 rounded-lg transition-all duration-700 hover:scale-105 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)] hover:bg-white/20 opacity-0 translate-y-6 animate-fadeIn cursor-pointer"
+        style={{ animationDelay: `${0.2 + activeProjects.length * 0.2}s` }}
+      >
+        <div className="w-full h-[250px] rounded-lg mb-4 border border-dashed border-white/25 bg-white/5 flex items-center justify-center">
+          <span className="text-6xl leading-none text-[#0099ff] animate-pulse-slow">+</span>
+        </div>
+
+        <h3 className="text-white text-m mb-1 project-heading tracking-wider">Add New Project</h3>
+        <p className="text-xs text-white/80 mb-4 mt-2 line-clamp-3">
+          Click to open the project creator modal for the selected category.
+        </p>
+
+        <div className="flex justify-between items-center mt-4">
+          <span className="flex items-center gap-2 text-xs text-[#0099ff] font-semibold">
+            Link to design
+            <ExternalLink className="w-3 h-3 -mt-[0px] -ml-1" />
+          </span>
+
+          <span className="flex items-center gap-1 text-xs text-white/50 font-semibold px-2 py-1 rounded-sm border border-white/5">
+            Details
+          </span>
+        </div>
+      </div>
     </div>
   )}
 
-  {showModal && (
-  <div
-    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-    onClick={() => setShowModal(false)}
-  >
+  {showModal &&
+    selectedProject &&
+    typeof window !== "undefined" &&
+    createPortal(
     <div
-      className="relative w-11/12 max-w-7xl lg:max-w-8xl bg-black/20 backdrop-blur-3xl rounded-3xl p-8 flex flex-col justify-start transform transition-all duration-500"
-      onClick={(e) => e.stopPropagation()}
-      style={{
-        background:
-          "linear-gradient(135deg, rgba(0,0,0,0.4), rgba(255,255,255,0.12), rgba(0,153,255,0.12))",
-      }}
+      className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
+        modalVisible ? "opacity-100" : "opacity-0"
+      }`}
+      onClick={closeDetailsModal}
     >
-      {/* Main content */}
-      <div className="flex flex-col md:flex-row items-start gap-6">
-        <div className="md:w-1/2 flex flex-col justify-center space-y-4">
-          <h1
-            style={{
-              fontFamily: "'CreatoDisplay', sans-serif",
-              fontWeight: "700",
-              letterSpacing: "1.5px",
-            }}
-            className="text-3xl md:text-4xl text-white"
-          >
-            COMRADZ Sessions
-          </h1>
-
-          <div
-            className="w-20 h-1 rounded-full"
-            style={{
-              background: "linear-gradient(to right, #0099ff, #00d4ff)",
-              boxShadow: "0 0 8px #0099ff, 0 0 16px #00d4ff",
-            }}
-          ></div>
-
-          <p className="text-white text-sm md:text-base max-w-[90%] opacity-80 text-justify leading-relaxed">
-            A weekly poster designed to showcase the details of our Sunday dance sessions.
-            Each poster highlights the schedule, theme, and key information for the day’s session,
-            making it easy for participants to stay informed and join in. The design aims to be clear,
-            engaging, and consistent, creating a recognizable visual identity for COMRADZ’s weekly gatherings.
-        
-          </p>
-        </div>
-
-        <div className="md:w-1/2 flex justify-center items-start">
-          <img
-            src="/comradz2.png"
-            alt="COMRADZ Poster"
-            className="max-h-60 md:max-h-72 object-contain rounded-lg"
-          />
-        </div>
-      </div>
-
-      {/* Glassmorphism Image Row */}
       <div
-        className="mt-5 grid grid-cols-4 gap-4 p-3 rounded-xl"
+        className={`relative w-11/12 max-w-6xl bg-black/20 backdrop-blur-3xl rounded-3xl border border-[#0099ff]/25 shadow-[0_0_24px_rgba(0,153,255,0.2)] modal-blue-flow p-6 md:p-8 flex flex-col justify-start transform transition-all duration-500 ${
+          modalVisible ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-4 scale-95"
+        }`}
+        onClick={(e) => e.stopPropagation()}
         style={{
-          background: "rgba(255,255,255,0.05)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(255,255,255,0.15)",
+          background:
+            "linear-gradient(135deg, rgba(0,0,0,0.45), rgba(255,255,255,0.1), rgba(0,153,255,0.14))",
         }}
       >
-        {[1, 2, 3, 4].map((num) => (
-          <div
-            key={num}
-            className="relative aspect-square rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-md hover:shadow-cyan-500/40"
-          >
+        <div
+          className="pointer-events-none absolute inset-0 rounded-3xl modal-flow-layer"
+          style={{
+            background:
+              "radial-gradient(70% 55% at 14% 10%, rgba(0,153,255,0.18), transparent 65%), radial-gradient(50% 40% at 88% 88%, rgba(0,153,255,0.12), transparent 70%)",
+          }}
+        />
+
+        <div className="relative z-10 flex flex-col md:flex-row items-start gap-6">
+          <div className="md:w-1/2 flex flex-col justify-center space-y-4">
+            <h1
+              style={{
+                fontFamily: "'CreatoDisplay', sans-serif",
+                fontWeight: "700",
+                letterSpacing: "1.5px",
+              }}
+              className="text-3xl md:text-4xl text-white"
+            >
+              {selectedProject.details?.title || selectedProject.title}
+            </h1>
+
+            <div
+              className="w-20 h-1 rounded-full"
+              style={{
+                background: "linear-gradient(to right, #0099ff, #00d4ff)",
+                boxShadow: "0 0 8px #0099ff, 0 0 16px #00d4ff",
+              }}
+            ></div>
+
+            <p className="text-white text-sm md:text-base max-w-[90%] opacity-80 text-justify leading-relaxed">
+              {selectedProject.details?.description || selectedProject.description}
+            </p>
+          </div>
+
+          <div className="md:w-1/2 flex justify-center items-start">
             <img
-              src={`/image${num}.png`}
-              alt={`Gallery ${num}`}
-              className="w-full h-full object-cover"
+              src={selectedProject.details?.heroImage || selectedProject.image}
+              alt={`${selectedProject.title} preview`}
+              className="max-h-60 md:max-h-72 object-contain rounded-lg"
             />
           </div>
-        ))}
-      </div>
+        </div>
 
-      {/* Close button */}
-      <button
-        onClick={() => setShowModal(false)}
-        className="absolute top-5 right-5 text-white text-lg font-bold hover:text-[#0099ff] transition-colors"
+        <div
+          className="relative z-10 mt-5 grid grid-cols-2 md:grid-cols-4 gap-4 p-3 rounded-xl"
+          style={{
+            background: "rgba(255,255,255,0.05)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,255,255,0.15)",
+          }}
+        >
+          {(selectedProject.details?.galleryImages?.length
+            ? selectedProject.details.galleryImages
+            : [selectedProject.image]
+          ).map((imageSrc, index) => (
+            <div
+              key={`${selectedProject.title}-gallery-${index}`}
+              className="relative aspect-square rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-md hover:shadow-cyan-500/40"
+            >
+              <img
+                src={imageSrc}
+                alt={`${selectedProject.title} gallery ${index + 1}`}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={closeDetailsModal}
+          className="relative z-10 absolute top-5 right-5 text-white text-lg font-bold hover:text-[#0099ff] transition-colors"
+        >
+          ✕
+        </button>
+      </div>
+    </div>,
+    document.body
+  )}
+
+  {showAddProjectModal &&
+    typeof window !== "undefined" &&
+    createPortal(
+    <div
+      className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${
+        addProjectModalVisible ? "opacity-100" : "opacity-0"
+      }`}
+      onClick={closeAddProjectModal}
+    >
+      <div
+        className={`relative w-11/12 max-w-5xl max-h-[84vh] overflow-y-auto rounded-3xl border border-[#0099ff]/25 shadow-[0_0_24px_rgba(0,153,255,0.22)] modal-blue-flow p-5 md:p-6 transform transition-all duration-500 ${
+          addProjectModalVisible
+            ? "opacity-100 translate-y-0 scale-100"
+            : "opacity-0 translate-y-4 scale-95"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(0,0,0,0.6), rgba(255,255,255,0.1), rgba(0,153,255,0.16))",
+        }}
       >
-        ✕
-      </button>
-    </div>
-  </div>
-)}
+        <div
+          className="pointer-events-none absolute inset-0 rounded-3xl modal-flow-layer"
+          style={{
+            background:
+              "radial-gradient(65% 50% at 12% 8%, rgba(0,153,255,0.2), transparent 68%), radial-gradient(45% 36% at 86% 92%, rgba(0,153,255,0.13), transparent 72%)",
+          }}
+        />
+
+        <h2
+          className="relative z-10 text-2xl md:text-3xl text-white font-bold"
+          style={{ fontFamily: "'CreatoDisplay', sans-serif", letterSpacing: "1px" }}
+        >
+          Add Project to {activeBox}
+        </h2>
+        <p className="relative z-10 text-xs md:text-sm text-white/75 mt-2">
+          Fill in the fields below. You can add as many gallery images as you want.
+        </p>
+
+        <form onSubmit={handleAddProjectSubmit} className="relative z-10 mt-6 space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              type="text"
+              value={newProjectForm.title}
+              onChange={(e) => setNewProjectForm((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder="Project title"
+              className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+              required
+            />
+            <input
+              type="text"
+              value={newProjectForm.image}
+              onChange={(e) => setNewProjectForm((prev) => ({ ...prev, image: e.target.value }))}
+              placeholder="Card image path (e.g. /my-image.png)"
+              className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+            />
+            <input
+              type="text"
+              value={newProjectForm.designLink}
+              onChange={(e) => setNewProjectForm((prev) => ({ ...prev, designLink: e.target.value }))}
+              placeholder="Design link (e.g. https://...)"
+              className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+            />
+            <label className="flex items-center gap-2 text-sm text-white/90">
+              <input
+                type="checkbox"
+                checked={newProjectForm.showDetailsModal}
+                onChange={(e) =>
+                  setNewProjectForm((prev) => ({ ...prev, showDetailsModal: e.target.checked }))
+                }
+                className="accent-[#0099ff]"
+              />
+              Enable details modal for this project
+            </label>
+          </div>
+
+          <textarea
+            value={newProjectForm.description}
+            onChange={(e) => setNewProjectForm((prev) => ({ ...prev, description: e.target.value }))}
+            placeholder="Project description"
+            className="w-full min-h-[120px] rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+            required
+          />
+
+          {newProjectForm.showDetailsModal && (
+            <div className="rounded-xl border border-white/15 bg-black/25 p-4 space-y-4">
+              <h3 className="text-sm md:text-base font-semibold text-white">Details Modal Content</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  value={newProjectForm.detailsTitle}
+                  onChange={(e) =>
+                    setNewProjectForm((prev) => ({ ...prev, detailsTitle: e.target.value }))
+                  }
+                  placeholder="Details modal title"
+                  className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+                />
+                <input
+                  type="text"
+                  value={newProjectForm.detailsHeroImage}
+                  onChange={(e) =>
+                    setNewProjectForm((prev) => ({ ...prev, detailsHeroImage: e.target.value }))
+                  }
+                  placeholder="Details hero image path"
+                  className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+                />
+              </div>
+
+              <textarea
+                value={newProjectForm.detailsDescription}
+                onChange={(e) =>
+                  setNewProjectForm((prev) => ({ ...prev, detailsDescription: e.target.value }))
+                }
+                placeholder="Details modal description"
+                className="w-full min-h-[100px] rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+              />
+
+              <div className="space-y-3">
+                {newProjectForm.galleryImages.map((imagePath, index) => (
+                  <div key={`new-gallery-${index}`} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={imagePath}
+                      onChange={(e) => updateGalleryImage(index, e.target.value)}
+                      placeholder={`Gallery image ${index + 1} path`}
+                      className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeGalleryInput(index)}
+                      className="px-3 rounded-lg border border-white/20 text-white/85 text-sm hover:bg-white/10 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addGalleryInput}
+                  className="px-3 py-2 rounded-lg border border-[#0099ff]/60 text-[#8fd3ff] text-sm hover:bg-[#0099ff]/15 transition-colors"
+                >
+                  + Add gallery image
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={closeAddProjectModal}
+              className="px-4 py-2 rounded-lg border border-white/20 text-white/90 text-sm hover:bg-white/10 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg bg-[#0099ff] text-white text-sm font-semibold hover:bg-[#00a6ff] transition-colors"
+            >
+              Add Project
+            </button>
+          </div>
+        </form>
+
+        <button
+          onClick={closeAddProjectModal}
+          className="relative z-10 absolute top-4 right-4 text-white text-lg font-bold hover:text-[#0099ff] transition-colors"
+        >
+          ✕
+        </button>
+      </div>
+    </div>,
+    document.body
+  )}
 
   {/* Fade-in animation & font */}
   <style jsx>{`
@@ -1119,6 +1497,30 @@ const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | nu
     }
     .animate-fadeIn {
       animation: fadeIn 0.7s forwards;
+    }
+    @keyframes modalBlueFlow {
+      0%, 100% {
+        box-shadow: 0 0 18px rgba(0, 153, 255, 0.14), 0 0 38px rgba(0, 153, 255, 0.08);
+      }
+      50% {
+        box-shadow: 0 0 28px rgba(0, 153, 255, 0.24), 0 0 52px rgba(0, 153, 255, 0.14);
+      }
+    }
+    @keyframes modalFlowLayer {
+      0%, 100% {
+        opacity: 0.42;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.72;
+        transform: scale(1.03);
+      }
+    }
+    .modal-blue-flow {
+      animation: modalBlueFlow 4s ease-in-out infinite;
+    }
+    .modal-flow-layer {
+      animation: modalFlowLayer 4.2s ease-in-out infinite;
     }
   `}</style>
 </div>
