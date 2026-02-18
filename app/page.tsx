@@ -16,6 +16,9 @@ export default function Home() {
   const [textVisible, setTextVisible] = useState(false);
   const [imageVisible, setImageVisible] = useState(false);
   const [introDone, setIntroDone] = useState(false);
+  const [introPulse, setIntroPulse] = useState(false);
+  const [introLogoVisible, setIntroLogoVisible] = useState(false);
+  const [introExit, setIntroExit] = useState(false);
   const [showAbout, setShowAbout] = useState(false); // scroll-triggered About Me
   const [videoText, setVideoText] = useState("");
   const [graphicText, setGraphicText] = useState("");
@@ -146,6 +149,13 @@ const hasShownHello = useRef(false);
 
   const [showSideNav, setShowSideNav] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
+  const sideNavIds = ["home", "about", "portfolio", "cert", "contact"] as const;
+  type SideNavId = (typeof sideNavIds)[number];
+  const [sideNavDropId, setSideNavDropId] = useState<string | null>(null);
+  const sideNavDropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [sideNavTransfer, setSideNavTransfer] = useState<{ from: number; to: number; key: number } | null>(null);
+  const sideNavTransferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousActiveSectionRef = useRef<SideNavId>("home");
 
 useEffect(() => {
   if (!portfolioRef.current) return;
@@ -167,42 +177,67 @@ useEffect(() => {
   return () => observer.disconnect();
 }, []);
 
-
-  // Typing animation
+  // Intro + typing animation
   useEffect(() => {
     if (hasRun.current) return;
     hasRun.current = true;
 
-    setTimeout(() => setIntroDone(true), 400);
-    setTimeout(() => setTextVisible(true), 300);
-    setTimeout(() => setImageVisible(true), 700);
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    let videoInterval: ReturnType<typeof setInterval> | null = null;
+    let graphicInterval: ReturnType<typeof setInterval> | null = null;
 
-    let vIndex = 0;
-    let gIndex = 0;
+    const schedule = (callback: () => void, delay: number) => {
+      timers.push(setTimeout(callback, delay));
+    };
 
-    const videoInterval = setInterval(() => {
-      setVideoText(videoFullText.slice(0, vIndex + 1));
-      vIndex++;
+    schedule(() => setIntroPulse(true), 80);
+    schedule(() => setIntroLogoVisible(true), 260);
+    schedule(() => setIntroExit(true), 1480);
+    schedule(() => setTextVisible(true), 1580);
+    schedule(() => setImageVisible(true), 1840);
 
-      if (vIndex === videoFullText.length) {
-        clearInterval(videoInterval);
-        setVideoDone(true);
+    schedule(() => {
+      let vIndex = 0;
+      let gIndex = 0;
 
-        setTimeout(() => {
-          const graphicInterval = setInterval(() => {
-            setGraphicText(graphicFullText.slice(0, gIndex + 1));
-            gIndex++;
+      videoInterval = setInterval(() => {
+        setVideoText(videoFullText.slice(0, vIndex + 1));
+        vIndex++;
 
-            if (gIndex === graphicFullText.length) {
-              clearInterval(graphicInterval);
-              setGraphicDone(true);
-            }
-          }, 100);
-        }, 500);
-      }
-    }, 100);
+        if (vIndex === videoFullText.length) {
+          if (videoInterval) {
+            clearInterval(videoInterval);
+            videoInterval = null;
+          }
+          setVideoDone(true);
 
-    return () => clearInterval(videoInterval);
+          timers.push(
+            setTimeout(() => {
+              graphicInterval = setInterval(() => {
+                setGraphicText(graphicFullText.slice(0, gIndex + 1));
+                gIndex++;
+
+                if (gIndex === graphicFullText.length) {
+                  if (graphicInterval) {
+                    clearInterval(graphicInterval);
+                    graphicInterval = null;
+                  }
+                  setGraphicDone(true);
+                }
+              }, 100);
+            }, 420)
+          );
+        }
+      }, 100);
+    }, 1640);
+
+    schedule(() => setIntroDone(true), 2120);
+
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      if (videoInterval) clearInterval(videoInterval);
+      if (graphicInterval) clearInterval(graphicInterval);
+    };
   }, []);
 
   useEffect(() => {
@@ -305,7 +340,7 @@ useEffect(() => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
   if (!navbarRef.current) return;
 
   const observer = new IntersectionObserver(
@@ -321,6 +356,51 @@ useEffect(() => {
     observer.disconnect();
   };
 }, []);
+
+useEffect(() => {
+  return () => {
+    if (sideNavDropTimerRef.current) {
+      clearTimeout(sideNavDropTimerRef.current);
+    }
+    if (sideNavTransferTimerRef.current) {
+      clearTimeout(sideNavTransferTimerRef.current);
+    }
+  };
+}, []);
+
+const scrollToSection = (ref: React.RefObject<HTMLDivElement | null> | null) => {
+  const targetTop = ref?.current ? ref.current.offsetTop : 0;
+  window.scrollTo({ top: targetTop, behavior: "smooth" });
+};
+
+useEffect(() => {
+  const nextSection = activeSection as SideNavId;
+  const previousSection = previousActiveSectionRef.current;
+  if (previousSection === nextSection) return;
+
+  const fromIndex = sideNavIds.indexOf(previousSection);
+  const toIndex = sideNavIds.indexOf(nextSection);
+  if (fromIndex >= 0 && toIndex >= 0) {
+    setSideNavTransfer({ from: fromIndex, to: toIndex, key: Date.now() });
+
+    if (sideNavTransferTimerRef.current) {
+      clearTimeout(sideNavTransferTimerRef.current);
+    }
+    sideNavTransferTimerRef.current = setTimeout(() => {
+      setSideNavTransfer(null);
+    }, 860);
+
+    setSideNavDropId(nextSection);
+    if (sideNavDropTimerRef.current) {
+      clearTimeout(sideNavDropTimerRef.current);
+    }
+    sideNavDropTimerRef.current = setTimeout(() => {
+      setSideNavDropId(null);
+    }, 760);
+  }
+
+  previousActiveSectionRef.current = nextSection;
+}, [activeSection]);
 
   // NAV LIST WITH ACTIVE UNDERLINE
   const navList = (
@@ -341,12 +421,7 @@ useEffect(() => {
           : ""
       }`}
       onClick={() => {
-        if (item.ref) {
-          item.ref.current?.scrollIntoView({ behavior: "smooth" });
-        } else {
-          // Scroll to top for Home
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }
+        scrollToSection(item.ref);
       }}
     >
       {item.name}
@@ -384,19 +459,30 @@ useEffect(() => {
 }, [showModal, showAddProjectModal]);
 
 // SIDE NAV BUTTON
-const sideBtn = (id: string, Icon: any, ref: React.RefObject<HTMLDivElement | null>) => (
+const sideBtn = (id: SideNavId, Icon: any, ref: React.RefObject<HTMLDivElement | null>) => (
   <button
-    onClick={() => ref.current?.scrollIntoView({ behavior: "smooth" })}
+    onClick={() => {
+      setSideNavDropId(id);
+      if (sideNavDropTimerRef.current) {
+        clearTimeout(sideNavDropTimerRef.current);
+      }
+      sideNavDropTimerRef.current = setTimeout(() => {
+        setSideNavDropId(null);
+      }, 760);
+      scrollToSection(ref);
+    }}
     className={`
+      side-wave-btn relative isolate overflow-hidden
       w-12 h-12 rounded-full flex items-center justify-center
       transition-all duration-300 ease-out
+      ${sideNavDropId === id ? "side-nav-drop-active" : ""}
       ${activeSection === id 
         ? "scale-125 bg-white text-black shadow-lg shadow-blue-400/50 hover:shadow-blue-500/70 hover:scale-130"
         : "scale-100 bg-black/70 text-white hover:scale-110 hover:shadow-lg hover:shadow-white/30"
       }
     `}
   >
-    <Icon size={18} />
+    <Icon size={18} className="relative z-10" />
   </button>
 );
 
@@ -488,12 +574,42 @@ const activeProjects = portfolioProjects[activeBox] || [];
 
   return (
     <div className="relative min-h-screen bg-zinc-50 dark:bg-black overflow-y-auto">
-      {/* INTRO BLACK SCREEN */}
-      <div
-        className={`fixed inset-0 z-[9999] bg-black transition-opacity duration-700 pointer-events-none ${
-          introDone ? "opacity-0" : "opacity-100"
-        }`}
-      />
+      {/* INTRO BUILD-UP + LOGO REVEAL */}
+      {!introDone && (
+        <div
+          className={`fixed inset-0 z-[9999] pointer-events-none overflow-hidden transition-opacity duration-700 ${
+            introExit ? "opacity-0" : "opacity-100"
+          }`}
+        >
+          <div className="absolute inset-0 bg-black/88" />
+          <div
+            className={`absolute inset-0 ${
+              introPulse ? "intro-backdrop-active" : "intro-backdrop-idle"
+            }`}
+          />
+          <div className={`intro-scanline ${introPulse ? "intro-scanline-active" : ""}`} />
+          <div className={`intro-burst ${introPulse ? "intro-burst-active" : ""}`} />
+
+          <div
+            className={`relative z-10 flex h-full items-center justify-center transition-all duration-500 ${
+              introLogoVisible
+                ? "opacity-100 scale-100 translate-y-0"
+                : "opacity-0 scale-75 translate-y-3"
+            }`}
+          >
+            <div className="intro-logo-shell">
+              <Image
+                src="/logo.png"
+                alt="Wence logo"
+                width={150}
+                height={150}
+                priority
+                className="h-auto w-[120px] sm:w-[140px] md:w-[150px] intro-logo-mark"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* GRUNGE BACKGROUND */}
       <div className="absolute inset-0 z-0">
@@ -546,6 +662,34 @@ const activeProjects = portfolioProjects[activeBox] || [];
   {sideBtn("portfolio", Video, portfolioRef)}
   {sideBtn("cert", Award, certRef)}
   {sideBtn("contact", Mail, contactRef)}
+
+  {sideNavTransfer &&
+    (() => {
+      const step = 64; // 48px button + 16px gap
+      const centerOffset = 24;
+      const fromY = centerOffset + sideNavTransfer.from * step;
+      const toY = centerOffset + sideNavTransfer.to * step;
+      const minY = Math.min(fromY, toY);
+      const distance = Math.max(Math.abs(toY - fromY), 2);
+      const travel = toY - fromY;
+      const dropStyle: React.CSSProperties & { "--side-nav-travel": string } = {
+        left: "50%",
+        top: `${fromY}px`,
+        "--side-nav-travel": `${travel}px`,
+      };
+
+      return (
+        <div key={`side-nav-transfer-${sideNavTransfer.key}`} className="pointer-events-none absolute inset-0 z-[60]">
+          <div
+            className={`side-nav-transfer-trail ${
+              travel >= 0 ? "side-nav-transfer-trail-down" : "side-nav-transfer-trail-up"
+            }`}
+            style={{ left: "50%", top: `${minY}px`, height: `${distance}px` }}
+          />
+          <div className="side-nav-transfer-drop" style={dropStyle} />
+        </div>
+      );
+    })()}
 </div>
 
 
@@ -1553,6 +1697,316 @@ const activeProjects = portfolioProjects[activeBox] || [];
       <div className="h-[100vh]" />
 
       <style>{`
+        .side-nav-transfer-trail {
+          position: absolute;
+          width: 16px;
+          border-radius: 9999px;
+          transform: translateX(-50%);
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.72) 0%,
+            rgba(210, 243, 255, 0.46) 36%,
+            rgba(121, 201, 255, 0.22) 72%,
+            rgba(121, 201, 255, 0) 100%
+          );
+          box-shadow: 0 0 14px rgba(125, 203, 255, 0.35);
+          filter: blur(1.1px);
+          opacity: 0;
+        }
+        .side-nav-transfer-trail-down {
+          transform-origin: top center;
+          animation: sideNavTrailDown 0.88s ease-out forwards;
+        }
+        .side-nav-transfer-trail-up {
+          transform-origin: bottom center;
+          animation: sideNavTrailUp 0.88s ease-out forwards;
+        }
+        .side-nav-transfer-drop {
+          position: absolute;
+          width: 48px;
+          height: 48px;
+          border-radius: 9999px;
+          transform: translate(-50%, -50%);
+          background: radial-gradient(
+            circle at 36% 28%,
+            rgba(255, 255, 255, 1) 0%,
+            rgba(245, 252, 255, 0.98) 42%,
+            rgba(220, 242, 255, 0.92) 70%,
+            rgba(182, 223, 255, 0.78) 100%
+          );
+          box-shadow:
+            0 2px 12px rgba(139, 208, 255, 0.42),
+            0 0 20px rgba(171, 226, 255, 0.25),
+            inset 0 -4px 7px rgba(117, 176, 220, 0.4);
+          opacity: 0;
+          animation: sideNavTransferDrop 0.88s cubic-bezier(0.22, 0.72, 0.24, 1) forwards;
+        }
+        @keyframes sideNavTrailDown {
+          0% {
+            opacity: 0;
+            transform: translateX(-50%) scaleX(0.42) scaleY(0.12);
+          }
+          22% {
+            opacity: 0.72;
+          }
+          58% {
+            opacity: 0.52;
+          }
+          100% {
+            opacity: 0;
+            transform: translateX(-50%) scaleX(0.95) scaleY(1.03);
+          }
+        }
+        @keyframes sideNavTrailUp {
+          0% {
+            opacity: 0;
+            transform: translateX(-50%) scaleX(0.42) scaleY(0.12);
+          }
+          22% {
+            opacity: 0.72;
+          }
+          58% {
+            opacity: 0.52;
+          }
+          100% {
+            opacity: 0;
+            transform: translateX(-50%) scaleX(0.95) scaleY(1.03);
+          }
+        }
+        @keyframes sideNavTransferDrop {
+          0% {
+            opacity: 0.96;
+            transform: translate(-50%, -50%) scale(1);
+            width: 48px;
+            height: 48px;
+            border-radius: 9999px;
+            box-shadow:
+              0 2px 10px rgba(146, 212, 255, 0.4),
+              0 0 16px rgba(184, 230, 255, 0.22);
+          }
+          22% {
+            transform: translate(
+              -50%,
+              calc(-50% + calc(var(--side-nav-travel) * 0.2))
+            ) scale(0.98, 1.02);
+            width: 44px;
+            height: 54px;
+            border-radius: 52% 48% 57% 43% / 41% 59% 43% 57%;
+          }
+          52% {
+            transform: translate(
+              -50%,
+              calc(-50% + calc(var(--side-nav-travel) * 0.56))
+            ) scale(0.94, 1.08);
+            width: 24px;
+            height: 72px;
+            border-radius: 16px;
+            box-shadow:
+              0 0 18px rgba(166, 225, 255, 0.35),
+              0 3px 14px rgba(112, 191, 245, 0.35);
+          }
+          74% {
+            transform: translate(
+              -50%,
+              calc(-50% + calc(var(--side-nav-travel) * 0.82))
+            ) scale(0.95, 1.04);
+            width: 30px;
+            height: 62px;
+            border-radius: 18px;
+          }
+          88% {
+            transform: translate(
+              -50%,
+              calc(-50% + calc(var(--side-nav-travel) * 0.94))
+            ) scale(1, 1);
+            width: 46px;
+            height: 50px;
+            border-radius: 9999px;
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, calc(-50% + var(--side-nav-travel))) scale(1);
+            width: 48px;
+            height: 48px;
+            border-radius: 9999px;
+          }
+        }
+        .side-nav-drop-active {
+          animation: sideNavMorph 0.76s cubic-bezier(0.2, 0.72, 0.24, 1);
+          will-change: border-radius;
+        }
+        @keyframes sideNavMorph {
+          0% {
+            border-radius: 9999px;
+          }
+          18% {
+            border-radius: 58% 42% 55% 45% / 44% 60% 40% 56%;
+          }
+          44% {
+            border-radius: 44% 56% 40% 60% / 62% 42% 58% 38%;
+          }
+          68% {
+            border-radius: 56% 44% 60% 40% / 46% 58% 42% 54%;
+          }
+          100% {
+            border-radius: 9999px;
+          }
+        }
+        .side-wave-btn::before {
+          content: "";
+          position: absolute;
+          inset: -60% -95%;
+          background: linear-gradient(
+            110deg,
+            transparent 18%,
+            rgba(0, 153, 255, 0.08) 34%,
+            rgba(143, 211, 255, 0.5) 49%,
+            rgba(255, 255, 255, 0.45) 52%,
+            rgba(0, 153, 255, 0.35) 58%,
+            transparent 76%
+          );
+          transform: translateX(-120%) rotate(-8deg);
+          opacity: 0;
+          pointer-events: none;
+          z-index: 0;
+        }
+        .side-wave-btn::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(circle at 30% 50%, rgba(143, 211, 255, 0.16), transparent 55%);
+          opacity: 0;
+          pointer-events: none;
+          z-index: 0;
+        }
+        .side-wave-btn:is(:hover, :focus-visible)::before {
+          opacity: 1;
+          animation: sideWaveFlow 1.1s ease-in-out infinite;
+        }
+        .side-wave-btn:is(:hover, :focus-visible)::after {
+          opacity: 1;
+          animation: sideWaveGlow 1.1s ease-in-out infinite;
+        }
+        @keyframes sideWaveFlow {
+          0% {
+            transform: translateX(-120%) rotate(-8deg);
+          }
+          50% {
+            transform: translateX(0%) rotate(-8deg);
+          }
+          100% {
+            transform: translateX(120%) rotate(-8deg);
+          }
+        }
+        @keyframes sideWaveGlow {
+          0%, 100% {
+            opacity: 0.15;
+          }
+          50% {
+            opacity: 0.38;
+          }
+        }
+        .intro-backdrop-idle {
+          background: radial-gradient(circle at 50% 50%, rgba(10, 10, 10, 0.92) 0%, rgba(0, 0, 0, 1) 72%);
+          opacity: 1;
+        }
+        .intro-backdrop-active {
+          background: radial-gradient(circle at 50% 42%, rgba(0, 153, 255, 0.16) 0%, rgba(0, 0, 0, 0.98) 58%, #000 100%);
+          animation: introBackdrop 1.5s ease-out forwards;
+        }
+        .intro-scanline {
+          position: absolute;
+          inset: -30% -10%;
+          background: linear-gradient(110deg, transparent 0%, rgba(0, 153, 255, 0.18) 40%, rgba(255, 255, 255, 0.5) 50%, rgba(0, 153, 255, 0.18) 60%, transparent 100%);
+          transform: translateX(-65%) skewX(-12deg);
+          opacity: 0;
+        }
+        .intro-scanline-active {
+          animation: introScan 0.86s ease-out forwards;
+        }
+        .intro-burst {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 22rem;
+          height: 22rem;
+          border-radius: 9999px;
+          border: 1px solid rgba(143, 211, 255, 0.45);
+          transform: translate(-50%, -50%) scale(0.2);
+          opacity: 0;
+          box-shadow: 0 0 36px rgba(0, 153, 255, 0.18);
+        }
+        .intro-burst-active {
+          animation: introBurst 1.3s cubic-bezier(0.2, 0.9, 0.25, 1) forwards;
+        }
+        .intro-logo-shell {
+          position: relative;
+          padding: 1rem;
+          border-radius: 9999px;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.03) 62%, transparent 100%);
+          border: 1px solid rgba(255, 255, 255, 0.24);
+          box-shadow: 0 0 36px rgba(0, 153, 255, 0.3), inset 0 0 24px rgba(255, 255, 255, 0.1);
+        }
+        .intro-logo-mark {
+          filter: drop-shadow(0 0 18px rgba(0, 153, 255, 0.7));
+          animation: introLogoPulse 1.3s ease-out;
+        }
+        @keyframes introBackdrop {
+          0% {
+            opacity: 1;
+            transform: scale(1.03);
+          }
+          60% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0.84;
+            transform: scale(1);
+          }
+        }
+        @keyframes introScan {
+          0% {
+            opacity: 0;
+            transform: translateX(-65%) skewX(-12deg);
+          }
+          20% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform: translateX(65%) skewX(-12deg);
+          }
+        }
+        @keyframes introBurst {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.2);
+          }
+          35% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(1.7);
+          }
+        }
+        @keyframes introLogoPulse {
+          0% {
+            opacity: 0;
+            transform: scale(0.7);
+            filter: blur(8px) drop-shadow(0 0 0 rgba(0, 153, 255, 0));
+          }
+          65% {
+            opacity: 1;
+            transform: scale(1.08);
+            filter: blur(0) drop-shadow(0 0 22px rgba(0, 153, 255, 0.9));
+          }
+          100% {
+            transform: scale(1);
+            filter: blur(0) drop-shadow(0 0 16px rgba(0, 153, 255, 0.75));
+          }
+        }
         @keyframes blink {
           0%, 50%, 100% { opacity: 1; }
           25%, 75% { opacity: 0; }
