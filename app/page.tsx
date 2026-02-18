@@ -3,7 +3,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { Inter } from "next/font/google";
+import { FloatingDock, type FloatingDockItem } from "@/components/ui/floating-dock";
 import { Home as HomeIcon, User, Video, Award, Mail, Code, Medal, Globe, ArrowUpRight, Film, Palette, ExternalLink } from "lucide-react"; // added icons
 
 // Google Fonts Inter SemiBold
@@ -12,7 +14,11 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const PORTFOLIO_STORAGE_KEY = "portfolio-projects-v1";
+const PORTFOLIO_UPDATED_EVENT = "portfolio-projects-updated";
+
 export default function Home() {
+  const router = useRouter();
   const [textVisible, setTextVisible] = useState(false);
   const [imageVisible, setImageVisible] = useState(false);
   const [introDone, setIntroDone] = useState(false);
@@ -68,6 +74,8 @@ type NewProjectForm = {
   galleryImages: string[];
 };
 
+type SideNavIcon = React.ComponentType<{ size?: number; className?: string }>;
+
 function createEmptyProjectForm(): NewProjectForm {
   return {
     title: "",
@@ -120,6 +128,21 @@ const [portfolioProjects, setPortfolioProjects] = useState<Record<string, Portfo
   initialPortfolioProjects
 );
 
+const normalizeStoredProjects = (value: unknown): Record<string, PortfolioProject[]> => {
+  if (!value || typeof value !== "object") {
+    return initialPortfolioProjects;
+  }
+
+  const raw = value as Record<string, unknown>;
+  return {
+    "Graphic Design": Array.isArray(raw["Graphic Design"])
+      ? (raw["Graphic Design"] as PortfolioProject[])
+      : [],
+    "Video Edit": Array.isArray(raw["Video Edit"]) ? (raw["Video Edit"] as PortfolioProject[]) : [],
+    Certificates: Array.isArray(raw.Certificates) ? (raw.Certificates as PortfolioProject[]) : [],
+  };
+};
+
   // About Me typing + slide-in
 const [helloVisible, setHelloVisible] = useState(false); // slide in from left
 const [nameText, setNameText] = useState("");
@@ -149,13 +172,9 @@ const hasShownHello = useRef(false);
 
   const [showSideNav, setShowSideNav] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
-  const sideNavIds = ["home", "about", "portfolio", "cert", "contact"] as const;
-  type SideNavId = (typeof sideNavIds)[number];
-  const [sideNavDropId, setSideNavDropId] = useState<string | null>(null);
-  const sideNavDropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [sideNavTransfer, setSideNavTransfer] = useState<{ from: number; to: number; key: number } | null>(null);
-  const sideNavTransferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const previousActiveSectionRef = useRef<SideNavId>("home");
+  type SideNavId = "home" | "about" | "portfolio" | "cert" | "contact";
+  const [, setLogoTapCount] = useState(0);
+  const logoTapResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 useEffect(() => {
   if (!portfolioRef.current) return;
@@ -176,6 +195,55 @@ useEffect(() => {
 
   return () => observer.disconnect();
 }, []);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const syncPortfolioFromStorage = () => {
+    try {
+      const raw = window.localStorage.getItem(PORTFOLIO_STORAGE_KEY);
+      if (!raw) {
+        window.localStorage.setItem(
+          PORTFOLIO_STORAGE_KEY,
+          JSON.stringify(initialPortfolioProjects)
+        );
+        setPortfolioProjects(initialPortfolioProjects);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      setPortfolioProjects(normalizeStoredProjects(parsed));
+    } catch {
+      setPortfolioProjects(initialPortfolioProjects);
+    }
+  };
+
+  syncPortfolioFromStorage();
+  window.addEventListener("storage", syncPortfolioFromStorage);
+  window.addEventListener(
+    PORTFOLIO_UPDATED_EVENT,
+    syncPortfolioFromStorage as EventListener
+  );
+
+  return () => {
+    window.removeEventListener("storage", syncPortfolioFromStorage);
+    window.removeEventListener(
+      PORTFOLIO_UPDATED_EVENT,
+      syncPortfolioFromStorage as EventListener
+    );
+  };
+}, []);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      PORTFOLIO_STORAGE_KEY,
+      JSON.stringify(portfolioProjects)
+    );
+  } catch {
+    // ignore localStorage write errors
+  }
+}, [portfolioProjects]);
 
   // Intro + typing animation
   useEffect(() => {
@@ -359,11 +427,8 @@ useEffect(() => {
 
 useEffect(() => {
   return () => {
-    if (sideNavDropTimerRef.current) {
-      clearTimeout(sideNavDropTimerRef.current);
-    }
-    if (sideNavTransferTimerRef.current) {
-      clearTimeout(sideNavTransferTimerRef.current);
+    if (logoTapResetRef.current) {
+      clearTimeout(logoTapResetRef.current);
     }
   };
 }, []);
@@ -373,34 +438,30 @@ const scrollToSection = (ref: React.RefObject<HTMLDivElement | null> | null) => 
   window.scrollTo({ top: targetTop, behavior: "smooth" });
 };
 
-useEffect(() => {
-  const nextSection = activeSection as SideNavId;
-  const previousSection = previousActiveSectionRef.current;
-  if (previousSection === nextSection) return;
+const handleSecretLogoTap = () => {
+  setLogoTapCount((previousTapCount) => {
+    const nextTapCount = previousTapCount + 1;
 
-  const fromIndex = sideNavIds.indexOf(previousSection);
-  const toIndex = sideNavIds.indexOf(nextSection);
-  if (fromIndex >= 0 && toIndex >= 0) {
-    setSideNavTransfer({ from: fromIndex, to: toIndex, key: Date.now() });
-
-    if (sideNavTransferTimerRef.current) {
-      clearTimeout(sideNavTransferTimerRef.current);
+    if (logoTapResetRef.current) {
+      clearTimeout(logoTapResetRef.current);
     }
-    sideNavTransferTimerRef.current = setTimeout(() => {
-      setSideNavTransfer(null);
-    }, 860);
 
-    setSideNavDropId(nextSection);
-    if (sideNavDropTimerRef.current) {
-      clearTimeout(sideNavDropTimerRef.current);
+    logoTapResetRef.current = setTimeout(() => {
+      setLogoTapCount(0);
+    }, 1600);
+
+    if (nextTapCount >= 5) {
+      if (logoTapResetRef.current) {
+        clearTimeout(logoTapResetRef.current);
+        logoTapResetRef.current = null;
+      }
+      router.push("/studio");
+      return 0;
     }
-    sideNavDropTimerRef.current = setTimeout(() => {
-      setSideNavDropId(null);
-    }, 760);
-  }
 
-  previousActiveSectionRef.current = nextSection;
-}, [activeSection]);
+    return nextTapCount;
+  });
+};
 
   // NAV LIST WITH ACTIVE UNDERLINE
   const navList = (
@@ -457,34 +518,6 @@ useEffect(() => {
     document.body.style.overflow = "";
   };
 }, [showModal, showAddProjectModal]);
-
-// SIDE NAV BUTTON
-const sideBtn = (id: SideNavId, Icon: any, ref: React.RefObject<HTMLDivElement | null>) => (
-  <button
-    onClick={() => {
-      setSideNavDropId(id);
-      if (sideNavDropTimerRef.current) {
-        clearTimeout(sideNavDropTimerRef.current);
-      }
-      sideNavDropTimerRef.current = setTimeout(() => {
-        setSideNavDropId(null);
-      }, 760);
-      scrollToSection(ref);
-    }}
-    className={`
-      side-wave-btn relative isolate overflow-hidden
-      w-12 h-12 rounded-full flex items-center justify-center
-      transition-all duration-300 ease-out
-      ${sideNavDropId === id ? "side-nav-drop-active" : ""}
-      ${activeSection === id 
-        ? "scale-125 bg-white text-black shadow-lg shadow-blue-400/50 hover:shadow-blue-500/70 hover:scale-130"
-        : "scale-100 bg-black/70 text-white hover:scale-110 hover:shadow-lg hover:shadow-white/30"
-      }
-    `}
-  >
-    <Icon size={18} className="relative z-10" />
-  </button>
-);
 
 const closeDetailsModal = () => {
   setShowModal(false);
@@ -571,6 +604,42 @@ const handleAddProjectSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 
 const isAnyModalOpen = showModal || showAddProjectModal;
 const activeProjects = portfolioProjects[activeBox] || [];
+const totalCreativeProjects =
+  (portfolioProjects["Graphic Design"]?.length || 0) +
+  (portfolioProjects["Video Edit"]?.length || 0);
+const totalCertificates = portfolioProjects.Certificates?.length || 0;
+const sideNavButtons: Array<{
+  id: SideNavId;
+  icon: SideNavIcon;
+  ref: React.RefObject<HTMLDivElement | null>;
+}> = [
+  { id: "home", icon: HomeIcon, ref: heroRef },
+  { id: "about", icon: User, ref: aboutRef },
+  { id: "portfolio", icon: Video, ref: portfolioRef },
+  { id: "cert", icon: Award, ref: certRef },
+  { id: "contact", icon: Mail, ref: contactRef },
+];
+const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
+  const Icon = item.icon;
+  return {
+    id: item.id,
+    title:
+      item.id === "home"
+        ? "Home"
+        : item.id === "about"
+          ? "About"
+          : item.id === "portfolio"
+            ? "Portfolio"
+            : item.id === "cert"
+              ? "Certificates"
+              : "Contact",
+    icon: <Icon className="h-full w-full" />,
+    active: activeSection === item.id,
+    onClick: () => {
+      scrollToSection(item.ref);
+    },
+  };
+});
 
   return (
     <div className="relative min-h-screen bg-zinc-50 dark:bg-black overflow-y-auto">
@@ -628,7 +697,14 @@ const activeProjects = portfolioProjects[activeBox] || [];
           className={`sticky top-0 w-full rounded-none px-4 py-2 lg:px-8 lg:py-4 backdrop-blur-sm bg-black/80 border-none ${inter.className}`}
         >
           <div className="flex items-center justify-between relative">
-            <Image src="/logo.png" alt="Logo" width={40} height={40} priority />
+            <button
+              type="button"
+              onClick={handleSecretLogoTap}
+              className="rounded-full p-1 transition-transform duration-200 hover:scale-105"
+              aria-label="Portfolio logo"
+            >
+              <Image src="/logo.png" alt="Logo" width={40} height={40} priority />
+            </button>
             <div className="hidden lg:block">{navList}</div>
           </div>
         </nav>
@@ -650,46 +726,16 @@ const activeProjects = portfolioProjects[activeBox] || [];
      {/* SIDE NAV */}
 <div
   className={`
-    fixed right-6 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-4
+    fixed right-5 top-1/2 -translate-y-1/2 z-50
     transition-all duration-500 ease-out
     ${showSideNav 
       ? "translate-x-0 opacity-100"    // slide in from right
       : "translate-x-full opacity-0"}  // slide out to right
   `}
 >
-  {sideBtn("home", HomeIcon, heroRef)}
-  {sideBtn("about", User, aboutRef)}
-  {sideBtn("portfolio", Video, portfolioRef)}
-  {sideBtn("cert", Award, certRef)}
-  {sideBtn("contact", Mail, contactRef)}
-
-  {sideNavTransfer &&
-    (() => {
-      const step = 64; // 48px button + 16px gap
-      const centerOffset = 24;
-      const fromY = centerOffset + sideNavTransfer.from * step;
-      const toY = centerOffset + sideNavTransfer.to * step;
-      const minY = Math.min(fromY, toY);
-      const distance = Math.max(Math.abs(toY - fromY), 2);
-      const travel = toY - fromY;
-      const dropStyle: React.CSSProperties & { "--side-nav-travel": string } = {
-        left: "50%",
-        top: `${fromY}px`,
-        "--side-nav-travel": `${travel}px`,
-      };
-
-      return (
-        <div key={`side-nav-transfer-${sideNavTransfer.key}`} className="pointer-events-none absolute inset-0 z-[60]">
-          <div
-            className={`side-nav-transfer-trail ${
-              travel >= 0 ? "side-nav-transfer-trail-down" : "side-nav-transfer-trail-up"
-            }`}
-            style={{ left: "50%", top: `${minY}px`, height: `${distance}px` }}
-          />
-          <div className="side-nav-transfer-drop" style={dropStyle} />
-        </div>
-      );
-    })()}
+  <div className="relative">
+    <FloatingDock items={sideNavDockItems} vertical />
+  </div>
 </div>
 
 
@@ -850,7 +896,7 @@ const activeProjects = portfolioProjects[activeBox] || [];
           fontFamily: "'Condenso', sans-serif",
         }}
       >
-        Hello, I'm
+        Hello, I&apos;m
       </h3>
 
       {/* Name */}
@@ -1083,7 +1129,7 @@ const activeProjects = portfolioProjects[activeBox] || [];
       </div>
 
       {/* Number */}
-      <div className="text-3xl font-bold leading-none">{3}</div>
+      <div className="text-3xl font-bold leading-none">{totalCreativeProjects}</div>
     </div>
 
     {/* Bottom-left: Title + Description */}
@@ -1112,7 +1158,7 @@ const activeProjects = portfolioProjects[activeBox] || [];
       </div>
 
       {/* Number */}
-      <div className="text-3xl font-bold leading-none">{0}</div>
+      <div className="text-3xl font-bold leading-none">{totalCertificates}</div>
     </div>
 
     {/* Bottom-left: Title + Description */}
@@ -1314,32 +1360,6 @@ const activeProjects = portfolioProjects[activeBox] || [];
         </div>
       ))}
 
-      <div
-        key={`${activeBox}-add-project`}
-        onClick={openAddProjectModal}
-        className="bg-white/10 backdrop-blur-xl border border-dashed border-[#0099ff]/50 shadow-lg p-4 rounded-lg transition-all duration-700 hover:scale-105 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)] hover:bg-white/20 opacity-0 translate-y-6 animate-fadeIn cursor-pointer"
-        style={{ animationDelay: `${0.2 + activeProjects.length * 0.2}s` }}
-      >
-        <div className="w-full h-[250px] rounded-lg mb-4 border border-dashed border-white/25 bg-white/5 flex items-center justify-center">
-          <span className="text-6xl leading-none text-[#0099ff] animate-pulse-slow">+</span>
-        </div>
-
-        <h3 className="text-white text-m mb-1 project-heading tracking-wider">Add New Project</h3>
-        <p className="text-xs text-white/80 mb-4 mt-2 line-clamp-3">
-          Click to open the project creator modal for the selected category.
-        </p>
-
-        <div className="flex justify-between items-center mt-4">
-          <span className="flex items-center gap-2 text-xs text-[#0099ff] font-semibold">
-            Link to design
-            <ExternalLink className="w-3 h-3 -mt-[0px] -ml-1" />
-          </span>
-
-          <span className="flex items-center gap-1 text-xs text-white/50 font-semibold px-2 py-1 rounded-sm border border-white/5">
-            Details
-          </span>
-        </div>
-      </div>
     </div>
   )}
 
@@ -1697,216 +1717,6 @@ const activeProjects = portfolioProjects[activeBox] || [];
       <div className="h-[100vh]" />
 
       <style>{`
-        .side-nav-transfer-trail {
-          position: absolute;
-          width: 16px;
-          border-radius: 9999px;
-          transform: translateX(-50%);
-          background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.72) 0%,
-            rgba(210, 243, 255, 0.46) 36%,
-            rgba(121, 201, 255, 0.22) 72%,
-            rgba(121, 201, 255, 0) 100%
-          );
-          box-shadow: 0 0 14px rgba(125, 203, 255, 0.35);
-          filter: blur(1.1px);
-          opacity: 0;
-        }
-        .side-nav-transfer-trail-down {
-          transform-origin: top center;
-          animation: sideNavTrailDown 0.88s ease-out forwards;
-        }
-        .side-nav-transfer-trail-up {
-          transform-origin: bottom center;
-          animation: sideNavTrailUp 0.88s ease-out forwards;
-        }
-        .side-nav-transfer-drop {
-          position: absolute;
-          width: 48px;
-          height: 48px;
-          border-radius: 9999px;
-          transform: translate(-50%, -50%);
-          background: radial-gradient(
-            circle at 36% 28%,
-            rgba(255, 255, 255, 1) 0%,
-            rgba(245, 252, 255, 0.98) 42%,
-            rgba(220, 242, 255, 0.92) 70%,
-            rgba(182, 223, 255, 0.78) 100%
-          );
-          box-shadow:
-            0 2px 12px rgba(139, 208, 255, 0.42),
-            0 0 20px rgba(171, 226, 255, 0.25),
-            inset 0 -4px 7px rgba(117, 176, 220, 0.4);
-          opacity: 0;
-          animation: sideNavTransferDrop 0.88s cubic-bezier(0.22, 0.72, 0.24, 1) forwards;
-        }
-        @keyframes sideNavTrailDown {
-          0% {
-            opacity: 0;
-            transform: translateX(-50%) scaleX(0.42) scaleY(0.12);
-          }
-          22% {
-            opacity: 0.72;
-          }
-          58% {
-            opacity: 0.52;
-          }
-          100% {
-            opacity: 0;
-            transform: translateX(-50%) scaleX(0.95) scaleY(1.03);
-          }
-        }
-        @keyframes sideNavTrailUp {
-          0% {
-            opacity: 0;
-            transform: translateX(-50%) scaleX(0.42) scaleY(0.12);
-          }
-          22% {
-            opacity: 0.72;
-          }
-          58% {
-            opacity: 0.52;
-          }
-          100% {
-            opacity: 0;
-            transform: translateX(-50%) scaleX(0.95) scaleY(1.03);
-          }
-        }
-        @keyframes sideNavTransferDrop {
-          0% {
-            opacity: 0.96;
-            transform: translate(-50%, -50%) scale(1);
-            width: 48px;
-            height: 48px;
-            border-radius: 9999px;
-            box-shadow:
-              0 2px 10px rgba(146, 212, 255, 0.4),
-              0 0 16px rgba(184, 230, 255, 0.22);
-          }
-          22% {
-            transform: translate(
-              -50%,
-              calc(-50% + calc(var(--side-nav-travel) * 0.2))
-            ) scale(0.98, 1.02);
-            width: 44px;
-            height: 54px;
-            border-radius: 52% 48% 57% 43% / 41% 59% 43% 57%;
-          }
-          52% {
-            transform: translate(
-              -50%,
-              calc(-50% + calc(var(--side-nav-travel) * 0.56))
-            ) scale(0.94, 1.08);
-            width: 24px;
-            height: 72px;
-            border-radius: 16px;
-            box-shadow:
-              0 0 18px rgba(166, 225, 255, 0.35),
-              0 3px 14px rgba(112, 191, 245, 0.35);
-          }
-          74% {
-            transform: translate(
-              -50%,
-              calc(-50% + calc(var(--side-nav-travel) * 0.82))
-            ) scale(0.95, 1.04);
-            width: 30px;
-            height: 62px;
-            border-radius: 18px;
-          }
-          88% {
-            transform: translate(
-              -50%,
-              calc(-50% + calc(var(--side-nav-travel) * 0.94))
-            ) scale(1, 1);
-            width: 46px;
-            height: 50px;
-            border-radius: 9999px;
-          }
-          100% {
-            opacity: 0;
-            transform: translate(-50%, calc(-50% + var(--side-nav-travel))) scale(1);
-            width: 48px;
-            height: 48px;
-            border-radius: 9999px;
-          }
-        }
-        .side-nav-drop-active {
-          animation: sideNavMorph 0.76s cubic-bezier(0.2, 0.72, 0.24, 1);
-          will-change: border-radius;
-        }
-        @keyframes sideNavMorph {
-          0% {
-            border-radius: 9999px;
-          }
-          18% {
-            border-radius: 58% 42% 55% 45% / 44% 60% 40% 56%;
-          }
-          44% {
-            border-radius: 44% 56% 40% 60% / 62% 42% 58% 38%;
-          }
-          68% {
-            border-radius: 56% 44% 60% 40% / 46% 58% 42% 54%;
-          }
-          100% {
-            border-radius: 9999px;
-          }
-        }
-        .side-wave-btn::before {
-          content: "";
-          position: absolute;
-          inset: -60% -95%;
-          background: linear-gradient(
-            110deg,
-            transparent 18%,
-            rgba(0, 153, 255, 0.08) 34%,
-            rgba(143, 211, 255, 0.5) 49%,
-            rgba(255, 255, 255, 0.45) 52%,
-            rgba(0, 153, 255, 0.35) 58%,
-            transparent 76%
-          );
-          transform: translateX(-120%) rotate(-8deg);
-          opacity: 0;
-          pointer-events: none;
-          z-index: 0;
-        }
-        .side-wave-btn::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          border-radius: inherit;
-          background: radial-gradient(circle at 30% 50%, rgba(143, 211, 255, 0.16), transparent 55%);
-          opacity: 0;
-          pointer-events: none;
-          z-index: 0;
-        }
-        .side-wave-btn:is(:hover, :focus-visible)::before {
-          opacity: 1;
-          animation: sideWaveFlow 1.1s ease-in-out infinite;
-        }
-        .side-wave-btn:is(:hover, :focus-visible)::after {
-          opacity: 1;
-          animation: sideWaveGlow 1.1s ease-in-out infinite;
-        }
-        @keyframes sideWaveFlow {
-          0% {
-            transform: translateX(-120%) rotate(-8deg);
-          }
-          50% {
-            transform: translateX(0%) rotate(-8deg);
-          }
-          100% {
-            transform: translateX(120%) rotate(-8deg);
-          }
-        }
-        @keyframes sideWaveGlow {
-          0%, 100% {
-            opacity: 0.15;
-          }
-          50% {
-            opacity: 0.38;
-          }
-        }
         .intro-backdrop-idle {
           background: radial-gradient(circle at 50% 50%, rgba(10, 10, 10, 0.92) 0%, rgba(0, 0, 0, 1) 72%);
           opacity: 1;
