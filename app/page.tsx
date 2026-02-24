@@ -9,7 +9,8 @@ import { FloatingDock, type FloatingDockItem } from "@/components/ui/floating-do
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import { CardBody, CardContainer, CardItem } from "@/components/ui/3d-card";
 import { Lens } from "@/components/ui/lens";
-import { Home as HomeIcon, User, Video, Award, Mail, Code, Medal, Globe, ArrowUpRight, Film, Palette, ExternalLink } from "lucide-react"; // added icons
+import AnimatedTestimonialsDemo from "@/components/animated-testimonials-demo";
+import { Home as HomeIcon, User, Video, MessageSquareQuote, Mail, Code, Medal, Globe, ArrowUpRight, Film, Palette, ExternalLink } from "lucide-react"; // added icons
 
 // Google Fonts Inter SemiBold
 const inter = Inter({
@@ -157,6 +158,9 @@ const [nameDone, setNameDone] = useState(false); // new
 const [buttonsVisible, setButtonsVisible] = useState([false, false, false]);
 const buttonsRef = useRef<HTMLDivElement>(null);
 const [modalVisible, setModalVisible] = useState(false);
+const [showReviewsIntro, setShowReviewsIntro] = useState(false);
+const [showReviewsTestimonials, setShowReviewsTestimonials] = useState(false);
+const reviewsRevealHasRun = useRef(false);
 
 
 
@@ -173,13 +177,13 @@ const hasShownHello = useRef(false);
 
   const aboutRef = useRef<HTMLDivElement>(null);
   const portfolioRef = useRef<HTMLDivElement>(null);
-  const certRef = useRef<HTMLDivElement>(null);
+  const reviewsRef = useRef<HTMLDivElement>(null);
   const contactRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
 
   const [showSideNav, setShowSideNav] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
-  type SideNavId = "home" | "about" | "portfolio" | "cert" | "contact";
+  type SideNavId = "home" | "about" | "portfolio" | "reviews" | "contact";
   const [, setLogoTapCount] = useState(0);
   const logoTapResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -201,6 +205,33 @@ useEffect(() => {
   observer.observe(portfolioRef.current);
 
   return () => observer.disconnect();
+}, []);
+
+useEffect(() => {
+  if (!reviewsRef.current) return;
+
+  let testimonialsTimer: ReturnType<typeof setTimeout> | null = null;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && !reviewsRevealHasRun.current) {
+          reviewsRevealHasRun.current = true;
+          setShowReviewsIntro(true);
+          testimonialsTimer = setTimeout(() => {
+            setShowReviewsTestimonials(true);
+          }, 380);
+        }
+      });
+    },
+    { threshold: 0.28 }
+  );
+
+  observer.observe(reviewsRef.current);
+
+  return () => {
+    observer.disconnect();
+    if (testimonialsTimer) clearTimeout(testimonialsTimer);
+  };
 }, []);
 
 useEffect(() => {
@@ -398,7 +429,7 @@ useEffect(() => {
         { id: "home", ref: heroRef },
         { id: "about", ref: aboutRef },
         { id: "portfolio", ref: portfolioRef },
-        { id: "cert", ref: certRef },
+        { id: "reviews", ref: reviewsRef },
         { id: "contact", ref: contactRef },
       ];
 
@@ -659,7 +690,7 @@ const sideNavButtons: Array<{
   { id: "home", icon: HomeIcon, ref: heroRef },
   { id: "about", icon: User, ref: aboutRef },
   { id: "portfolio", icon: Video, ref: portfolioRef },
-  { id: "cert", icon: Award, ref: certRef },
+  { id: "reviews", icon: MessageSquareQuote, ref: reviewsRef },
   { id: "contact", icon: Mail, ref: contactRef },
 ];
 const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
@@ -671,10 +702,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         ? "Home"
         : item.id === "about"
           ? "About"
-          : item.id === "portfolio"
+        : item.id === "portfolio"
             ? "Portfolio"
-            : item.id === "cert"
-              ? "Certificates"
+            : item.id === "reviews"
+              ? "Reviews"
               : "Contact",
     icon: <Icon className="h-full w-full" />,
     active: activeSection === item.id,
@@ -1736,8 +1767,35 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 {/* ADDITIONAL SECTIONS FOR SIDE NAV */}
 
      
-      <div ref={certRef} className="h-[100vh] flex items-center justify-center">
-        <h2 className="text-5xl font-bold">Certificates Section</h2>
+      <div ref={reviewsRef} className="relative min-h-[100vh] flex items-center justify-center px-4 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-1/2 top-[10%] h-64 w-[72%] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.28)_0%,rgba(0,153,255,0.04)_48%,transparent_72%)] blur-3xl" />
+        </div>
+        <div className="relative z-10 w-full max-w-6xl">
+          <div
+            className={`mb-6 flex justify-center transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              showReviewsIntro ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-6 scale-95"
+            }`}
+          >
+            <p className="relative max-w-full whitespace-nowrap text-center text-[9px] sm:text-[12px] md:text-[15px] tracking-[0.1em] sm:tracking-[0.16em] uppercase text-white/95">
+              <span className="absolute -inset-2 rounded-full border border-[#00d4ff]/35 bg-[#04101a]/70 blur-md" />
+              <span className="relative inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-[#00d4ff]/55 bg-black/45 px-5 py-3 shadow-[0_0_42px_rgba(0,196,255,0.5)] backdrop-blur-md">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#7fe1ff] shadow-[0_0_12px_rgba(0,212,255,0.9)] animate-pulse" />
+                Voices behind the visuals, real stories from clients and collaborators.
+                <span className="h-1.5 w-1.5 rounded-full bg-[#7fe1ff] shadow-[0_0_12px_rgba(0,212,255,0.9)] animate-pulse" />
+              </span>
+            </p>
+          </div>
+          <div
+            className={`transition-all duration-[850ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              showReviewsTestimonials
+                ? "opacity-100 translate-y-0 blur-0"
+                : "pointer-events-none opacity-0 translate-y-8 blur-sm"
+            }`}
+          >
+            <AnimatedTestimonialsDemo />
+          </div>
+        </div>
       </div>
       <div ref={contactRef} className="h-[100vh] flex items-center justify-center">
         <h2 className="text-5xl font-bold">Contact Section</h2>
