@@ -6,6 +6,9 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Inter } from "next/font/google";
 import { FloatingDock, type FloatingDockItem } from "@/components/ui/floating-dock";
+import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
+import { CardBody, CardContainer, CardItem } from "@/components/ui/3d-card";
+import { Lens } from "@/components/ui/lens";
 import { Home as HomeIcon, User, Video, Award, Mail, Code, Medal, Globe, ArrowUpRight, Film, Palette, ExternalLink } from "lucide-react"; // added icons
 
 // Google Fonts Inter SemiBold
@@ -16,6 +19,8 @@ const inter = Inter({
 
 const PORTFOLIO_STORAGE_KEY = "portfolio-projects-v1";
 const PORTFOLIO_UPDATED_EVENT = "portfolio-projects-updated";
+const MODAL_TRANSITION_MS = 520;
+const MODAL_OPEN_DELAY_MS = 10;
 
 export default function Home() {
   const router = useRouter();
@@ -37,6 +42,8 @@ const [showModal, setShowModal] = useState(false);
 const [selectedProject, setSelectedProject] = useState<PortfolioProject | null>(null);
 const [showAddProjectModal, setShowAddProjectModal] = useState(false);
 const [addProjectModalVisible, setAddProjectModalVisible] = useState(false);
+const [isDetailsModalMounted, setIsDetailsModalMounted] = useState(false);
+const [isAddProjectModalMounted, setIsAddProjectModalMounted] = useState(false);
 const [newProjectForm, setNewProjectForm] = useState<NewProjectForm>(createEmptyProjectForm());
 
 
@@ -368,7 +375,9 @@ useEffect(() => {
 
   // Scroll animation for About Me & Side Nav
   useEffect(() => {
-    const handleScroll = () => {
+    let ticking = false;
+
+    const runScrollWork = () => {
       if (!aboutRef.current) return;
       const rect = aboutRef.current.getBoundingClientRect();
       const triggerPoint = window.innerHeight * 0.9; // show About Me when 90% of viewport
@@ -403,8 +412,17 @@ useEffect(() => {
       }
     };
 
-    window.addEventListener("scroll", handleScroll);
-    handleScroll(); // check on mount
+    const handleScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        runScrollWork();
+        ticking = false;
+      });
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    runScrollWork(); // check on mount
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -493,25 +511,48 @@ const handleSecretLogoTap = () => {
   );
 
 useEffect(() => {
+  let openTimer: ReturnType<typeof setTimeout> | null = null;
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
   if (showModal) {
-    const timer = setTimeout(() => setModalVisible(true), 50); // trigger fade in
-    return () => clearTimeout(timer);
+    setIsDetailsModalMounted(true);
+    openTimer = setTimeout(() => setModalVisible(true), MODAL_OPEN_DELAY_MS);
   } else {
     setModalVisible(false);
+    closeTimer = setTimeout(() => {
+      setIsDetailsModalMounted(false);
+      setSelectedProject(null);
+    }, MODAL_TRANSITION_MS);
   }
+
+  return () => {
+    if (openTimer) clearTimeout(openTimer);
+    if (closeTimer) clearTimeout(closeTimer);
+  };
 }, [showModal]);
 
 useEffect(() => {
+  let openTimer: ReturnType<typeof setTimeout> | null = null;
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
   if (showAddProjectModal) {
-    const timer = setTimeout(() => setAddProjectModalVisible(true), 50);
-    return () => clearTimeout(timer);
+    setIsAddProjectModalMounted(true);
+    openTimer = setTimeout(() => setAddProjectModalVisible(true), MODAL_OPEN_DELAY_MS);
   } else {
     setAddProjectModalVisible(false);
+    closeTimer = setTimeout(() => {
+      setIsAddProjectModalMounted(false);
+    }, MODAL_TRANSITION_MS);
   }
+
+  return () => {
+    if (openTimer) clearTimeout(openTimer);
+    if (closeTimer) clearTimeout(closeTimer);
+  };
 }, [showAddProjectModal]);
 
 useEffect(() => {
-  const shouldLockScroll = !introDone || showModal || showAddProjectModal;
+  const shouldLockScroll = !introDone || isDetailsModalMounted || isAddProjectModalMounted;
   const overflowValue = shouldLockScroll ? "hidden" : "";
   document.body.style.overflow = overflowValue;
   document.documentElement.style.overflow = overflowValue;
@@ -520,11 +561,10 @@ useEffect(() => {
     document.body.style.overflow = "";
     document.documentElement.style.overflow = "";
   };
-}, [introDone, showModal, showAddProjectModal]);
+}, [introDone, isDetailsModalMounted, isAddProjectModalMounted]);
 
 const closeDetailsModal = () => {
   setShowModal(false);
-  setSelectedProject(null);
 };
 
 const openAddProjectModal = () => {
@@ -605,7 +645,7 @@ const handleAddProjectSubmit = (event: React.FormEvent<HTMLFormElement>) => {
   setTimeout(() => setAnimateTab(true), 50);
 };
 
-const isAnyModalOpen = showModal || showAddProjectModal;
+const isAnyModalOpen = isDetailsModalMounted || isAddProjectModalMounted;
 const activeProjects = portfolioProjects[activeBox] || [];
 const totalCreativeProjects =
   (portfolioProjects["Graphic Design"]?.length || 0) +
@@ -741,8 +781,6 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
   </div>
 </div>
 
-
-
       {/* HERO STACK */}
       <div ref={heroRef} className="relative flex flex-col items-center justify-center z-10 pt-[40vh]">
         <div
@@ -784,38 +822,19 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             )}
           </span>
 
-          {/* White base text */}
-          <h1
-            className="
-              text-[16rem] sm:text-[22rem] md:text-[30rem] lg:text-[40rem]
-              portfolio-heading select-none pointer-events-none leading-none
-              text-white
-            "
-          >
-            PORTFOLIO
-          </h1>
-
-          {/* Textured lower-half overlay */}
-          <h1
-            className="
-              absolute top-0 left-0 w-full
-              text-[16rem] sm:text-[22rem] md:text-[30rem] lg:text-[40rem]
-              portfolio-heading select-none pointer-events-none leading-none
-              text-transparent bg-clip-text
-            "
-            style={{
-              backgroundImage: "url('/textures/stone.jpg')",
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              WebkitMaskImage: "linear-gradient(to top, black 45%, transparent 100%)",
-              maskImage: "linear-gradient(to top, black 45%, transparent 100%)",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              opacity: 0.2,
-            }}
-          >
-            PORTFOLIO
-          </h1>
+          <div className="relative inline-block align-top">
+            {/* White base text */}
+            <h1
+              className={`
+                text-[16rem] sm:text-[22rem] md:text-[30rem] lg:text-[40rem]
+                portfolio-heading portfolio-main-text select-none pointer-events-none leading-none
+                text-white
+              `}
+              data-text="PORTFOLIO"
+            >
+              PORTFOLIO
+            </h1>
+          </div>
             {/* SMALL SOCIAL / LINK IMAGES — RIGHT SIDE UNDER PORTFOLIO */}
 
           
@@ -837,6 +856,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             className="object-contain grayscale"
           />
         </div>
+
       </div>  {/* <-- this closes the absolute text container */}
 
 
@@ -1303,87 +1323,87 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
   {showPortfolio && (
     <div
       key={`${activeBox}-${animateTab ? "in" : "out"}`}
-      className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-2"
+      className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 auto-rows-fr gap-6 pb-2"
     >
       {activeProjects.map((project, index) => (
         <div
           key={`${activeBox}-${project.title}-${index}`}
-          className="bg-white/10 backdrop-blur-xl border border-white/10 shadow-lg p-4 rounded-lg transition-all duration-700 hover:scale-105 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)] hover:bg-white/20 opacity-0 translate-y-6 animate-fadeIn"
+          className="h-full opacity-0 translate-y-6 animate-fadeIn"
           style={{ animationDelay: `${0.2 + index * 0.2}s` }}
         >
-          <Image
-            src={project.image}
-            alt={project.title}
-            width={400}
-            height={250}
-            className="rounded-lg object-cover mb-4"
-          />
-          <h3 className="text-white text-m mb-1 project-heading tracking-wider">{project.title}</h3>
-          <p className="text-xs text-white/80 mb-4 mt-2 line-clamp-3">{project.description}</p>
+          <CardContainer className="h-full w-full" containerClassName="h-full">
+            <CardBody className="h-full w-full bg-white/10 backdrop-blur-xl border border-white/10 shadow-lg p-4 rounded-lg transition-all duration-700 hover:scale-105 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)] hover:bg-white/20 flex flex-col">
+              <CardItem translateZ={90} className="w-full">
+                <Image
+                  src={project.image}
+                  alt={project.title}
+                  width={400}
+                  height={250}
+                  className="rounded-lg object-cover mb-4"
+                />
+              </CardItem>
 
-          <div className="flex justify-between items-center mt-4">
-            <a
-              href={project.designLink}
-              className="flex items-center gap-2 text-xs text-[#0099ff] font-semibold hover:underline"
-            >
-              Link to design
-              <ExternalLink className="w-3 h-3 -mt-[0px] -ml-1" />
-            </a>
+              <CardItem translateZ={55} className="w-full">
+                <h3 className="text-white text-m mb-1 project-heading tracking-wider line-clamp-1">
+                  {project.title}
+                </h3>
+              </CardItem>
+              <CardItem translateZ={45} className="w-full flex-1">
+                <p className="text-xs text-white/80 mb-4 mt-2 line-clamp-3">{project.description}</p>
+              </CardItem>
 
-            {project.showDetailsModal ? (
-              <button
-                onClick={() => {
-                  setSelectedProject(project);
-                  setShowModal(true);
-                }}
-                className="flex items-center gap-1 text-xs text-white/90 font-semibold px-2 py-1 rounded-sm backdrop-blur-md bg-white/0 border border-white/5 hover:bg-white/20 transition-all duration-300 cursor-pointer"
-              >
-                Details
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-3 h-3"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="white"
+              <div className="relative z-20 mt-4 flex w-full items-center justify-between pointer-events-auto">
+                <a
+                  href={project.designLink}
+                  data-no-tilt="true"
+                  className="flex items-center gap-2 text-xs text-[#0099ff] font-semibold hover:underline"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 12h14m0 0l-4-4m4 4l-4 4"
-                  />
-                </svg>
-              </button>
-            ) : (
-              <span className="flex items-center gap-1 text-xs text-white/50 font-semibold px-2 py-1 rounded-sm border border-white/5">
-                Details
-              </span>
-            )}
-          </div>
+                  Link to design
+                  <ExternalLink className="w-3 h-3 -mt-[0px] -ml-1" />
+                </a>
+
+                <InteractiveHoverButton
+                  onClick={() => {
+                    setSelectedProject(project);
+                    setShowModal(true);
+                  }}
+                  data-no-tilt="true"
+                  defaultLabel="Details"
+                  hoverLabel="Open"
+                  className="cursor-pointer"
+                />
+              </div>
+            </CardBody>
+          </CardContainer>
         </div>
       ))}
 
     </div>
   )}
 
-  {showModal &&
+  {isDetailsModalMounted &&
     selectedProject &&
     typeof window !== "undefined" &&
     createPortal(
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
+      className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/50 backdrop-blur-[2px] transition-opacity duration-[380ms] ease-out ${
         modalVisible ? "opacity-100" : "opacity-0"
       }`}
       onClick={closeDetailsModal}
     >
       <div
-        className={`relative w-11/12 max-w-6xl bg-black/20 backdrop-blur-3xl rounded-3xl border border-[#0099ff]/25 shadow-[0_0_24px_rgba(0,153,255,0.2)] modal-blue-flow p-6 md:p-8 flex flex-col justify-start transform transition-all duration-500 ${
-          modalVisible ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-4 scale-95"
+        className={`relative w-11/12 max-w-6xl bg-black/20 backdrop-blur-3xl rounded-3xl border border-[#0099ff]/25 shadow-[0_0_24px_rgba(0,153,255,0.2)] modal-blue-flow p-6 md:p-8 flex flex-col justify-start transform transition-[opacity,transform] duration-[520ms] ease-[cubic-bezier(0.2,0.82,0.2,1)] ${
+          modalVisible ? "opacity-100" : "opacity-0"
         }`}
         onClick={(e) => e.stopPropagation()}
         style={{
           background:
             "linear-gradient(135deg, rgba(0,0,0,0.45), rgba(255,255,255,0.1), rgba(0,153,255,0.14))",
+          transformOrigin: "50% 100%",
+          transform: modalVisible
+            ? "translate3d(0,0,0) scale(1) rotate(0deg)"
+            : "translate3d(0, 44vh, 0) scale(0.18) rotate(0deg)",
+          willChange: "transform, opacity",
         }}
       >
         <div
@@ -1421,11 +1441,15 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           </div>
 
           <div className="md:w-1/2 flex justify-center items-start">
-            <img
-              src={selectedProject.details?.heroImage || selectedProject.image}
-              alt={`${selectedProject.title} preview`}
-              className="max-h-60 md:max-h-72 object-contain rounded-lg"
-            />
+            <div className="w-full max-w-md">
+              <Lens zoomFactor={1.65} lensSize={150}>
+                <img
+                  src={selectedProject.details?.heroImage || selectedProject.image}
+                  alt={`${selectedProject.title} preview`}
+                  className="w-full max-h-60 md:max-h-72 object-contain rounded-lg"
+                />
+              </Lens>
+            </div>
           </div>
         </div>
 
@@ -1465,25 +1489,28 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
     document.body
   )}
 
-  {showAddProjectModal &&
+  {isAddProjectModalMounted &&
     typeof window !== "undefined" &&
     createPortal(
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${
+      className={`fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/60 backdrop-blur-[2px] transition-opacity duration-[380ms] ease-out ${
         addProjectModalVisible ? "opacity-100" : "opacity-0"
       }`}
       onClick={closeAddProjectModal}
     >
       <div
-        className={`relative w-11/12 max-w-5xl max-h-[84vh] overflow-y-auto rounded-3xl border border-[#0099ff]/25 shadow-[0_0_24px_rgba(0,153,255,0.22)] modal-blue-flow p-5 md:p-6 transform transition-all duration-500 ${
-          addProjectModalVisible
-            ? "opacity-100 translate-y-0 scale-100"
-            : "opacity-0 translate-y-4 scale-95"
+        className={`relative w-11/12 max-w-5xl max-h-[84vh] overflow-y-auto rounded-3xl border border-[#0099ff]/25 shadow-[0_0_24px_rgba(0,153,255,0.22)] modal-blue-flow p-5 md:p-6 transform transition-[opacity,transform] duration-[520ms] ease-[cubic-bezier(0.2,0.82,0.2,1)] ${
+          addProjectModalVisible ? "opacity-100" : "opacity-0"
         }`}
         onClick={(e) => e.stopPropagation()}
         style={{
           background:
             "linear-gradient(135deg, rgba(0,0,0,0.6), rgba(255,255,255,0.1), rgba(0,153,255,0.16))",
+          transformOrigin: "50% 100%",
+          transform: addProjectModalVisible
+            ? "translate3d(0,0,0) scale(1) rotate(0deg)"
+            : "translate3d(0, 44vh, 0) scale(0.18) rotate(0deg)",
+          willChange: "transform, opacity",
         }}
       >
         <div
@@ -1826,6 +1853,30 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         }
         .animate-blink {
           animation: blink 1s step-start infinite;
+        }
+
+        .portfolio-main-text {
+          position: relative;
+        }
+        .portfolio-main-text::after {
+          content: attr(data-text);
+          position: absolute;
+          inset: 0;
+          font: inherit;
+          line-height: inherit;
+          letter-spacing: inherit;
+          color: transparent;
+          background-image: url('/textures/stone.jpg');
+          background-size: cover;
+          background-position: center;
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-mask-image: linear-gradient(to top, black 45%, transparent 100%);
+          mask-image: linear-gradient(to top, black 45%, transparent 100%);
+          -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+          pointer-events: none;
+          opacity: 0.2;
         }
 
         @keyframes pulseSlow {
