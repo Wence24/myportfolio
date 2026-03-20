@@ -18,7 +18,18 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="16x16" href="/logo.png" />
       </head>
       <body className="antialiased font-codenso">
-        {children}
+        <div aria-hidden="true" className="site-background">
+          <div className="site-background__base" />
+          <div className="site-background__panel" />
+          <div className="site-background__slab site-background__slab--primary" />
+          <div className="site-background__slab site-background__slab--secondary" />
+          <div className="site-background__ring site-background__ring--left" />
+          <div className="site-background__ring site-background__ring--right" />
+          <div className="site-background__lines" />
+          <div className="site-background__grid" />
+          <div className="site-background__texture" />
+        </div>
+        <div className="site-shell">{children}</div>
       </body>
     </html>
   );

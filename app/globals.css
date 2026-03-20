@@ -20,8 +20,13 @@
 
 /* ----------------- VARIABLES ----------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #050910;
+  --background-deep: #02050a;
+  --background-elevated: rgba(8, 18, 31, 0.82);
+  --foreground: #f4f8fc;
+  --accent: #0099ff;
+  --accent-soft: rgba(0, 153, 255, 0.22);
+  --grid-line: rgba(226, 235, 244, 0.06);
   --font-default: 'Arial', Helvetica, sans-serif;
   --font-condenso: 'Condenso', sans-serif;
 }
@@ -29,21 +34,234 @@
 /* ----------------- DARK MODE ----------------- */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #050910;
+    --background-deep: #02050a;
     --foreground: #ededed;
   }
 }
 
 /* ----------------- BODY ----------------- */
+html {
+  background: var(--background-deep);
+}
+
 body {
-  background: var(--background);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
   color: var(--foreground);
   font-family: var(--font-default); /* Default font applied globally */
+  background: transparent;
+}
+
+.site-shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+.site-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--background-deep);
+}
+
+.site-background > div {
+  position: absolute;
+  inset: 0;
+}
+
+.site-background__base {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, transparent 16%),
+    radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.06) 0%, transparent 18%),
+    radial-gradient(circle at 84% 12%, rgba(142, 166, 186, 0.08) 0%, transparent 20%),
+    radial-gradient(circle at 50% 72%, rgba(9, 16, 26, 0.68) 0%, transparent 48%),
+    linear-gradient(160deg, #020406 0%, #071018 44%, #02050a 100%);
+}
+
+.site-background__panel {
+  inset: 3.25% 4.25%;
+  border-radius: 40px;
+  border: 1px solid rgba(225, 235, 244, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.012) 100%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.024) 0%, transparent 42%, rgba(255, 255, 255, 0.014) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.026);
+  opacity: 0.94;
+}
+
+.site-background__slab {
+  border-radius: 42px;
+  border: 1px solid rgba(220, 231, 241, 0.09);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.014) 100%),
+    linear-gradient(135deg, rgba(10, 18, 28, 0.38) 0%, rgba(10, 18, 28, 0.08) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 90px rgba(0, 0, 0, 0.16);
+}
+
+.site-background__slab--primary {
+  top: 7%;
+  right: -7%;
+  width: min(36vw, 540px);
+  height: min(68vh, 680px);
+  transform: rotate(-18deg);
+  opacity: 0.42;
+}
+
+.site-background__slab--secondary {
+  bottom: 4%;
+  left: -8%;
+  width: min(28vw, 380px);
+  height: min(42vh, 420px);
+  transform: rotate(15deg);
+  opacity: 0.24;
+}
+
+.site-background__ring {
+  border-radius: 999px;
+  background:
+    conic-gradient(from 170deg, transparent 0deg, rgba(220, 234, 246, 0.14) 62deg, transparent 112deg, transparent 360deg);
+  -webkit-mask: radial-gradient(circle, transparent 61%, black 63%, black 65.5%, transparent 67.5%);
+  mask: radial-gradient(circle, transparent 61%, black 63%, black 65.5%, transparent 67.5%);
+}
+
+.site-background__ring--left {
+  top: -24%;
+  left: -16%;
+  width: min(58vw, 780px);
+  height: min(58vw, 780px);
+  opacity: 0.48;
+}
+
+.site-background__ring--right {
+  right: -12%;
+  bottom: -20%;
+  width: min(42vw, 560px);
+  height: min(42vw, 560px);
+  transform: rotate(56deg);
+  opacity: 0.28;
+}
+
+.site-background__lines {
+  opacity: 0.22;
+  background-image:
+    linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.03) 22%, transparent 38%),
+    repeating-linear-gradient(125deg, rgba(226, 235, 244, 0.028) 0 1px, transparent 1px 34px);
+  mask-image: linear-gradient(180deg, transparent 4%, black 24%, black 84%, transparent 100%);
+}
+
+.site-background__grid {
+  opacity: 0.06;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 140px 140px;
+  mask-image: linear-gradient(180deg, transparent 10%, black 26%, black 82%, transparent 100%);
+}
+
+.site-background__texture {
+  opacity: 0.26;
+  background:
+    radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.04) 0%, transparent 24%),
+    linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.012) 50%, transparent 100%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 18px);
+  mix-blend-mode: soft-light;
+}
+
+.site-background__glow {
+  filter: blur(96px);
+  opacity: 0.22;
+  transform: translate3d(0, 0, 0);
+  animation: ambientDrift 22s ease-in-out infinite alternate;
+}
+
+.site-background__glow--primary {
+  inset: -6% auto auto -4%;
+  width: 34vw;
+  height: 34vw;
+  min-width: 220px;
+  min-height: 220px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(0, 153, 255, 0.2) 0%, rgba(0, 153, 255, 0.08) 40%, transparent 74%);
+}
+
+.site-background__glow--secondary {
+  inset: auto -3% 10% auto;
+  width: 22vw;
+  height: 22vw;
+  min-width: 180px;
+  min-height: 180px;
+  border-radius: 999px;
+  opacity: 0.16;
+  animation-duration: 22s;
+  animation-direction: alternate-reverse;
+  background:
+    radial-gradient(circle, rgba(118, 210, 255, 0.12) 0%, rgba(118, 210, 255, 0.04) 44%, transparent 72%);
+}
+
+@media (max-width: 900px) {
+  .site-background__panel {
+    inset: 2.5% 3%;
+    border-radius: 28px;
+  }
+
+  .site-background__slab--primary {
+    top: 10%;
+    right: -24%;
+    width: 72vw;
+    height: 44vh;
+    opacity: 0.34;
+  }
+
+  .site-background__slab--secondary {
+    left: -22%;
+    bottom: 8%;
+    width: 58vw;
+    height: 28vh;
+    opacity: 0.18;
+  }
+
+  .site-background__ring--left {
+    top: -8%;
+    left: -34%;
+    width: 88vw;
+    height: 88vw;
+    opacity: 0.38;
+  }
+
+  .site-background__ring--right {
+    right: -26%;
+    bottom: -8%;
+    width: 62vw;
+    height: 62vw;
+    opacity: 0.2;
+  }
 }
 
 /* ----------------- PORTFOLIO HEADING ----------------- */
 .portfolio-heading {
   font-family: var(--font-condenso); /* Only this uses Condenso */
+}
+
+@keyframes ambientDrift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(3%, -2%, 0) scale(1.04);
+  }
+  100% {
+    transform: translate3d(-2%, 3%, 0) scale(0.98);
+  }
 }
 
 /* ----------------- PULSE GLOW ANIMATION ----------------- */

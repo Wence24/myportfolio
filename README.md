@@ -34,3 +34,19 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Supabase Setup (Portfolio Studio Sync)
+
+The Studio now supports saving projects + testimonials to Supabase.
+
+1. Create a Supabase project.
+2. Open SQL Editor and run [`supabase/schema.sql`](./supabase/schema.sql).
+3. Create a local env file:
+   `cp .env.example .env.local`
+4. Fill in:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SUPABASE_CONTENT_ROW_ID` (optional, default is `main`)
+5. Restart the dev server: `npm run dev`
+
+If env vars are missing, the app will still work using localStorage fallback.

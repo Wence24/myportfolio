@@ -45,10 +45,10 @@ export const AnimatedTestimonials = ({
   const activeTestimonial = testimonials[active];
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-8 font-sans antialiased md:max-w-5xl md:px-8 lg:px-12">
-      <div className="relative grid grid-cols-1 gap-10 md:grid-cols-2 md:gap-14">
-        <div>
-          <div className="relative h-80 w-full [perspective:1000px]">
+    <div className="mx-auto max-w-sm px-4 py-6 font-sans antialiased md:max-w-[52rem] md:px-6 lg:max-w-[56rem] lg:px-8">
+      <div className="relative grid grid-cols-1 gap-5 md:grid-cols-2 md:items-stretch md:gap-8">
+        <div className="h-full">
+          <div className="relative h-full min-h-[16rem] w-full [perspective:1000px] md:min-h-[18rem]">
             <AnimatePresence>
               {testimonials.map((testimonial, index) => (
                 <motion.div
@@ -67,7 +67,7 @@ export const AnimatedTestimonials = ({
                     zIndex: isActive(index)
                       ? 40
                       : testimonials.length + 2 - index,
-                    y: isActive(index) ? [0, -80, 0] : 0,
+                    y: isActive(index) ? [0, -56, 0] : 0,
                   }}
                   exit={{
                     opacity: 0,
@@ -81,7 +81,7 @@ export const AnimatedTestimonials = ({
                   }}
                   className="absolute inset-0 origin-bottom"
                 >
-                  <div className="relative h-full w-full overflow-hidden rounded-3xl border border-white/20 bg-black/20 shadow-[0_18px_42px_rgba(0,0,0,0.5)]">
+                  <div className="relative h-full w-full overflow-hidden rounded-[18px] border border-white/20 bg-black/20 shadow-[0_16px_36px_rgba(0,0,0,0.45)]">
                     <img
                       src={testimonial.src}
                       alt={testimonial.name}
@@ -97,41 +97,41 @@ export const AnimatedTestimonials = ({
             </AnimatePresence>
           </div>
         </div>
-        <div className="flex flex-col justify-between py-1">
-          <motion.div
-            key={active}
-            initial={{
-              y: 20,
-              opacity: 0,
-            }}
-            animate={{
-              y: 0,
-              opacity: 1,
-            }}
-            exit={{
-              y: -20,
-              opacity: 0,
-            }}
-            transition={{
-              duration: 0.2,
-              ease: "easeInOut",
-            }}
-            className="relative overflow-hidden rounded-3xl border border-white/15 bg-black/35 p-5 shadow-[0_14px_30px_rgba(0,0,0,0.45)] backdrop-blur-sm md:p-6"
-          >
-            <div className="pointer-events-none absolute right-3 top-1 text-[56px] leading-none text-[#00c6ff]/18">
-              "
-            </div>
-            <div className="mb-4 flex items-center justify-between">
-              <span className="rounded-full border border-[#00c6ff]/35 bg-[#00c6ff]/10 px-3 py-1 text-[10px] tracking-[0.16em] text-[#86e9ff]">
-                TESTIMONIAL
-              </span>
-              <span className="text-xs text-white/60">
-                {String(active + 1).padStart(2, "0")} / {String(testimonials.length).padStart(2, "0")}
-              </span>
-            </div>
-            <h3 className="text-2xl font-bold text-white">{activeTestimonial.name}</h3>
+        <motion.div
+          key={active}
+          initial={{
+            y: 20,
+            opacity: 0,
+          }}
+          animate={{
+            y: 0,
+            opacity: 1,
+          }}
+          exit={{
+            y: -20,
+            opacity: 0,
+          }}
+          transition={{
+            duration: 0.2,
+            ease: "easeInOut",
+          }}
+          className="relative flex h-full min-h-[16rem] flex-col overflow-hidden rounded-[18px] border border-white/15 bg-black/35 p-4 shadow-[0_12px_26px_rgba(0,0,0,0.42)] backdrop-blur-sm md:min-h-[18rem] md:p-5"
+        >
+          <div className="pointer-events-none absolute right-3 top-1 text-[56px] leading-none text-[#00c6ff]/18">
+            "
+          </div>
+          <div className="mb-3 flex items-center justify-between">
+            <span className="rounded-full border border-[#00c6ff]/35 bg-[#00c6ff]/10 px-3 py-1 text-[10px] tracking-[0.16em] text-[#86e9ff]">
+              TESTIMONIAL
+            </span>
+            <span className="text-xs text-white/60">
+              {String(active + 1).padStart(2, "0")} / {String(testimonials.length).padStart(2, "0")}
+            </span>
+          </div>
+          <div className="flex flex-1 flex-col">
+            <h3 className="text-lg font-bold text-white md:text-xl">{activeTestimonial.name}</h3>
             <p className="text-sm text-[#8cdfff]">{activeTestimonial.designation}</p>
-            <motion.p className="mt-6 text-base leading-relaxed text-white/85 md:text-lg">
+            <motion.p className="mt-4 flex-1 text-sm leading-relaxed text-white/85 md:text-sm">
               {activeTestimonial.quote.split(" ").map((word, index) => (
                 <motion.span
                   key={index}
@@ -156,22 +156,22 @@ export const AnimatedTestimonials = ({
                 </motion.span>
               ))}
             </motion.p>
-          </motion.div>
-          <div className="mt-5 flex justify-center gap-3 md:mt-6">
-            <button
-              onClick={handlePrev}
-              className="group/button flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/80 transition-all duration-300 hover:border-[#00c6ff]/55 hover:text-[#8ce5ff] hover:shadow-[0_0_14px_rgba(0,198,255,0.35)]"
-            >
-              <IconArrowLeft className="h-5 w-5 transition-transform duration-300 group-hover/button:rotate-12" />
-            </button>
-            <button
-              onClick={handleNext}
-              className="group/button flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/80 transition-all duration-300 hover:border-[#00c6ff]/55 hover:text-[#8ce5ff] hover:shadow-[0_0_14px_rgba(0,198,255,0.35)]"
-            >
-              <IconArrowRight className="h-5 w-5 transition-transform duration-300 group-hover/button:-rotate-12" />
-            </button>
           </div>
-        </div>
+        </motion.div>
+      </div>
+      <div className="mt-4 flex justify-center gap-3 md:mt-5">
+        <button
+          onClick={handlePrev}
+          className="group/button flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/80 transition-all duration-300 hover:border-[#00c6ff]/55 hover:text-[#8ce5ff] hover:shadow-[0_0_14px_rgba(0,198,255,0.35)]"
+        >
+          <IconArrowLeft className="h-5 w-5 transition-transform duration-300 group-hover/button:rotate-12" />
+        </button>
+        <button
+          onClick={handleNext}
+          className="group/button flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/80 transition-all duration-300 hover:border-[#00c6ff]/55 hover:text-[#8ce5ff] hover:shadow-[0_0_14px_rgba(0,198,255,0.35)]"
+        >
+          <IconArrowRight className="h-5 w-5 transition-transform duration-300 group-hover/button:-rotate-12" />
+        </button>
       </div>
     </div>
   );

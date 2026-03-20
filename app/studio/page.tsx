@@ -1,8 +1,17 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  PORTFOLIO_STORAGE_KEY,
+  PORTFOLIO_UPDATED_EVENT,
+  TESTIMONIALS_STORAGE_KEY,
+  TESTIMONIALS_UPDATED_EVENT,
+  fetchPortfolioContentFromSupabase,
+  isSupabaseConfigured,
+  savePortfolioContentToSupabase,
+} from "@/lib/portfolio-data";
 
 type PortfolioProject = {
   title: string;
@@ -53,11 +62,17 @@ const categories: PortfolioCategory[] = [
   "Certificates",
 ];
 
-const PORTFOLIO_STORAGE_KEY = "portfolio-projects-v1";
-const PORTFOLIO_UPDATED_EVENT = "portfolio-projects-updated";
-const TESTIMONIALS_STORAGE_KEY = "portfolio-testimonials-v1";
-const TESTIMONIALS_UPDATED_EVENT = "portfolio-testimonials-updated";
 const STUDIO_AUTH_KEY = "portfolio-studio-auth";
+const STUDIO_EMAIL_STORAGE_KEY = "portfolio-studio-email";
+const STUDIO_PASSWORD_STORAGE_KEY = "portfolio-studio-password";
+const DEFAULT_STUDIO_EMAIL = "aiakosedt@gmail.com";
+const DEFAULT_STUDIO_PASSWORD = "Wence_dante24";
+const MAX_IMAGE_UPLOAD_SIZE = 2 * 1024 * 1024;
+
+type StudioCredentials = {
+  email: string;
+  password: string;
+};
 
 const fallbackProjects: PortfolioProjects = {
   "Graphic Design": [
@@ -268,14 +283,203 @@ function toTestimonial(form: TestimonialForm): Testimonial {
   };
 }
 
+function getDefaultStudioCredentials(): StudioCredentials {
+  return {
+    email: DEFAULT_STUDIO_EMAIL,
+    password: DEFAULT_STUDIO_PASSWORD,
+  };
+}
+
+function getStoredStudioCredentials(): StudioCredentials {
+  if (typeof window === "undefined") {
+    return getDefaultStudioCredentials();
+  }
+
+  try {
+    const storedEmail = window.localStorage.getItem(STUDIO_EMAIL_STORAGE_KEY)?.trim();
+    const storedPassword = window.localStorage.getItem(STUDIO_PASSWORD_STORAGE_KEY);
+
+    return {
+      email: storedEmail || DEFAULT_STUDIO_EMAIL,
+      password: storedPassword || DEFAULT_STUDIO_PASSWORD,
+    };
+  } catch {
+    return getDefaultStudioCredentials();
+  }
+}
+
+const readFileAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Failed to read the selected file."));
+    };
+
+    reader.onerror = () => {
+      reject(new Error("Failed to read the selected file."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+
+type ImageFieldProps = {
+  id: string;
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  previewHeightClassName?: string;
+};
+
+function ImageField({
+  id,
+  label,
+  value,
+  placeholder,
+  onChange,
+  previewHeightClassName = "h-36",
+}: ImageFieldProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const handleFiles = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Please choose an image file.");
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_UPLOAD_SIZE) {
+      setUploadError("Please keep image uploads under 2 MB for smoother saving.");
+      return;
+    }
+
+    try {
+      const imageValue = await readFileAsDataUrl(file);
+      onChange(imageValue);
+      setUploadError("");
+    } catch {
+      setUploadError("That image could not be read. Try another file.");
+    }
+  };
+
+  const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    await handleFiles(event.target.files);
+    event.target.value = "";
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    await handleFiles(event.dataTransfer.files);
+  };
+
+  return (
+    <div className="space-y-2">
+      <label htmlFor={id} className="block text-sm text-white/85">
+        {label}
+      </label>
+
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+      />
+
+      <label
+        htmlFor={`${id}-upload`}
+        onDragEnter={() => setIsDragging(true)}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center transition-all ${
+          isDragging
+            ? "border-[#0099ff]/70 bg-[#0099ff]/12"
+            : "border-white/15 bg-black/20 hover:border-[#0099ff]/45 hover:bg-[#0099ff]/8"
+        }`}
+      >
+        <input
+          id={`${id}-upload`}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          onChange={handleInputChange}
+        />
+        <span className="text-sm font-medium text-white/90">
+          Drag an image here or click to upload
+        </span>
+        <span className="mt-1 text-xs text-white/55">
+          You can still paste a path, URL, or data URL above. Best under 2 MB.
+        </span>
+      </label>
+
+      {uploadError && <p className="text-xs text-amber-200">{uploadError}</p>}
+
+      {value && (
+        <div className="overflow-hidden rounded-xl border border-white/15 bg-black/30">
+          <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+              Preview
+            </p>
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="text-[11px] uppercase tracking-[0.14em] text-white/55 transition-colors hover:text-white"
+            >
+              Clear
+            </button>
+          </div>
+          <img
+            src={value}
+            alt={`${label} preview`}
+            className={`w-full object-cover ${previewHeightClassName}`}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StudioPage() {
-  const [email, setEmail] = useState("");
+  const router = useRouter();
+  const supabaseEnabled = isSupabaseConfigured();
+  const [studioCredentials, setStudioCredentials] = useState<StudioCredentials>(() =>
+    getStoredStudioCredentials()
+  );
+  const [email, setEmail] = useState(() => getStoredStudioCredentials().email);
   const [password, setPassword] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.sessionStorage.getItem(STUDIO_AUTH_KEY) === "1";
   });
   const [loginError, setLoginError] = useState("");
+  const [loginNotice, setLoginNotice] = useState("");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState(() => getStoredStudioCredentials().email);
+  const [resetCode, setResetCode] = useState("");
+  const [nextPassword, setNextPassword] = useState("");
+  const [confirmNextPassword, setConfirmNextPassword] = useState("");
+  const [resetState, setResetState] = useState<{
+    status: "idle" | "submitting" | "success" | "error";
+    message: string;
+  }>({
+    status: "idle",
+    message: "",
+  });
 
   const [projects, setProjects] = useState<PortfolioProjects>(() => {
     if (typeof window === "undefined") return fallbackProjects;
@@ -306,6 +510,26 @@ export default function StudioPage() {
   const [editingTestimonialIndex, setEditingTestimonialIndex] = useState<number | null>(
     null
   );
+  const projectPreview = useMemo(() => toProject(form), [form]);
+  const testimonialPreview = useMemo(
+    () => toTestimonial(testimonialForm),
+    [testimonialForm]
+  );
+
+  useEffect(() => {
+    const storedCredentials = getStoredStudioCredentials();
+    setStudioCredentials(storedCredentials);
+    setEmail((previousEmail) => previousEmail || storedCredentials.email);
+    setResetEmail(storedCredentials.email);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(STUDIO_EMAIL_STORAGE_KEY, storedCredentials.email);
+      window.localStorage.setItem(
+        STUDIO_PASSWORD_STORAGE_KEY,
+        storedCredentials.password
+      );
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -316,6 +540,38 @@ export default function StudioPage() {
       );
     }
   }, [projects]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+
+    let cancelled = false;
+    const syncFromSupabase = async () => {
+      const remoteContent = await fetchPortfolioContentFromSupabase();
+      if (!remoteContent || cancelled) return;
+
+      setProjects(normalizeProjects(remoteContent.projects));
+      setTestimonials(normalizeTestimonials(remoteContent.testimonials));
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          PORTFOLIO_STORAGE_KEY,
+          JSON.stringify(remoteContent.projects)
+        );
+        window.localStorage.setItem(
+          TESTIMONIALS_STORAGE_KEY,
+          JSON.stringify(remoteContent.testimonials)
+        );
+        window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
+        window.dispatchEvent(new Event(TESTIMONIALS_UPDATED_EVENT));
+      }
+    };
+
+    void syncFromSupabase();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -332,11 +588,26 @@ export default function StudioPage() {
     [projects, activeCategory]
   );
 
+  const persistStudioCredentials = (nextCredentials: StudioCredentials) => {
+    setStudioCredentials(nextCredentials);
+
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(STUDIO_EMAIL_STORAGE_KEY, nextCredentials.email);
+    window.localStorage.setItem(
+      STUDIO_PASSWORD_STORAGE_KEY,
+      nextCredentials.password
+    );
+  };
+
   const persistProjects = (nextProjects: PortfolioProjects) => {
     setProjects(nextProjects);
     if (typeof window === "undefined") return;
     window.localStorage.setItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(nextProjects));
     window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
+    void savePortfolioContentToSupabase({
+      projects: nextProjects,
+      testimonials,
+    });
   };
 
   const persistTestimonials = (nextTestimonials: Testimonial[]) => {
@@ -347,21 +618,150 @@ export default function StudioPage() {
       JSON.stringify(nextTestimonials)
     );
     window.dispatchEvent(new Event(TESTIMONIALS_UPDATED_EVENT));
+    void savePortfolioContentToSupabase({
+      projects,
+      testimonials: nextTestimonials,
+    });
   };
 
   const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (email.trim() === "aiakosedt@gmail.com" && password === "wencedante") {
+    if (
+      email.trim().toLowerCase() === studioCredentials.email.trim().toLowerCase() &&
+      password === studioCredentials.password
+    ) {
       setIsAuthenticated(true);
       setLoginError("");
+      setLoginNotice("");
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem(STUDIO_AUTH_KEY, "1");
       }
       return;
     }
 
+    setLoginNotice("");
     setLoginError("Invalid email or password.");
+  };
+
+  const handleBackToHome = () => {
+    if (typeof window !== "undefined") {
+      window.location.assign("/");
+      return;
+    }
+
+    router.push("/");
+  };
+
+  const openForgotPassword = () => {
+    setShowForgotPassword(true);
+    setResetEmail(studioCredentials.email);
+    setResetCode("");
+    setNextPassword("");
+    setConfirmNextPassword("");
+    setResetState({
+      status: "idle",
+      message: "",
+    });
+    setLoginError("");
+    setLoginNotice("");
+  };
+
+  const closeForgotPassword = () => {
+    setShowForgotPassword(false);
+    setResetEmail(studioCredentials.email);
+    setResetCode("");
+    setNextPassword("");
+    setConfirmNextPassword("");
+    setResetState({
+      status: "idle",
+      message: "",
+    });
+  };
+
+  const handlePasswordReset = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const normalizedResetEmail = resetEmail.trim().toLowerCase();
+    const normalizedStudioEmail = studioCredentials.email.trim().toLowerCase();
+
+    if (normalizedResetEmail !== normalizedStudioEmail) {
+      setResetState({
+        status: "error",
+        message: "Use the Studio email address to reset your password.",
+      });
+      return;
+    }
+
+    if (nextPassword.length < 8) {
+      setResetState({
+        status: "error",
+        message: "Choose a password with at least 8 characters.",
+      });
+      return;
+    }
+
+    if (nextPassword !== confirmNextPassword) {
+      setResetState({
+        status: "error",
+        message: "The new password and confirmation do not match.",
+      });
+      return;
+    }
+
+    setResetState({
+      status: "submitting",
+      message: "Checking your recovery code...",
+    });
+
+    try {
+      const response = await fetch("/api/studio/reset", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: resetEmail.trim(),
+          resetCode: resetCode.trim(),
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+
+      if (!response.ok) {
+        setResetState({
+          status: "error",
+          message: payload?.error || "That recovery code was not accepted.",
+        });
+        return;
+      }
+
+      const updatedCredentials: StudioCredentials = {
+        email: studioCredentials.email,
+        password: nextPassword,
+      };
+
+      persistStudioCredentials(updatedCredentials);
+      setPassword("");
+      setEmail(updatedCredentials.email);
+      setShowForgotPassword(false);
+      setResetCode("");
+      setNextPassword("");
+      setConfirmNextPassword("");
+      setResetState({
+        status: "success",
+        message: "Password changed.",
+      });
+      setLoginError("");
+      setLoginNotice("Password changed. Sign in with your new Studio password.");
+    } catch {
+      setResetState({
+        status: "error",
+        message: "The password reset check failed. Please try again.",
+      });
+    }
   };
 
   const resetForm = () => {
@@ -445,59 +845,172 @@ export default function StudioPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
-        <form
-          onSubmit={handleLogin}
-          className="w-full max-w-md rounded-2xl border border-white/15 bg-white/5 backdrop-blur-xl p-6 space-y-4"
-        >
-          <h1 className="text-2xl font-bold">Studio Login</h1>
-          <p className="text-sm text-white/70">
-            Sign in to manage portfolio sections and projects.
-          </p>
+      <div className="min-h-screen bg-transparent text-white flex items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-2xl border border-white/15 bg-white/5 backdrop-blur-xl p-6 space-y-5">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold">Studio Login</h1>
+            <p className="text-sm text-white/70">
+              Sign in to manage portfolio sections and projects.
+            </p>
+          </div>
 
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="Email"
-            className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-            required
-          />
+          {!showForgotPassword ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="Email"
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                required
+              />
 
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Password"
-            className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-            required
-          />
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Password"
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                required
+              />
 
-          {loginError && <p className="text-sm text-red-300">{loginError}</p>}
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <button
+                  type="button"
+                  onClick={openForgotPassword}
+                  className="text-[#8fd3ff] transition-colors hover:text-white"
+                >
+                  Forgot password?
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBackToHome}
+                  className="text-white/70 transition-colors hover:text-white"
+                >
+                  Back to home
+                </button>
+              </div>
 
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-[#0099ff] py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors"
-          >
-            Login
-          </button>
-        </form>
+              {loginError && <p className="text-sm text-red-300">{loginError}</p>}
+              {loginNotice && <p className="text-sm text-emerald-300">{loginNotice}</p>}
+
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-[#0099ff] py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors"
+              >
+                Login
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handlePasswordReset} className="space-y-4">
+              <div className="rounded-xl border border-white/12 bg-black/20 p-4 space-y-2">
+                <p className="text-sm font-semibold text-white">
+                  Reset your Studio password
+                </p>
+                <p className="text-xs leading-relaxed text-white/60">
+                  Enter your private recovery code, then choose a new Studio password.
+                </p>
+              </div>
+
+              <input
+                type="email"
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                placeholder="Studio email"
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                required
+              />
+
+              <input
+                type="password"
+                value={resetCode}
+                onChange={(event) => setResetCode(event.target.value)}
+                placeholder="Recovery code"
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                required
+              />
+
+              <input
+                type="password"
+                value={nextPassword}
+                onChange={(event) => setNextPassword(event.target.value)}
+                placeholder="New password"
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                required
+              />
+
+              <input
+                type="password"
+                value={confirmNextPassword}
+                onChange={(event) => setConfirmNextPassword(event.target.value)}
+                placeholder="Confirm new password"
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                required
+              />
+
+              {resetState.message && (
+                <p
+                  className={`text-sm ${
+                    resetState.status === "error"
+                      ? "text-red-300"
+                      : resetState.status === "success"
+                        ? "text-emerald-300"
+                        : "text-white/65"
+                  }`}
+                >
+                  {resetState.message}
+                </p>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  className="flex-1 rounded-lg bg-[#0099ff] py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={resetState.status === "submitting"}
+                >
+                  {resetState.status === "submitting"
+                    ? "Checking code..."
+                    : "Change Password"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeForgotPassword}
+                  className="rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
+                >
+                  Back
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 md:p-8">
+    <div className="min-h-screen bg-transparent text-white p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl md:text-3xl font-bold">Portfolio Studio</h1>
-          <Link
-            href="/"
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Portfolio Studio</h1>
+            <p
+              className={`mt-1 text-xs ${
+                supabaseEnabled ? "text-emerald-300" : "text-amber-300"
+              }`}
+            >
+              {supabaseEnabled
+                ? "Supabase sync connected"
+                : "Supabase env not set: using local storage fallback"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleBackToHome}
             className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10 transition-colors"
           >
             <ArrowLeft size={16} />
             Back To Home
-          </Link>
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -548,15 +1061,15 @@ export default function StudioPage() {
                 required
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
-                  type="text"
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
+                <ImageField
+                  id="project-card-image"
+                  label="Card image"
                   value={form.image}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, image: event.target.value }))
+                  onChange={(value) =>
+                    setForm((prev) => ({ ...prev, image: value }))
                   }
-                  placeholder="Card image path"
-                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                  placeholder="Card image path or URL"
                 />
                 <input
                   type="text"
@@ -605,31 +1118,35 @@ export default function StudioPage() {
                     className="w-full min-h-[80px] rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
                   />
 
-                  <input
-                    type="text"
+                  <ImageField
+                    id="project-details-hero-image"
+                    label="Details hero image"
                     value={form.detailsHeroImage}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, detailsHeroImage: event.target.value }))
+                    onChange={(value) =>
+                      setForm((prev) => ({ ...prev, detailsHeroImage: value }))
                     }
-                    placeholder="Details hero image path"
-                    className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                    placeholder="Details hero image path or URL"
                   />
 
                   <div className="space-y-2">
                     {form.galleryImages.map((galleryPath, index) => (
-                      <div key={`gallery-input-${index}`} className="flex gap-2">
-                        <input
-                          type="text"
+                      <div
+                        key={`gallery-input-${index}`}
+                        className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3"
+                      >
+                        <ImageField
+                          id={`gallery-image-${index}`}
+                          label={`Gallery image ${index + 1}`}
                           value={galleryPath}
-                          onChange={(event) =>
+                          onChange={(value) =>
                             setForm((prev) => {
                               const nextGallery = [...prev.galleryImages];
-                              nextGallery[index] = event.target.value;
+                              nextGallery[index] = value;
                               return { ...prev, galleryImages: nextGallery };
                             })
                           }
                           placeholder={`Gallery image ${index + 1}`}
-                          className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                          previewHeightClassName="h-28"
                         />
                         <button
                           type="button"
@@ -686,6 +1203,96 @@ export default function StudioPage() {
                 )}
               </div>
             </form>
+
+            <div className="rounded-2xl border border-white/15 bg-black/25 p-4 md:p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                    Live Preview
+                  </p>
+                  <h3 className="mt-1 text-sm font-semibold text-white">
+                    This is how the project content is shaping up.
+                  </h3>
+                </div>
+                <span className="rounded-full border border-[#0099ff]/30 bg-[#0099ff]/10 px-3 py-1 text-[10px] tracking-[0.18em] text-[#8fd3ff]">
+                  {activeCategory}
+                </span>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1.15fr_0.95fr]">
+                <div className="overflow-hidden rounded-[22px] border border-white/15 bg-black/30">
+                  <img
+                    src={projectPreview.image}
+                    alt={projectPreview.title}
+                    className="h-52 w-full object-cover"
+                  />
+                  <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(0,153,255,0.08),rgba(8,10,18,0.14))] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-white">
+                        {projectPreview.title}
+                      </p>
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                        Project Card
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-relaxed text-white/70 line-clamp-4">
+                      {projectPreview.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-white/15 bg-black/30 p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-white">
+                      Details Preview
+                    </p>
+                    <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                      {projectPreview.showDetailsModal ? "Enabled" : "Disabled"}
+                    </span>
+                  </div>
+
+                  {projectPreview.showDetailsModal && projectPreview.details ? (
+                    <>
+                      <div className="overflow-hidden rounded-xl border border-white/12 bg-black/35">
+                        <img
+                          src={projectPreview.details.heroImage}
+                          alt={projectPreview.details.title}
+                          className="h-28 w-full object-cover"
+                        />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-white">
+                          {projectPreview.details.title}
+                        </h4>
+                        <p className="mt-2 text-sm leading-relaxed text-white/68 line-clamp-5">
+                          {projectPreview.details.description}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {projectPreview.details.galleryImages
+                          .slice(0, 3)
+                          .map((image, index) => (
+                            <div
+                              key={`${image}-${index}`}
+                              className="overflow-hidden rounded-lg border border-white/10 bg-black/40"
+                            >
+                              <img
+                                src={image}
+                                alt={`${projectPreview.details?.title} gallery ${index + 1}`}
+                                className="h-16 w-full object-cover"
+                              />
+                            </div>
+                          ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="rounded-xl border border-dashed border-white/12 bg-black/20 px-4 py-6 text-sm text-white/55">
+                      Turn on the details modal to preview the hero image and gallery here.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:p-5 space-y-3">
@@ -776,18 +1383,18 @@ export default function StudioPage() {
                 />
               </div>
 
-              <input
-                type="text"
+              <ImageField
+                id="testimonial-image"
+                label="Testimonial image"
                 value={testimonialForm.src}
-                onChange={(event) =>
+                onChange={(value) =>
                   setTestimonialForm((prev) => ({
                     ...prev,
-                    src: event.target.value,
+                    src: value,
                   }))
                 }
                 placeholder="Image path or URL (e.g. /client.png or https://...)"
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                required
+                previewHeightClassName="h-40"
               />
 
               <textarea
@@ -823,6 +1430,50 @@ export default function StudioPage() {
                 )}
               </div>
             </form>
+
+            <div className="rounded-2xl border border-white/15 bg-black/25 p-4 md:p-5 space-y-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                  Live Preview
+                </p>
+                <h3 className="mt-1 text-sm font-semibold text-white">
+                  This updates while you edit the testimonial.
+                </h3>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
+                <div className="overflow-hidden rounded-[22px] border border-white/15 bg-black/30">
+                  <img
+                    src={testimonialPreview.src}
+                    alt={testimonialPreview.name}
+                    className="h-56 w-full object-cover"
+                  />
+                </div>
+
+                <div className="relative flex min-h-[14rem] flex-col overflow-hidden rounded-[22px] border border-white/15 bg-black/35 p-4 shadow-[0_12px_26px_rgba(0,0,0,0.3)]">
+                  <div className="pointer-events-none absolute right-3 top-1 text-[56px] leading-none text-[#00c6ff]/18">
+                    "
+                  </div>
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="rounded-full border border-[#00c6ff]/35 bg-[#00c6ff]/10 px-3 py-1 text-[10px] tracking-[0.16em] text-[#86e9ff]">
+                      TESTIMONIAL
+                    </span>
+                    <span className="text-xs text-white/55">Studio Preview</span>
+                  </div>
+                  <div className="flex flex-1 flex-col">
+                    <h4 className="text-lg font-bold text-white">
+                      {testimonialPreview.name}
+                    </h4>
+                    <p className="text-sm text-[#8cdfff]">
+                      {testimonialPreview.designation}
+                    </p>
+                    <p className="mt-4 flex-1 text-sm leading-relaxed text-white/85">
+                      {testimonialPreview.quote}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:p-5 space-y-3">

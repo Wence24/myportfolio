@@ -4,22 +4,18 @@ import React, { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Inter } from "next/font/google";
 import { FloatingDock, type FloatingDockItem } from "@/components/ui/floating-dock";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import { CardBody, CardContainer, CardItem } from "@/components/ui/3d-card";
 import { Lens } from "@/components/ui/lens";
 import AnimatedTestimonialsDemo from "@/components/animated-testimonials-demo";
+import {
+  PORTFOLIO_STORAGE_KEY,
+  PORTFOLIO_UPDATED_EVENT,
+  fetchPortfolioContentFromSupabase,
+} from "@/lib/portfolio-data";
 import { Home as HomeIcon, User, Video, MessageSquareQuote, Mail, Code, Medal, Globe, ArrowUpRight, Film, Palette, ExternalLink } from "lucide-react"; // added icons
 
-// Google Fonts Inter SemiBold
-const inter = Inter({
-  weight: "600",
-  subsets: ["latin"],
-});
-
-const PORTFOLIO_STORAGE_KEY = "portfolio-projects-v1";
-const PORTFOLIO_UPDATED_EVENT = "portfolio-projects-updated";
 const MODAL_TRANSITION_MS = 520;
 const MODAL_OPEN_DELAY_MS = 10;
 
@@ -34,8 +30,8 @@ export default function Home() {
   const [showAbout, setShowAbout] = useState(false); // scroll-triggered About Me
   const [videoText, setVideoText] = useState("");
   const [graphicText, setGraphicText] = useState("");
-  const [videoDone, setVideoDone] = useState(false);
-  const [graphicDone, setGraphicDone] = useState(false);
+const [videoDone, setVideoDone] = useState(false);
+const [graphicDone, setGraphicDone] = useState(false);
 const [activeBox, setActiveBox] = useState("Graphic Design"); // default Projects
 const [showPortfolio, setShowPortfolio] = useState(false);
 const portfolioShown = useRef(false);
@@ -51,9 +47,21 @@ const [newProjectForm, setNewProjectForm] = useState<NewProjectForm>(createEmpty
 const [animateTab, setAnimateTab] = useState(false);
 
 const portfolioCategories = [
-  { name: "Graphic Design", icon: Palette },
-  { name: "Video Edit", icon: Film },
-  { name: "Certificates", icon: Medal },
+  {
+    name: "Graphic Design",
+    icon: Palette,
+    description: "Poster systems, visual branding, and polished design work.",
+  },
+  {
+    name: "Video Edit",
+    icon: Film,
+    description: "Story-driven edits, pacing, transitions, and cinematic cuts.",
+  },
+  {
+    name: "Certificates",
+    icon: Medal,
+    description: "Proof of learning, milestones, and validated skill growth.",
+  },
 ] as const;
 
 type PortfolioProject = {
@@ -80,6 +88,23 @@ type NewProjectForm = {
   detailsDescription: string;
   detailsHeroImage: string;
   galleryImages: string[];
+};
+
+type ContactFormState = {
+  name: string;
+  email: string;
+  message: string;
+};
+
+type SocialLink = {
+  label: string;
+  handle: string;
+  description: string;
+  href?: string;
+  options?: Array<{
+    label: string;
+    href: string;
+  }>;
 };
 
 type SideNavIcon = React.ComponentType<{ size?: number; className?: string }>;
@@ -160,6 +185,22 @@ const buttonsRef = useRef<HTMLDivElement>(null);
 const [modalVisible, setModalVisible] = useState(false);
 const [showReviewsIntro, setShowReviewsIntro] = useState(false);
 const [showReviewsTestimonials, setShowReviewsTestimonials] = useState(false);
+const [showContactForm, setShowContactForm] = useState(false);
+const [showTikTokModal, setShowTikTokModal] = useState(false);
+const [isTikTokBubbleMounted, setIsTikTokBubbleMounted] = useState(false);
+const [isTikTokBubbleVisible, setIsTikTokBubbleVisible] = useState(false);
+const [contactForm, setContactForm] = useState<ContactFormState>({
+  name: "",
+  email: "",
+  message: "",
+});
+const [contactSubmitState, setContactSubmitState] = useState<{
+  status: "idle" | "sending" | "success" | "error";
+  message: string;
+}>({
+  status: "idle",
+  message: "",
+});
 const reviewsRevealHasRun = useRef(false);
 
 
@@ -170,6 +211,7 @@ const reviewsRevealHasRun = useRef(false);
 
 const hasShownAbout = useRef(false);
 const hasShownHello = useRef(false);
+const tikTokBubbleRef = useRef<HTMLDivElement>(null);
 
 
   const hasRun = useRef(false);
@@ -268,6 +310,35 @@ useEffect(() => {
       PORTFOLIO_UPDATED_EVENT,
       syncPortfolioFromStorage as EventListener
     );
+  };
+}, []);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  let cancelled = false;
+  const syncPortfolioFromSupabase = async () => {
+    const remoteContent = await fetchPortfolioContentFromSupabase();
+    if (!remoteContent || cancelled) return;
+
+    const normalizedProjects = normalizeStoredProjects(remoteContent.projects);
+    setPortfolioProjects(normalizedProjects);
+
+    try {
+      window.localStorage.setItem(
+        PORTFOLIO_STORAGE_KEY,
+        JSON.stringify(normalizedProjects)
+      );
+      window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
+    } catch {
+      // ignore storage write errors
+    }
+  };
+
+  void syncPortfolioFromSupabase();
+
+  return () => {
+    cancelled = true;
   };
 }, []);
 
@@ -515,7 +586,7 @@ const handleSecretLogoTap = () => {
   // NAV LIST WITH ACTIVE UNDERLINE
   const navList = (
     <ul
-  className={`mt-2 mb-4 flex flex-col gap-2 lg:mb-0 lg:mt-0 lg:flex-row lg:items-center lg:gap-6 ${inter.className}`}
+  className="mt-2 mb-4 flex flex-col gap-2 font-semibold tracking-[0.02em] lg:mb-0 lg:mt-0 lg:flex-row lg:items-center lg:gap-6"
 >
   {[
     { name: "Home", ref: null }, // null because top of page
@@ -593,6 +664,53 @@ useEffect(() => {
     document.documentElement.style.overflow = "";
   };
 }, [introDone, isDetailsModalMounted, isAddProjectModalMounted]);
+
+useEffect(() => {
+  if (!showTikTokModal) return;
+
+  const handlePointerDown = (event: MouseEvent) => {
+    if (!tikTokBubbleRef.current) return;
+    if (!tikTokBubbleRef.current.contains(event.target as Node)) {
+      setShowTikTokModal(false);
+    }
+  };
+
+  const handleEscape = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      setShowTikTokModal(false);
+    }
+  };
+
+  document.addEventListener("mousedown", handlePointerDown);
+  document.addEventListener("keydown", handleEscape);
+
+  return () => {
+    document.removeEventListener("mousedown", handlePointerDown);
+    document.removeEventListener("keydown", handleEscape);
+  };
+}, [showTikTokModal]);
+
+useEffect(() => {
+  let openTimer: ReturnType<typeof setTimeout> | null = null;
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  if (showTikTokModal) {
+    setIsTikTokBubbleMounted(true);
+    openTimer = setTimeout(() => {
+      setIsTikTokBubbleVisible(true);
+    }, 12);
+  } else {
+    setIsTikTokBubbleVisible(false);
+    closeTimer = setTimeout(() => {
+      setIsTikTokBubbleMounted(false);
+    }, 190);
+  }
+
+  return () => {
+    if (openTimer) clearTimeout(openTimer);
+    if (closeTimer) clearTimeout(closeTimer);
+  };
+}, [showTikTokModal]);
 
 const closeDetailsModal = () => {
   setShowModal(false);
@@ -676,12 +794,118 @@ const handleAddProjectSubmit = (event: React.FormEvent<HTMLFormElement>) => {
   setTimeout(() => setAnimateTab(true), 50);
 };
 
+const updateContactField = (field: keyof ContactFormState, value: string) => {
+  setContactForm((prev) => ({
+    ...prev,
+    [field]: value,
+  }));
+};
+
+const handleContactSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  event.preventDefault();
+
+  setContactSubmitState({
+    status: "sending",
+    message: "Sending your message...",
+  });
+
+  try {
+    const response = await fetch("/api/contact", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(contactForm),
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | { error?: string; success?: boolean }
+      | null;
+
+    if (!response.ok) {
+      throw new Error(
+        payload?.error || "Your message could not be sent right now."
+      );
+    }
+
+    setContactForm({
+      name: "",
+      email: "",
+      message: "",
+    });
+    setContactSubmitState({
+      status: "success",
+      message: "Your message was sent successfully.",
+    });
+  } catch (error) {
+    setContactSubmitState({
+      status: "error",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Your message could not be sent right now.",
+    });
+  }
+};
+
 const isAnyModalOpen = isDetailsModalMounted || isAddProjectModalMounted;
 const activeProjects = portfolioProjects[activeBox] || [];
 const totalCreativeProjects =
   (portfolioProjects["Graphic Design"]?.length || 0) +
   (portfolioProjects["Video Edit"]?.length || 0);
 const totalCertificates = portfolioProjects.Certificates?.length || 0;
+const activeCategoryMeta =
+  portfolioCategories.find((item) => item.name === activeBox) ?? portfolioCategories[0];
+const glassSectionClass =
+  "relative w-full max-w-7xl mx-auto -mt-1 overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2 shadow-lg shadow-black/10 backdrop-blur-xl lg:p-4";
+const glassSectionInnerClass =
+  "relative z-10 px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12";
+const contactPlatforms = [
+  {
+    label: "Upwork",
+    href: "https://www.upwork.com/",
+    description: "Hire or connect with me on Upwork.",
+  },
+  {
+    label: "Fiverr",
+    href: "https://www.fiverr.com/",
+    description: "Browse my Fiverr-style creative services.",
+  },
+  {
+    label: "LinkedIn",
+    href: "https://www.linkedin.com/",
+    description: "Connect professionally on LinkedIn.",
+  },
+] as const;
+const socialLinks: SocialLink[] = [
+  {
+    label: "Facebook",
+    handle: "Wence Dante De Vera",
+    href: "https://www.facebook.com/wence.dante.de.vera.2024",
+    description: "Personal updates, public posts, and a more direct look at who I am.",
+  },
+  {
+    label: "Instagram",
+    handle: "@editwithwens",
+    href: "https://www.instagram.com/editwithwens",
+    description: "Edits, visuals, and behind-the-scenes creative work in one feed.",
+  },
+  {
+    label: "TikTok",
+    handle: "@wncedvra or @editwithwens",
+    description: "Choose between my two TikTok accounts for different styles of content.",
+    options: [
+      {
+        label: "@wncedvra",
+        href: "https://www.tiktok.com/@wncedvra",
+      },
+      {
+        label: "@editwithwens",
+        href: "https://www.tiktok.com/@editwithwens",
+      },
+    ],
+  },
+];
 const sideNavButtons: Array<{
   id: SideNavId;
   icon: SideNavIcon;
@@ -716,7 +940,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 });
 
   return (
-    <div className="relative min-h-screen bg-zinc-50 dark:bg-black overflow-y-auto">
+    <div className="relative min-h-screen overflow-y-auto bg-transparent">
       {/* INTRO BUILD-UP + LOGO REVEAL */}
       {!introDone && (
         <div
@@ -754,13 +978,29 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         </div>
       )}
 
-      {/* GRUNGE BACKGROUND */}
+      {/* HERO ATMOSPHERE */}
       <div className="absolute inset-0 z-0">
         <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-15"
-          style={{ backgroundImage: "url('/grunge.jpg')" }}
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(4,8,13,0.08) 0%, rgba(0,0,0,0.34) 100%), linear-gradient(122deg, rgba(255,255,255,0.035) 0%, transparent 32%, transparent 72%, rgba(255,255,255,0.014) 100%), radial-gradient(circle at 50% 0%, rgba(255,255,255,0.04) 0%, transparent 40%)",
+          }}
         />
-        <div className="absolute inset-0 bg-black/35" />
+        <div
+          className="absolute left-[-12%] top-[12%] hidden h-[30rem] w-[30rem] opacity-60 lg:block"
+          style={{
+            borderRadius: "999px",
+            background:
+              "conic-gradient(from 165deg, transparent 0deg, rgba(214,225,238,0.12) 64deg, transparent 110deg, transparent 360deg)",
+            WebkitMask:
+              "radial-gradient(circle, transparent 61%, black 63%, black 65.5%, transparent 67.5%)",
+            mask:
+              "radial-gradient(circle, transparent 61%, black 63%, black 65.5%, transparent 67.5%)",
+          }}
+        />
+        <div className="absolute left-1/2 top-[7%] h-px w-[58vw] -translate-x-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-70" />
+        <div className="absolute left-1/2 top-[9%] h-24 w-[50vw] -translate-x-1/2 bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,rgba(0,153,255,0.045)_44%,transparent_74%)] blur-3xl opacity-40" />
       </div>
 
       {/* NAVBAR */}
@@ -768,7 +1008,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         
         <nav
          ref={navbarRef}
-          className={`sticky top-0 w-full rounded-none px-4 py-2 lg:px-8 lg:py-4 backdrop-blur-sm bg-black/80 border-none ${inter.className}`}
+          className="sticky top-0 w-full rounded-none border-b border-white/10 bg-black/78 px-4 py-2 font-semibold tracking-[0.02em] backdrop-blur-md lg:px-8 lg:py-4"
         >
           <div className="flex items-center justify-between relative">
             <button
@@ -788,10 +1028,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           className="absolute left-0 w-full pointer-events-none animate-pulse-slow"
           style={{
             top: "100%",
-            height: "12px",
+            height: "16px",
             background:
-              "linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.0) 100%)",
-            filter: "blur(16px)",
+              "linear-gradient(to bottom, rgba(230, 239, 248, 0.24) 0%, rgba(157, 182, 205, 0.12) 38%, rgba(255,255,255,0.0) 100%)",
+            filter: "blur(15px)",
             zIndex: 49,
           }}
         />
@@ -854,7 +1094,6 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           </span>
 
           <div className="relative inline-block align-top">
-            {/* White base text */}
             <h1
               className={`
                 text-[16rem] sm:text-[22rem] md:text-[30rem] lg:text-[40rem]
@@ -920,8 +1159,8 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
     }`}
     style={{
       color: "white",
-      opacity: showAbout ? 0.7 : 0, // lower opacity
-      transitionDelay: showAbout ? "0.4s" : "0s", // delayed fade-in
+      opacity: showAbout ? 0.7 : 0,
+      transitionDelay: showAbout ? "0.4s" : "0s",
     }}
   >
     🎥 Turning ideas into visuals that speak louder than words 🎥
@@ -1278,139 +1517,233 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 {/* ===== PORTFOLIO SHOWCASE SECTION ===== */}
 <div
   ref={portfolioRef}
-  className="relative flex flex-col items-center mt-16 lg:mt-20 transition-all duration-700 ease-out"
+  className="relative mt-16 flex flex-col items-center overflow-hidden transition-all duration-700 ease-out lg:mt-20"
 >
-  {/* Heading */}
-  <h2
-    className={`text-3xl sm:text-4xl font-bold mb-2 transition-all duration-700 ${
-      showPortfolio ? "opacity-100 scale-100" : "opacity-0 scale-75"
-    }`}
-    style={{
-      background: "linear-gradient(135deg, #ffffff, #0099ff)",
-      WebkitBackgroundClip: "text",
-      WebkitTextFillColor: "transparent",
-      textShadow:
-        "0 0 6px rgba(0,153,255,0.6), 0 0 14px rgba(0,153,255,0.45), 0 0 26px rgba(0,153,255,0.3)",
-    }}
-  >
-    Portfolio Showcase
-  </h2>
-
-  {/* Small description */}
-  <p
-    className={`text-sm sm:text-base font-medium mb-8 text-center transition-all duration-700 ${
-      showPortfolio ? "opacity-80 translate-y-0" : "opacity-0 -translate-y-3"
-    }`}
-    style={{
-      color: "white",
-      opacity: showPortfolio ? 0.7 : 0,
-      transitionDelay: showPortfolio ? "0.4s" : "0s",
-    }}
-  >
-    Explore my journey through projects, certifications, and technical expertise. Each <br />section represents a milestone in my continuous learning path.
-  </p>
-
-
-{/* GLASSMORPHISM CONNECTED CONTAINER */}
-<div
-  className={`relative w-full max-w-7xl mx-auto -mt-1 rounded-xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-lg shadow-black/10 p-2 lg:p-4 pb-8 lg:pb-10 overflow-hidden transition-all duration-700 ${
-    showPortfolio ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-  }`}
-  style={{ fontFamily: "Arial, sans-serif", transitionDelay: showPortfolio ? "0.4s" : "0s" }}
->
-  <div
-    className={`pointer-events-none absolute inset-0 z-30 rounded-xl bg-black/40 transition-opacity duration-300 ${
-      isAnyModalOpen ? "opacity-100" : "opacity-0"
-    }`}
-  />
-
-  <div className="flex flex-col lg:flex-row gap-4">
-    {portfolioCategories.map((item) => {
-      const Icon = item.icon;
-      return (
-        <div
-          key={item.name}
-          onClick={() => {
-            setActiveBox(item.name);
-            setAnimateTab(false);
-            setTimeout(() => {
-              setAnimateTab(true);
-            }, 50);
-          }}
-          className={`flex-1 w-full lg:w-[380px] flex flex-col items-center justify-center py-3 px-10 rounded-lg backdrop-blur-xl border border-white/10 shadow-sm transition-all duration-500 cursor-pointer ${
-            activeBox === item.name
-              ? "bg-[rgba(0,153,255,0.15)] shadow-[0_0_20px_rgba(0,153,255,0.3)]"
-              : "bg-white/1 opacity-60 hover:opacity-80"
-          }`}
-          style={{ animation: showPortfolio ? "fadeIn 0.7s ease forwards" : "none" }}
-        >
-          <Icon className="w-6 h-6 text-white mb-1" />
-          <span className="font-bold text-sm text-white mb-0.5 text-center">{item.name}</span>
-        </div>
-      );
-    })}
+  <div className="pointer-events-none absolute inset-0">
+    <div className="absolute left-[12%] top-[12%] h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,transparent_72%)] blur-3xl" />
+    <div className="absolute right-[8%] bottom-[10%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,transparent_74%)] blur-3xl" />
   </div>
 
-  {showPortfolio && (
+  <div className={`${glassSectionClass} z-10`}>
     <div
-      key={`${activeBox}-${animateTab ? "in" : "out"}`}
-      className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 auto-rows-fr gap-6 pb-2"
-    >
-      {activeProjects.map((project, index) => (
-        <div
-          key={`${activeBox}-${project.title}-${index}`}
-          className="h-full opacity-0 translate-y-6 animate-fadeIn"
-          style={{ animationDelay: `${0.2 + index * 0.2}s` }}
-        >
-          <CardContainer className="h-full w-full" containerClassName="h-full">
-            <CardBody className="h-full w-full bg-white/10 backdrop-blur-xl border border-white/10 shadow-lg p-4 rounded-lg transition-all duration-700 hover:scale-105 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)] hover:bg-white/20 flex flex-col">
-              <CardItem translateZ={90} className="w-full">
-                <Image
-                  src={project.image}
-                  alt={project.title}
-                  width={400}
-                  height={250}
-                  className="rounded-lg object-cover mb-4"
-                />
-              </CardItem>
-
-              <CardItem translateZ={55} className="w-full">
-                <h3 className="text-white text-m mb-1 project-heading tracking-wider line-clamp-1">
-                  {project.title}
-                </h3>
-              </CardItem>
-              <CardItem translateZ={45} className="w-full flex-1">
-                <p className="text-xs text-white/80 mb-4 mt-2 line-clamp-3">{project.description}</p>
-              </CardItem>
-
-              <div className="relative z-20 mt-4 flex w-full items-center justify-between pointer-events-auto">
-                <a
-                  href={project.designLink}
-                  data-no-tilt="true"
-                  className="flex items-center gap-2 text-xs text-[#0099ff] font-semibold hover:underline"
-                >
-                  Link to design
-                  <ExternalLink className="w-3 h-3 -mt-[0px] -ml-1" />
-                </a>
-
-                <InteractiveHoverButton
-                  onClick={() => {
-                    setSelectedProject(project);
-                    setShowModal(true);
-                  }}
-                  data-no-tilt="true"
-                  defaultLabel="Details"
-                  hoverLabel="Open"
-                  className="cursor-pointer"
-                />
-              </div>
-            </CardBody>
-          </CardContainer>
-        </div>
-      ))}
-
+      className={`pointer-events-none absolute inset-0 z-30 rounded-xl bg-black/40 transition-opacity duration-300 ${
+        isAnyModalOpen ? "opacity-100" : "opacity-0"
+      }`}
+    />
+    <div className="pointer-events-none absolute inset-0">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      <div className="absolute right-[7%] top-[12%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,transparent_74%)] blur-3xl" />
     </div>
-  )}
+
+    <div className={`${glassSectionInnerClass} space-y-8`}>
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
+        <div
+          className={`transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            showPortfolio ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-6 scale-95"
+          }`}
+        >
+          <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Portfolio</p>
+          <h2
+            className="mt-4 text-3xl font-bold text-white sm:text-4xl"
+            style={{
+              fontFamily: "'CreatoDisplay', sans-serif",
+              letterSpacing: "0.03em",
+              textShadow: "0 0 16px rgba(0,153,255,0.18)",
+            }}
+          >
+            Portfolio Showcase
+          </h2>
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/72 sm:text-base">
+            Browse the work by category in one cleaner section. Graphics, Video Edit, and
+            Certificates still switch exactly the same way and only show the projects inside the
+            selected group.
+          </p>
+        </div>
+
+        <div
+          className={`transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            showPortfolio ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-6 scale-95"
+          }`}
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[24px] border border-white/12 bg-black/20 p-4 backdrop-blur-md">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">Creative Work</p>
+              <p className="mt-3 text-3xl font-semibold text-white">{totalCreativeProjects}</p>
+              <p className="mt-2 text-xs leading-relaxed text-white/58">
+                Graphics and edited video projects currently inside the showcase.
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-white/12 bg-black/20 p-4 backdrop-blur-md">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">Certificates</p>
+              <p className="mt-3 text-3xl font-semibold text-white">{totalCertificates}</p>
+              <p className="mt-2 text-xs leading-relaxed text-white/58">
+                Validated milestones and proof of continuous learning.
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-white/12 bg-black/20 p-4 backdrop-blur-md">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">Live Category</p>
+              <p className="mt-3 text-lg font-semibold text-white">{activeCategoryMeta.name}</p>
+              <p className="mt-2 text-xs leading-relaxed text-white/58">
+                {activeProjects.length} {activeProjects.length === 1 ? "item" : "items"} currently showing.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={`w-full transition-all duration-[850ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          showPortfolio ? "opacity-100 translate-y-0 blur-0" : "pointer-events-none opacity-0 translate-y-8 blur-sm"
+        }`}
+      >
+        <div className="rounded-[26px] border border-white/12 bg-black/20 p-4 backdrop-blur-md sm:p-5">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {portfolioCategories.map((item, index) => {
+              const Icon = item.icon;
+              const isActive = activeBox === item.name;
+
+              return (
+                <button
+                  key={item.name}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => {
+                    setActiveBox(item.name);
+                    setAnimateTab(false);
+                    setTimeout(() => {
+                      setAnimateTab(true);
+                    }, 50);
+                  }}
+                  className={`group rounded-[22px] border p-4 text-left transition-all duration-300 ${
+                    isActive
+                      ? "border-[#00d4ff]/35 bg-[#04101a]/72 shadow-[0_16px_34px_rgba(0,153,255,0.18)]"
+                      : "border-white/12 bg-white/[0.04] hover:-translate-y-1 hover:border-[#00d4ff]/28 hover:bg-white/[0.07]"
+                  }`}
+                  style={{
+                    animation: showPortfolio ? "fadeIn 0.7s ease forwards" : "none",
+                    animationDelay: `${0.08 + index * 0.08}s`,
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span
+                      className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
+                        isActive ? "bg-[#0099ff] text-white" : "bg-white/10 text-white/80"
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span
+                      className={`text-[11px] uppercase tracking-[0.22em] ${
+                        isActive ? "text-[#9be8ff]" : "text-white/42"
+                      }`}
+                    >
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+                  <p className="mt-4 text-sm font-semibold text-white">{item.name}</p>
+                  <p className="mt-2 text-xs leading-relaxed text-white/60">{item.description}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-2 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] px-4 pb-4 pt-1 sm:px-5 sm:pb-5 sm:pt-2">
+            <div className="flex flex-col gap-3 border-b border-white/10 pb-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">
+                  {activeCategoryMeta.name}
+                </p>
+                <h3 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
+                  {activeCategoryMeta.description}
+                </h3>
+              </div>
+              <p className="text-sm text-white/55">
+                {activeProjects.length} {activeProjects.length === 1 ? "item" : "items"} in this
+                category
+              </p>
+            </div>
+
+            {showPortfolio &&
+              (activeProjects.length > 0 ? (
+                <div
+                  key={`${activeBox}-${animateTab ? "in" : "out"}`}
+                  className="mt-1 grid grid-cols-1 auto-rows-fr gap-6 md:grid-cols-2 xl:grid-cols-3"
+                >
+                  {activeProjects.map((project, index) => (
+                    <div
+                      key={`${activeBox}-${project.title}-${index}`}
+                      className="-mt-4 h-full opacity-0 translate-y-6 animate-fadeIn"
+                      style={{ animationDelay: `${0.18 + index * 0.12}s` }}
+                    >
+                      <CardContainer
+                        className="h-full w-full !items-start !justify-start"
+                        containerClassName="h-full !items-start !justify-start"
+                      >
+                        <CardBody className="flex h-full w-full flex-col rounded-[22px] border border-white/10 bg-white/10 p-4 shadow-lg backdrop-blur-xl transition-all duration-700 hover:scale-[1.02] hover:bg-white/20 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)]">
+                          <CardItem translateZ={90} className="w-full">
+                            <Image
+                              src={project.image}
+                              alt={project.title}
+                              width={400}
+                              height={250}
+                              className="mb-4 h-[220px] w-full rounded-[18px] object-cover"
+                            />
+                          </CardItem>
+
+                          <CardItem translateZ={55} className="w-full">
+                            <h3 className="project-heading mb-1 text-m tracking-wider text-white line-clamp-1">
+                              {project.title}
+                            </h3>
+                          </CardItem>
+                          <CardItem translateZ={45} className="w-full flex-1">
+                            <p className="mt-2 mb-4 text-xs text-white/80 line-clamp-3">
+                              {project.description}
+                            </p>
+                          </CardItem>
+
+                          <div className="relative z-20 mt-4 flex w-full items-center justify-between gap-3 pointer-events-auto">
+                            <a
+                              href={project.designLink}
+                              data-no-tilt="true"
+                              className="flex items-center gap-2 text-xs font-semibold text-[#0099ff] hover:underline"
+                            >
+                              Link to design
+                              <ExternalLink className="h-3 w-3 -mt-[0px] -ml-1" />
+                            </a>
+
+                            <InteractiveHoverButton
+                              onClick={() => {
+                                setSelectedProject(project);
+                                setShowModal(true);
+                              }}
+                              data-no-tilt="true"
+                              defaultLabel="Details"
+                              hoverLabel="Open"
+                              className="cursor-pointer"
+                            />
+                          </div>
+                        </CardBody>
+                      </CardContainer>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div
+                  key={`${activeBox}-${animateTab ? "in" : "out"}-empty`}
+                  className="mt-5 rounded-[20px] border border-dashed border-white/12 bg-black/20 px-5 py-10 text-center"
+                >
+                  <p className="text-sm text-white/72 sm:text-base">
+                    No projects in {activeBox} yet.
+                  </p>
+                  <p className="mt-2 text-xs text-white/45">
+                    Add work to this category and it will appear here automatically.
+                  </p>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+    </div>
 
   {isDetailsModalMounted &&
     selectedProject &&
@@ -1767,42 +2100,335 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 {/* ADDITIONAL SECTIONS FOR SIDE NAV */}
 
      
-      <div ref={reviewsRef} className="relative min-h-[100vh] flex items-center justify-center px-4 overflow-hidden">
+      <div ref={reviewsRef} className="relative mt-16 flex flex-col items-center overflow-hidden transition-all duration-700 ease-out lg:mt-20">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-1/2 top-[10%] h-64 w-[72%] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.28)_0%,rgba(0,153,255,0.04)_48%,transparent_72%)] blur-3xl" />
+          <div className="absolute left-1/2 top-[12%] h-64 w-[72%] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,rgba(0,153,255,0.03)_44%,transparent_72%)] blur-3xl" />
         </div>
-        <div className="relative z-10 w-full max-w-6xl">
-          <div
-            className={`mb-6 flex justify-center transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-              showReviewsIntro ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-6 scale-95"
-            }`}
-          >
-            <p className="relative max-w-full whitespace-nowrap text-center text-[9px] sm:text-[12px] md:text-[15px] tracking-[0.1em] sm:tracking-[0.16em] uppercase text-white/95">
-              <span className="absolute -inset-2 rounded-full border border-[#00d4ff]/35 bg-[#04101a]/70 blur-md" />
-              <span className="relative inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-[#00d4ff]/55 bg-black/45 px-5 py-3 shadow-[0_0_42px_rgba(0,196,255,0.5)] backdrop-blur-md">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#7fe1ff] shadow-[0_0_12px_rgba(0,212,255,0.9)] animate-pulse" />
-                Voices behind the visuals, real stories from clients and collaborators.
-                <span className="h-1.5 w-1.5 rounded-full bg-[#7fe1ff] shadow-[0_0_12px_rgba(0,212,255,0.9)] animate-pulse" />
-              </span>
-            </p>
+        <div className={`${glassSectionClass} z-10`}>
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+            <div className="absolute right-[6%] top-[10%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,transparent_74%)] blur-3xl" />
           </div>
-          <div
-            className={`transition-all duration-[850ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-              showReviewsTestimonials
-                ? "opacity-100 translate-y-0 blur-0"
-                : "pointer-events-none opacity-0 translate-y-8 blur-sm"
-            }`}
-          >
-            <AnimatedTestimonialsDemo />
+          <div className={`${glassSectionInnerClass} space-y-8`}>
+            <div
+              className={`flex flex-col gap-6 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                showReviewsIntro ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-6 scale-95"
+              }`}
+            >
+              <div>
+                <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Reviews</p>
+                <h2
+                  className="mt-4 text-3xl font-bold text-white sm:text-4xl"
+                  style={{
+                    fontFamily: "'CreatoDisplay', sans-serif",
+                    letterSpacing: "0.03em",
+                    textShadow: "0 0 16px rgba(0,153,255,0.14)",
+                  }}
+                >
+                  Real feedback from people I&apos;ve created with.
+                </h2>
+                <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/72 sm:text-base">
+                  These stories come from clients and collaborators who trusted me with edits,
+                  visuals, revisions, and delivery. The interactive review showcase on the right
+                  stays exactly as part of the experience, now paired with a cleaner introduction.
+                </p>
+              </div>
+            </div>
+            <div
+              className={`w-full transition-all duration-[850ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                showReviewsTestimonials
+                  ? "opacity-100 translate-y-0 blur-0"
+                  : "pointer-events-none opacity-0 translate-y-8 blur-sm"
+              }`}
+            >
+              <div className="w-full scale-[1.02] transform-gpu sm:scale-[1.03]">
+                <AnimatedTestimonialsDemo />
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <div ref={contactRef} className="h-[100vh] flex items-center justify-center">
-        <h2 className="text-5xl font-bold">Contact Section</h2>
-      </div>
+      <div ref={contactRef} className="relative mt-16 flex flex-col items-center overflow-hidden pb-20 transition-all duration-700 ease-out lg:mt-20">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute right-[8%] top-[16%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
+          <div className="absolute left-[10%] bottom-[12%] h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,transparent_74%)] blur-3xl" />
+        </div>
+        <div className={`${glassSectionClass} z-10`}>
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+          </div>
+          <div className={`${glassSectionInnerClass} grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:gap-10`}>
+            <div className="flex flex-col justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Contact</p>
+                <h2
+                  className="mt-4 text-3xl font-bold text-white sm:text-4xl"
+                  style={{
+                    fontFamily: "'CreatoDisplay', sans-serif",
+                    letterSpacing: "0.03em",
+                    textShadow: "0 0 16px rgba(0,153,255,0.18)",
+                  }}
+                >
+                  Let&apos;s build something clean, cinematic, and memorable.
+                </h2>
+                <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/72 sm:text-base">
+                  Reach out through your preferred platform, or send a direct message right here on the site.
+                  Replies from the form will be sent to{" "}
+                  <span className="font-semibold text-[#a6e5ff]">aiakosedt@gmail.com</span>.
+                </p>
+              </div>
 
-      {/* EXTRA SPACE BELOW TO ENABLE SCROLL */}
-      <div className="h-[100vh]" />
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowContactForm((prev) => !prev)}
+                  className="inline-flex items-center justify-center rounded-full border border-[#00d4ff]/45 bg-[#04101a]/70 px-5 py-2.5 text-sm font-semibold text-[#9be8ff] transition-colors hover:bg-[#072033]"
+                >
+                  {showContactForm ? "Hide message form" : "Open message form"}
+                </button>
+                <a
+                  href="mailto:aiakosedt@gmail.com"
+                  className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white/85 transition-colors hover:bg-white/10"
+                >
+                  Email directly
+                </a>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {contactPlatforms.map((platform) => (
+                  <a
+                    key={platform.label}
+                    href={platform.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group rounded-2xl border border-white/12 bg-white/[0.04] p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#00d4ff]/35 hover:bg-white/[0.07] hover:shadow-[0_14px_34px_rgba(0,153,255,0.16)]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-white">{platform.label}</span>
+                      <ArrowUpRight className="h-4 w-4 text-[#8fdcff] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    </div>
+                    <p className="mt-3 text-xs leading-relaxed text-white/62">
+                      {platform.description}
+                    </p>
+                  </a>
+                ))}
+              </div>
+
+              <div className="rounded-[26px] border border-white/12 bg-black/20 p-4 backdrop-blur-md sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-white">Send a message</h3>
+                    <p className="mt-1 text-sm text-white/60">
+                      Leave your email and message here, and it will be sent to Gmail.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowContactForm((prev) => !prev)}
+                    className="rounded-full border border-white/15 bg-white/6 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/80 transition-colors hover:bg-white/10"
+                  >
+                    {showContactForm ? "Close" : "Write"}
+                  </button>
+                </div>
+
+                {showContactForm && (
+                  <form onSubmit={handleContactSubmit} className="mt-5 space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <input
+                        type="text"
+                        value={contactForm.name}
+                        onChange={(event) => updateContactField("name", event.target.value)}
+                        placeholder="Your name"
+                        className="w-full rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/40 focus:border-[#00d4ff]/55"
+                        required
+                      />
+                      <input
+                        type="email"
+                        value={contactForm.email}
+                        onChange={(event) => updateContactField("email", event.target.value)}
+                        placeholder="Your email"
+                        className="w-full rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/40 focus:border-[#00d4ff]/55"
+                        required
+                      />
+                    </div>
+                    <textarea
+                      value={contactForm.message}
+                      onChange={(event) => updateContactField("message", event.target.value)}
+                      placeholder="Tell me about your project..."
+                      className="min-h-[150px] w-full rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/40 focus:border-[#00d4ff]/55"
+                      required
+                    />
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p
+                        className={`text-sm ${
+                          contactSubmitState.status === "error"
+                            ? "text-[#ffb4b4]"
+                            : contactSubmitState.status === "success"
+                              ? "text-[#9ff3c8]"
+                              : "text-white/55"
+                        }`}
+                      >
+                        {contactSubmitState.message || "Use a Gmail app password in SMTP settings for delivery."}
+                      </p>
+                      <button
+                        type="submit"
+                        disabled={contactSubmitState.status === "sending"}
+                        className="inline-flex items-center justify-center rounded-full bg-[#0099ff] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#00a6ff] disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {contactSubmitState.status === "sending" ? "Sending..." : "Send message"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="relative flex flex-col items-center overflow-hidden pb-14 lg:pb-16">
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        <div className="relative z-10 w-full max-w-5xl px-5 sm:px-8 lg:px-10">
+          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#050a12]/88 px-5 py-5 shadow-[0_18px_60px_rgba(0,0,0,0.2)] sm:px-6 sm:py-6">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-xl">
+                <p className="text-[10px] uppercase tracking-[0.34em] text-[#8fdcff]">
+                  Socials
+                </p>
+                <h2
+                  className="mt-3 text-2xl font-semibold text-white sm:text-[2rem]"
+                  style={{
+                    fontFamily: "'CreatoDisplay', sans-serif",
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  Find me beyond the portfolio.
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-white/62">
+                  A smaller space for the platforms where I share my edits, visuals, and updates.
+                </p>
+              </div>
+
+              <a
+                href="mailto:aiakosedt@gmail.com"
+                className="inline-flex items-center justify-center rounded-full border border-white/14 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition-colors hover:bg-white/[0.08]"
+              >
+                Email me
+              </a>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {socialLinks.map((social, index) => {
+                const accentClass =
+                  index === 0
+                    ? "bg-[#6ec8ff]"
+                    : index === 1
+                      ? "bg-[#8ef0d2]"
+                      : "bg-[#ffd28e]";
+
+                const content = (
+                  <>
+                    <div className={`absolute left-0 top-0 h-full w-[3px] ${accentClass}`} />
+                    <div className="pl-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[10px] uppercase tracking-[0.22em] text-white/42">
+                          {social.label}
+                        </span>
+                        <ArrowUpRight className="h-4 w-4 text-white/45 transition-all duration-300 group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                      </div>
+                      <p className="mt-3 text-sm font-semibold text-white sm:text-[15px]">
+                        {social.handle}
+                      </p>
+                      <p className="mt-2 text-xs leading-relaxed text-white/55">
+                        {social.description}
+                      </p>
+                    </div>
+                  </>
+                );
+
+                if (social.options) {
+                  return (
+                    <div key={social.label} ref={tikTokBubbleRef} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowTikTokModal((previous) => !previous)}
+                        className={`group relative w-full overflow-hidden rounded-[22px] border bg-white/[0.03] px-4 py-4 text-left transition-all duration-300 hover:-translate-y-1 hover:bg-white/[0.06] ${
+                          showTikTokModal
+                            ? "border-white/22 shadow-[0_14px_36px_rgba(0,0,0,0.2)]"
+                            : "border-white/10 hover:border-white/18"
+                        }`}
+                        aria-expanded={showTikTokModal}
+                        aria-haspopup="dialog"
+                      >
+                        {content}
+                      </button>
+
+                      {isTikTokBubbleMounted && (
+                        <div
+                          className={`absolute bottom-full left-1/2 z-20 mb-3 w-[220px] -translate-x-1/2 transition-all duration-200 ease-out ${
+                            isTikTokBubbleVisible
+                              ? "translate-y-0 opacity-100"
+                              : "translate-y-2 opacity-0"
+                          }`}
+                        >
+                          <div
+                            className={`relative rounded-[20px] border border-white/12 bg-[#060b12]/96 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-all duration-200 ease-out ${
+                              isTikTokBubbleVisible ? "scale-100" : "scale-95"
+                            }`}
+                          >
+                            <div
+                              className={`pointer-events-none absolute bottom-0 left-1/2 h-3 w-3 -translate-x-1/2 translate-y-1/2 rotate-45 border-b border-r border-white/12 bg-[#060b12]/96 transition-all duration-200 ease-out ${
+                                isTikTokBubbleVisible ? "opacity-100" : "opacity-0"
+                              }`}
+                            />
+                            <p className="px-1 text-[10px] uppercase tracking-[0.22em] text-[#8fdcff]">
+                              TikTok
+                            </p>
+                            <div className="mt-3 grid gap-2">
+                              {social.options.map((option) => (
+                                <a
+                                  key={option.href}
+                                  href={option.href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={() => setShowTikTokModal(false)}
+                                  className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:translate-x-0.5 hover:bg-white/[0.08]"
+                                >
+                                  {option.label}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <a
+                    key={social.label}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-white/18 hover:bg-white/[0.06]"
+                  >
+                    {content}
+                  </a>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 flex flex-col gap-2 border-t border-white/10 pt-4 text-sm text-white/50 sm:flex-row sm:items-center sm:justify-between">
+              <p>Wence Dante De Vera</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-white/34">
+                Creative edits, visuals, and social content
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <style>{`
         .intro-backdrop-idle {
