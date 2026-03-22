@@ -114,25 +114,99 @@ type PortfolioContentRow = {
 };
 
 const SUPABASE_CONTENT_TABLE = "portfolio_content";
-const SUPABASE_CONTENT_ROW_ID =
-  process.env.NEXT_PUBLIC_SUPABASE_CONTENT_ROW_ID || "main";
+const DEFAULT_SUPABASE_CONTENT_ROW_ID = "main";
+
+type PublicSupabaseConfig = {
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  supabaseContentRowId: string;
+};
 
 let supabaseClient: SupabaseClient | null | undefined;
+let supabaseConfig: PublicSupabaseConfig | null | undefined;
+let supabaseConfigPromise: Promise<PublicSupabaseConfig | null> | null = null;
 
-const getSupabaseClient = (): SupabaseClient | null => {
-  if (supabaseClient !== undefined) {
-    return supabaseClient;
-  }
-
+const readSupabaseConfigFromEnv = (): PublicSupabaseConfig | null => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    return null;
+  }
+
+  return {
+    supabaseUrl,
+    supabaseAnonKey,
+    supabaseContentRowId:
+      process.env.NEXT_PUBLIC_SUPABASE_CONTENT_ROW_ID ||
+      DEFAULT_SUPABASE_CONTENT_ROW_ID,
+  };
+};
+
+const readSupabaseConfigFromRuntime = async (): Promise<PublicSupabaseConfig | null> => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const response = await fetch("/api/public-config", {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as Partial<PublicSupabaseConfig>;
+    if (!payload.supabaseUrl || !payload.supabaseAnonKey) {
+      return null;
+    }
+
+    return {
+      supabaseUrl: payload.supabaseUrl,
+      supabaseAnonKey: payload.supabaseAnonKey,
+      supabaseContentRowId:
+        payload.supabaseContentRowId || DEFAULT_SUPABASE_CONTENT_ROW_ID,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const getSupabaseConfig = async (): Promise<PublicSupabaseConfig | null> => {
+  if (supabaseConfig !== undefined) {
+    return supabaseConfig;
+  }
+
+  const envConfig = readSupabaseConfigFromEnv();
+  if (envConfig) {
+    supabaseConfig = envConfig;
+    return supabaseConfig;
+  }
+
+  if (!supabaseConfigPromise) {
+    supabaseConfigPromise = readSupabaseConfigFromRuntime().then((runtimeConfig) => {
+      supabaseConfig = runtimeConfig;
+      supabaseConfigPromise = null;
+      return runtimeConfig;
+    });
+  }
+
+  return supabaseConfigPromise;
+};
+
+const getSupabaseClient = async (): Promise<SupabaseClient | null> => {
+  if (supabaseClient !== undefined) {
+    return supabaseClient;
+  }
+
+  const config = await getSupabaseConfig();
+  if (!config) {
     supabaseClient = null;
     return supabaseClient;
   }
 
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  supabaseClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {
     auth: {
       persistSession: false,
     },
@@ -140,7 +214,16 @@ const getSupabaseClient = (): SupabaseClient | null => {
   return supabaseClient;
 };
 
-export const isSupabaseConfigured = (): boolean => getSupabaseClient() !== null;
+export const isSupabaseConfigured = (): boolean => {
+  if (readSupabaseConfigFromEnv()) {
+    return true;
+  }
+
+  return supabaseConfig !== undefined && supabaseConfig !== null;
+};
+
+export const ensureSupabaseConfigured = async (): Promise<boolean> =>
+  (await getSupabaseConfig()) !== null;
 
 export const normalizeProjects = (value: unknown): PortfolioProjects => {
   if (!value || typeof value !== "object") {
@@ -195,15 +278,19 @@ export const normalizeTestimonials = (value: unknown): Testimonial[] => {
 };
 
 export const fetchPortfolioContentFromSupabase = async (): Promise<PortfolioContent | null> => {
-  const client = getSupabaseClient();
+  const client = await getSupabaseClient();
   if (!client) {
     return null;
   }
 
+  const config = await getSupabaseConfig();
+  const contentRowId =
+    config?.supabaseContentRowId || DEFAULT_SUPABASE_CONTENT_ROW_ID;
+
   const { data, error } = await client
     .from(SUPABASE_CONTENT_TABLE)
     .select("id, projects, testimonials, updated_at")
-    .eq("id", SUPABASE_CONTENT_ROW_ID)
+    .eq("id", contentRowId)
     .maybeSingle<PortfolioContentRow>();
 
   if (error) {
@@ -224,13 +311,17 @@ export const fetchPortfolioContentFromSupabase = async (): Promise<PortfolioCont
 export const savePortfolioContentToSupabase = async (
   content: PortfolioContent
 ): Promise<boolean> => {
-  const client = getSupabaseClient();
+  const client = await getSupabaseClient();
   if (!client) {
     return false;
   }
 
+  const config = await getSupabaseConfig();
+  const contentRowId =
+    config?.supabaseContentRowId || DEFAULT_SUPABASE_CONTENT_ROW_ID;
+
   const payload: PortfolioContentRow = {
-    id: SUPABASE_CONTENT_ROW_ID,
+    id: contentRowId,
     projects: content.projects,
     testimonials: content.testimonials,
     updated_at: new Date().toISOString(),

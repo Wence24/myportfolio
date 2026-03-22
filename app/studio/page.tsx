@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
 import {
+  ensureSupabaseConfigured,
   PORTFOLIO_STORAGE_KEY,
   PORTFOLIO_UPDATED_EVENT,
   TESTIMONIALS_STORAGE_KEY,
@@ -456,7 +457,9 @@ function ImageField({
 
 export default function StudioPage() {
   const router = useRouter();
-  const supabaseEnabled = isSupabaseConfigured();
+  const [supabaseStatus, setSupabaseStatus] = useState<
+    "checking" | "enabled" | "disabled"
+  >(() => (isSupabaseConfigured() ? "enabled" : "checking"));
   const [studioCredentials, setStudioCredentials] = useState<StudioCredentials>(() =>
     getStoredStudioCredentials()
   );
@@ -542,10 +545,14 @@ export default function StudioPage() {
   }, [projects]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-
     let cancelled = false;
     const syncFromSupabase = async () => {
+      const configured = await ensureSupabaseConfigured();
+      if (cancelled) return;
+
+      setSupabaseStatus(configured ? "enabled" : "disabled");
+      if (!configured) return;
+
       const remoteContent = await fetchPortfolioContentFromSupabase();
       if (!remoteContent || cancelled) return;
 
@@ -995,12 +1002,18 @@ export default function StudioPage() {
             <h1 className="text-2xl md:text-3xl font-bold">Portfolio Studio</h1>
             <p
               className={`mt-1 text-xs ${
-                supabaseEnabled ? "text-emerald-300" : "text-amber-300"
+                supabaseStatus === "enabled"
+                  ? "text-emerald-300"
+                  : supabaseStatus === "checking"
+                    ? "text-sky-300"
+                    : "text-amber-300"
               }`}
             >
-              {supabaseEnabled
+              {supabaseStatus === "enabled"
                 ? "Supabase sync connected"
-                : "Supabase env not set: using local storage fallback"}
+                : supabaseStatus === "checking"
+                  ? "Checking Supabase connection..."
+                  : "Supabase env not set: using local storage fallback"}
             </p>
           </div>
           <button
