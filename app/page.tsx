@@ -860,6 +860,83 @@ const glassSectionClass =
   "relative w-full max-w-7xl mx-auto -mt-1 overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2 shadow-lg shadow-black/10 backdrop-blur-xl lg:p-4";
 const glassSectionInnerClass =
   "relative z-10 px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12";
+const creativeTools = [
+  {
+    name: "Adobe Premiere Pro",
+    short: "Pr",
+    category: "Primary editor",
+    description:
+      "My main workspace for pacing, story cuts, transitions, audio cleanup, and polished final exports.",
+    accent: "#a78bfa",
+    glow: "rgba(126, 34, 206, 0.32)",
+    badgeBackground:
+      "linear-gradient(135deg, rgba(32, 10, 58, 0.98), rgba(95, 38, 181, 0.96))",
+    badgeBorder: "rgba(201, 168, 255, 0.34)",
+    panelBackground:
+      "linear-gradient(135deg, rgba(72, 31, 128, 0.26), rgba(8, 11, 20, 0.88) 64%)",
+    tags: ["Cuts", "Rhythm", "Audio"],
+  },
+  {
+    name: "Adobe Photoshop",
+    short: "Ps",
+    category: "Image polish",
+    description:
+      "Used for retouching, poster visuals, thumbnails, compositing, and sharpening the final look of a frame.",
+    accent: "#6ee7ff",
+    glow: "rgba(14, 165, 233, 0.25)",
+    badgeBackground:
+      "linear-gradient(135deg, rgba(3, 31, 54, 0.98), rgba(14, 116, 144, 0.96))",
+    badgeBorder: "rgba(125, 233, 255, 0.3)",
+    panelBackground:
+      "linear-gradient(135deg, rgba(10, 72, 108, 0.24), rgba(8, 11, 20, 0.88) 66%)",
+    tags: ["Retouch", "Posters", "Thumbnails"],
+  },
+  {
+    name: "Adobe After Effects",
+    short: "Ae",
+    category: "Motion details",
+    description:
+      "For motion graphics, transitions, layered animation, and adding cinematic movement that elevates an edit.",
+    accent: "#d8b4fe",
+    glow: "rgba(168, 85, 247, 0.24)",
+    badgeBackground:
+      "linear-gradient(135deg, rgba(28, 14, 56, 0.98), rgba(107, 55, 176, 0.96))",
+    badgeBorder: "rgba(227, 197, 255, 0.28)",
+    panelBackground:
+      "linear-gradient(135deg, rgba(73, 35, 123, 0.24), rgba(8, 11, 20, 0.88) 66%)",
+    tags: ["Motion", "Titles", "Transitions"],
+  },
+  {
+    name: "Canva",
+    short: "C",
+    category: "Fast layouts",
+    description:
+      "Great for rapid social graphics, clean layouts, client-ready mockups, and quick-turn visual concepts.",
+    accent: "#7df9ff",
+    glow: "rgba(34, 211, 238, 0.22)",
+    badgeBackground:
+      "linear-gradient(135deg, rgba(8, 58, 72, 0.98), rgba(9, 118, 138, 0.96))",
+    badgeBorder: "rgba(154, 246, 255, 0.28)",
+    panelBackground:
+      "linear-gradient(135deg, rgba(12, 88, 104, 0.22), rgba(8, 11, 20, 0.88) 68%)",
+    tags: ["Socials", "Layouts", "Mockups"],
+  },
+  {
+    name: "Adobe Illustrator",
+    short: "Ai",
+    category: "Vector finish",
+    description:
+      "Used when a project needs crisp vector marks, icon work, title treatments, or scalable layout details.",
+    accent: "#fdba74",
+    glow: "rgba(249, 115, 22, 0.22)",
+    badgeBackground:
+      "linear-gradient(135deg, rgba(72, 29, 8, 0.98), rgba(154, 73, 12, 0.96))",
+    badgeBorder: "rgba(255, 191, 116, 0.28)",
+    panelBackground:
+      "linear-gradient(135deg, rgba(107, 51, 16, 0.22), rgba(8, 11, 20, 0.88) 68%)",
+    tags: ["Vector", "Icons", "Type"],
+  },
+] as const;
 const contactPlatforms = [
   {
     label: "Upwork",
@@ -1512,6 +1589,167 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
   </div>
 </div>
+</div>
+
+<div className="relative mt-16 flex flex-col items-center overflow-hidden transition-all duration-700 ease-out lg:mt-20">
+  <div className="pointer-events-none absolute inset-0">
+    <div className="absolute left-[6%] top-[8%] h-52 w-52 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
+    <div className="absolute right-[7%] bottom-[12%] h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(255,145,72,0.12)_0%,transparent_74%)] blur-3xl" />
+    <div className="absolute inset-x-[14%] top-1/2 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+  </div>
+
+  <div
+    className={`${glassSectionClass} z-10 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+      showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+    }`}
+    style={{ transitionDelay: showAbout ? "0.55s" : "0s" }}
+  >
+    <div className="pointer-events-none absolute inset-0">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      <div className="absolute right-[10%] top-[14%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,transparent_74%)] blur-3xl" />
+    </div>
+
+    <div className={`${glassSectionInnerClass} grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start`}>
+      <div className="max-w-xl">
+        <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Creative Stack</p>
+        <h2
+          className="mt-4 text-3xl font-bold text-white sm:text-4xl"
+          style={{
+            fontFamily: "'CreatoDisplay', sans-serif",
+            letterSpacing: "0.03em",
+            textShadow: "0 0 16px rgba(0,153,255,0.18)",
+          }}
+        >
+          The tools I trust to keep every edit sharp, cinematic, and intentional.
+        </h2>
+        <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/72 sm:text-base">
+          My workflow stays simple on the surface but refined in execution. I mainly
+          build with Premiere Pro, Photoshop, After Effects, Canva, and Illustrator,
+          switching between them depending on whether a project needs pacing, motion,
+          layout, or stronger visual polish.
+        </p>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/12 bg-white/[0.04] p-4 backdrop-blur-md">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">Main Focus</p>
+            <p className="mt-2 text-sm font-semibold text-white">Video editing with design support</p>
+          </div>
+          <div className="rounded-2xl border border-white/12 bg-white/[0.04] p-4 backdrop-blur-md">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">Core Tools</p>
+            <p className="mt-2 text-sm font-semibold text-white">5 daily-use apps</p>
+          </div>
+          <div className="rounded-2xl border border-white/12 bg-white/[0.04] p-4 backdrop-blur-md">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">Style</p>
+            <p className="mt-2 text-sm font-semibold text-white">Clean, fast, and cinematic</p>
+          </div>
+        </div>
+
+        <div className="relative mt-6 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-5">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute -right-8 top-4 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.1)_0%,transparent_72%)] blur-2xl" />
+          </div>
+
+          <div className="relative z-10 flex min-h-[215px] flex-col justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-[#ffe97a]">Edit Flow</p>
+              <h3 className="mt-3 max-w-sm text-xl font-semibold text-white">
+                I keep the process clear so the final output feels effortless.
+              </h3>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-3 backdrop-blur-md">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">01</p>
+                <p className="mt-2 text-sm font-medium text-white/88">Rough cut and pacing first</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-3 backdrop-blur-md">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">02</p>
+                <p className="mt-2 text-sm font-medium text-white/88">Design polish and clean framing</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-3 backdrop-blur-md">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">03</p>
+                <p className="mt-2 text-sm font-medium text-white/88">Motion where it adds real impact</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-3 backdrop-blur-md">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">04</p>
+                <p className="mt-2 text-sm font-medium text-white/88">Export tuned for a strong finish</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {creativeTools.map((tool, index) => (
+          <div
+            key={tool.name}
+            className={`group relative overflow-hidden rounded-[28px] border border-white/12 p-4 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-white/22 ${
+              index === 0 ? "sm:col-span-2" : ""
+            }`}
+            style={{
+              background: tool.panelBackground,
+              boxShadow: `0 22px 60px ${tool.glow}`,
+            }}
+          >
+            <div
+              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(255,255,255,0.12), transparent 38%, transparent 100%)",
+              }}
+            />
+
+            <div className="relative z-10 flex items-start justify-between gap-4">
+              <div
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border text-xl font-bold tracking-[0.02em]"
+                style={{
+                  background: tool.badgeBackground,
+                  borderColor: tool.badgeBorder,
+                  color: tool.accent,
+                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 30px ${tool.glow}`,
+                }}
+              >
+                {tool.short}
+              </div>
+
+              <span
+                className="rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.22em]"
+                style={{
+                  borderColor: tool.badgeBorder,
+                  color: tool.accent,
+                  background: "rgba(255,255,255,0.04)",
+                }}
+              >
+                {tool.category}
+              </span>
+            </div>
+
+            <div className="relative z-10 mt-5">
+              <h3 className="text-lg font-semibold text-white">{tool.name}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-white/72">
+                {tool.description}
+              </p>
+            </div>
+
+            <div className="relative z-10 mt-5 flex flex-wrap gap-2">
+              {tool.tags.map((tag) => (
+                <span
+                  key={`${tool.name}-${tag}`}
+                  className="rounded-full border px-3 py-1 text-[11px] font-medium text-white/78"
+                  style={{
+                    borderColor: "rgba(255,255,255,0.14)",
+                    background: "rgba(255,255,255,0.05)",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
 </div>
 
 {/* ===== PORTFOLIO SHOWCASE SECTION ===== */}
