@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { FloatingDock, type FloatingDockItem } from "@/components/ui/floating-dock";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import { CardBody, CardContainer, CardItem } from "@/components/ui/3d-card";
+import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { Lens } from "@/components/ui/lens";
 import AnimatedTestimonialsDemo from "@/components/animated-testimonials-demo";
 import {
@@ -21,7 +22,7 @@ const MODAL_OPEN_DELAY_MS = 10;
 
 export default function Home() {
   const router = useRouter();
-  const [textVisible, setTextVisible] = useState(false);
+  const [, setTextVisible] = useState(false);
   const [imageVisible, setImageVisible] = useState(false);
   const [introDone, setIntroDone] = useState(false);
   const [introPulse, setIntroPulse] = useState(false);
@@ -857,9 +858,21 @@ const totalCertificates = portfolioProjects.Certificates?.length || 0;
 const activeCategoryMeta =
   portfolioCategories.find((item) => item.name === activeBox) ?? portfolioCategories[0];
 const glassSectionClass =
-  "relative w-full max-w-7xl mx-auto -mt-1 overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2 shadow-lg shadow-black/10 backdrop-blur-xl lg:p-4";
+  "relative w-full max-w-7xl mx-auto rounded-[26px] border border-white/10 bg-white/[0.03] p-[1.5px] shadow-[0_18px_60px_rgba(0,0,0,0.24)]";
+const glassSectionPanelClass =
+  "relative overflow-hidden rounded-[24px] bg-[linear-gradient(180deg,rgba(14,19,27,0.94),rgba(8,12,18,0.98))] backdrop-blur-xl";
 const glassSectionInnerClass =
   "relative z-10 px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12";
+const mainSectionGlowProps = {
+  disabled: false,
+  glow: true,
+  blur: 0,
+  spread: 34,
+  proximity: 128,
+  inactiveZone: 0.01,
+  movementDuration: 0.8,
+  borderWidth: 1.5,
+};
 const creativeTools = [
   {
     name: "Adobe Premiere Pro",
@@ -1207,391 +1220,310 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
       </div>  {/* <-- this closes the absolute text container */}
 
 
-      {/* ===== ABOUT ME SECTION OUTSIDE HERO ===== */}
-{/* ===== ABOUT ME SECTION ===== */}
-<div
-  ref={aboutRef}
-  className="relative flex flex-col items-center mt-[610px] transition-all duration-700 ease-out"
->
-  {/* About Me Heading (Centered) */}
-  <h2
-    className={`text-3xl sm:text-4xl font-bold mb-2 transition-all duration-700 ${
-      showAbout ? "opacity-100 scale-100" : "opacity-0 scale-75"
-    }`}
-    style={{
-      background: "linear-gradient(135deg, #ffffff, #0099ff)",
-      WebkitBackgroundClip: "text",
-      WebkitTextFillColor: "transparent",
-      textShadow:
-        "0 0 6px rgba(0,153,255,0.6), 0 0 14px rgba(0,153,255,0.45), 0 0 26px rgba(0,153,255,0.3)",
-    }}
-  >
-    About Me
-  </h2>
-
-  {/* Small caption below About Me (separate animation) */}
-  <p
-    className={`text-sm sm:text-base font-medium mb-8 text-center transition-all duration-700 ${
-      showAbout ? "opacity-80 translate-y-0" : "opacity-0 -translate-y-3"
-    }`}
-    style={{
-      color: "white",
-      opacity: showAbout ? 0.7 : 0,
-      transitionDelay: showAbout ? "0.4s" : "0s",
-    }}
-  >
-    🎥 Turning ideas into visuals that speak louder than words 🎥
-  </p>
-
-  {/* GLASSMORPHISM CONNECTED CONTAINER (same style as Portfolio Showcase) */}
-  <div
-    className={`relative w-full max-w-7xl mx-auto -mt-1 rounded-xl backdrop-blur-xl bg-white/5 border border-white/10 shadow-lg shadow-black/10 p-2 lg:p-4 overflow-hidden transition-all duration-700 ${
-      showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-    }`}
-    style={{ fontFamily: "Arial, sans-serif", transitionDelay: showAbout ? "0.4s" : "0s" }}
-  >
-  {/* FLEX CONTAINER: Text Left, Circle Right */}
-  <div className="relative flex flex-col sm:flex-row items-start w-full max-w-7xl mx-auto px-2 lg:px-4 gap-6 lg:gap-8 mt-8 lg:mt-10 pb-8 lg:pb-10 justify-between">
-    {/* Left: Text */}
-    <div className="order-1 w-full sm:basis-[56%] sm:max-w-[56%] flex flex-col items-start lg:pr-8">
-      {/* Hello, I'm */}
-      <h3
-        className={`text-4xl sm:text-5xl font-bold mb-0.5 transition-all duration-700 ${
-          helloVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-64"
-        }`}
-        style={{
-          background: "linear-gradient(135deg, #ffffff, #0099ff)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          fontFamily: "'Condenso', sans-serif",
-        }}
+      {/* ===== ABOUT ME SECTION ===== */}
+      <div
+        ref={aboutRef}
+        className="relative mt-[610px] flex flex-col items-center overflow-visible transition-all duration-700 ease-out"
       >
-        Hello, I&apos;m
-      </h3>
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-[8%] top-[8%] h-52 w-52 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.16)_0%,transparent_72%)] blur-3xl" />
+          <div className="absolute right-[6%] top-[6%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.07)_0%,transparent_74%)] blur-3xl" />
+          <div className="absolute inset-x-[10%] bottom-[12%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        </div>
 
-      {/* Name */}
-      <h4
-        className="text-4xl sm:text-5xl font-bold text-white transition-all duration-700 delay-300 flex items-center"
-        style={{
-          opacity: helloVisible ? 1 : 0,
-          transform: helloVisible ? "translateX(0)" : "translateX(-64px)",
-          transition: "all 0.7s ease-out 0.3s",
-          fontFamily: "'Condenso', sans-serif",
-        }}
-      >
-        <span>{nameText}</span>
-        {!nameDone && (
-          <span className="w-[2px] h-[1em] bg-white ml-1 animate-blink inline-block" />
-        )}
-      </h4>
+        <div
+          className={`relative z-10 w-full max-w-7xl rounded-[32px] border border-white/10 bg-white/[0.03] p-[1.5px] shadow-[0_28px_80px_rgba(0,0,0,0.28)] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+          }`}
+          style={{ transitionDelay: showAbout ? "0.4s" : "0s" }}
+        >
+          <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
+          <div className="relative overflow-hidden rounded-[30px] bg-[linear-gradient(180deg,rgba(18,25,34,0.92),rgba(11,18,26,0.96))] backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(0,153,255,0.09),transparent_24%),radial-gradient(circle_at_78%_18%,rgba(255,255,255,0.05),transparent_22%)]" />
+            </div>
 
-      {/* Short description */}
-      <p
-        className={`mt-4 text-sm sm:text-base max-w-lg text-white transition-all duration-700 text-justify  transition-opacity duration-700${
-          helloVisible ? "opacity-80 translate-y-0" : "opacity-0 -translate-y-3"
-        }`}
-        style={{
-          opacity: helloVisible ? 0.7 : 0,
-          lineHeight: 1.5,
-           maxWidth: "850px",
-           textAlign: "justify",
-           transitionDelay: "0.4s", // fades in after name
+            <div className="relative z-10 px-4 pt-4 pb-5 sm:px-6 sm:pt-6 sm:pb-6 lg:px-6 lg:pt-6 lg:pb-7">
+            <div
+              className={`transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                showAbout ? "translate-y-0 opacity-100" : "-translate-y-4 opacity-0"
+              }`}
+            >
+              <span className="inline-flex rounded-full border border-[#0099ff]/25 bg-[#0099ff]/10 px-4 py-1 text-[11px] uppercase tracking-[0.26em] text-[#8fdcff]">
+                Video Editor • Graphic Designer
+              </span>
+            </div>
 
-        }}
-      >
-        I am a 4th-year BSIT student and a skilled video editor with 2 years of hands-on experience.  
-        I have a keen eye for detail and a passion for storytelling through visual media.  
-        Whether crafting cinematic sequences or enhancing the impact of a message, I bring creativity and technical expertise to every project.  
-        I am proficient in Adobe Premiere, moderately skilled in After Effects, and experienced in sound design.  
-      </p>
+            <div className="relative flex w-full flex-col items-start justify-between gap-6 lg:flex-row lg:gap-8">
+              <div className="order-1 w-full lg:basis-[54%] lg:max-w-[54%] lg:pr-6">
+                <h3
+                  className={`mt-5 text-5xl font-bold leading-[0.95] transition-all duration-700 sm:text-[4.3rem] ${
+                    helloVisible ? "translate-x-0 opacity-100" : "-translate-x-64 opacity-0"
+                  }`}
+                  style={{
+                    background: "linear-gradient(135deg, #f6fbff 0%, #88d4ff 48%, #0099ff 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    fontFamily: "'Condenso', sans-serif",
+                  }}
+                >
+                  Hello, I&apos;m
+                </h3>
 
-      {/* FLEX CONTAINER FOR BUTTONS */}
-<div className="mt-6 flex gap-4">
-  {/* Download CV Button */}
-  <a
-    href="/Wence-De-Vera-CV.pdf" // put your CV file in /public
-    download
-    className="
-      inline-flex items-center justify-center
-      px-8 py-3 rounded-lg
-      font-bold text-sm sm:text-base
-      transition-transform duration-200 ease-in
-      hover:scale-105 hover:shadow-lg
-      hover:shadow-[#0099ff]/40
-    "
-    style={{
-      fontFamily: "'Condenso', sans-serif",
-      background: "linear-gradient(135deg, #0099ff, #00ccff)",
-      color: "white",
-      opacity: helloVisible ? 1 : 0,
-    transform: helloVisible ? "translateY(0)" : "translateY(12px)",
-    transitionDelay: "0.4s", // SAME as description
-      
-      
-    }}
-  >
-    Download CV
-  </a>
+                <h4
+                  className="mt-2 flex items-center text-5xl font-bold leading-[0.98] tracking-[-0.02em] text-white transition-all duration-700 delay-300 sm:text-[5.2rem]"
+                  style={{
+                    opacity: helloVisible ? 1 : 0,
+                    transform: helloVisible ? "translateX(0)" : "translateX(-64px)",
+                    transition: "all 0.7s ease-out 0.3s",
+                  }}
+                >
+                  <span>{nameText}</span>
+                  {!nameDone && (
+                    <span className="ml-1 inline-block h-[1em] w-[2px] bg-white animate-blink" />
+                  )}
+                </h4>
 
-  {/* View Projects Button */}
-  <a
-    href="#projects"
-    className="
-      inline-flex items-center justify-center
-      px-8 py-3 rounded-lg
-      font-bold text-sm sm:text-base
-      border-2 border-[#0099ff]
-      text-[#0099ff]
-      transition-transform duration-200 ease-in
-      hover:scale-105 hover:shadow-lg hover:shadow-[#0099ff]/40
-    "
-    style={{
-      fontFamily: "'Condenso', sans-serif",
-        opacity: helloVisible ? 1 : 0,
-    transform: helloVisible ? "translateY(0)" : "translateY(12px)",
-    transitionDelay: "0.6s", // delayed after Download CV
-      
-    }}
-  >
-    <span className="mr-2">{'<>'}</span> View Projects
-  </a>
+                <p
+                  className={`mt-5 max-w-2xl text-sm text-justify text-white transition-all duration-700 sm:text-base ${
+                    helloVisible ? "translate-y-0 opacity-80" : "-translate-y-3 opacity-0"
+                  }`}
+                  style={{
+                    opacity: helloVisible ? 0.74 : 0,
+                    lineHeight: 1.55,
+                    transitionDelay: "0.4s",
+                  }}
+                >
+                  I am a 4th-year BSIT student and a skilled video editor with 2 years of
+                  hands-on experience. I have a keen eye for detail and a passion for
+                  storytelling through visual media. Whether crafting cinematic sequences or
+                  enhancing the impact of a message, I bring creativity and technical expertise
+                  to every project. I am proficient in Adobe Premiere, moderately skilled in
+                  After Effects, and experienced in sound design.
+                </p>
 
-   {/* SOCIAL ICONS (Right of View Projects) */}
-<div className="flex items-center gap-2 ml-4 -mt-1">
-  {/* LinkedIn */}
-  <a
-    href="https://your-link-1.com"
-    target="_blank"
-    rel="noopener noreferrer"
-    className="relative w-9 h-9"
-  >
-    {/* Hover effect layer */}
-    <div
-      className="absolute inset-0 transition-opacity duration-300 opacity-0 hover:opacity-100"
-      style={{
-        backgroundColor: "#0099ff",
-        WebkitMaskImage: "url('/linkedin.png')",
-        WebkitMaskRepeat: "no-repeat",
-        WebkitMaskSize: "contain",
-        WebkitMaskPosition: "center",
-        maskImage: "url('/linkedin.png')",
-        maskRepeat: "no-repeat",
-        maskSize: "contain",
-        maskPosition: "center",
-      }}
-    />
-    {/* Original icon */}
-    <img
-      src="/linkedin.png"
-      alt="LinkedIn"
-      className="w-full h-full object-contain"
-    />
-  </a>
+                <div className="mt-8 flex flex-wrap items-center gap-4">
+                  <a
+                    href="/Wence-De-Vera-CV.pdf"
+                    download
+                    className="inline-flex items-center justify-center rounded-xl px-8 py-3 text-sm font-bold transition-all duration-200 ease-in hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(0,153,255,0.22)] sm:text-base"
+                    style={{
+                      fontFamily: "'Condenso', sans-serif",
+                      background: "linear-gradient(135deg, #0099ff, #18c8ff)",
+                      color: "white",
+                      opacity: helloVisible ? 1 : 0,
+                      transform: helloVisible ? "translateY(0)" : "translateY(12px)",
+                      transitionDelay: "0.4s",
+                    }}
+                  >
+                    Download CV
+                  </a>
 
-  {/* Behance */}
-  <a
-    href="https://your-link-2.com"
-    target="_blank"
-    rel="noopener noreferrer"
-    className="relative w-9 h-9 mt-1"
-  >
-    <div
-      className="absolute inset-0 transition-opacity duration-300 opacity-0 hover:opacity-100"
-      style={{
-        backgroundColor: "#0099ff",
-        WebkitMaskImage: "url('/behance.png')",
-        WebkitMaskRepeat: "no-repeat",
-        WebkitMaskSize: "contain",
-        WebkitMaskPosition: "center",
-        maskImage: "url('/behance.png')",
-        maskRepeat: "no-repeat",
-        maskSize: "contain",
-        maskPosition: "center",
-      }}
-    />
-    <img
-      src="/behance.png"
-      alt="Behance"
-      className="w-full h-full object-contain"
-    />
-  </a>
+                  <a
+                    href="#projects"
+                    className="inline-flex items-center justify-center rounded-xl border border-[#0099ff]/65 bg-[#07131d] px-8 py-3 text-sm font-bold text-[#19b7ff] transition-all duration-200 ease-in hover:-translate-y-0.5 hover:border-[#20c4ff] hover:shadow-[0_14px_30px_rgba(0,153,255,0.14)] sm:text-base"
+                    style={{
+                      fontFamily: "'Condenso', sans-serif",
+                      opacity: helloVisible ? 1 : 0,
+                      transform: helloVisible ? "translateY(0)" : "translateY(12px)",
+                      transitionDelay: "0.6s",
+                    }}
+                  >
+                    <span className="mr-2">{'<>'}</span> View Projects
+                  </a>
 
-  {/* Upwork */}
-  <a
-    href="https://your-link-3.com"
-    target="_blank"
-    rel="noopener noreferrer"
-    className="relative w-9 h-9 mt-2"
-  >
-    <div
-      className="absolute inset-0 transition-opacity duration-300 opacity-0 hover:opacity-100"
-      style={{
-        backgroundColor: "#0099ff",
-        WebkitMaskImage: "url('/upwork.png')",
-        WebkitMaskRepeat: "no-repeat",
-        WebkitMaskSize: "contain",
-        WebkitMaskPosition: "center",
-        maskImage: "url('/upwork.png')",
-        maskRepeat: "no-repeat",
-        maskSize: "contain",
-        maskPosition: "center",
-      }}
-    />
-    <img
-      src="/upwork.png"
-      alt="Upwork"
-      className="w-full h-full object-contain"
-    />
-  </a>
-</div>
+                  <div className="ml-0 flex items-center gap-3 sm:ml-4">
+                    <a
+                      href="https://your-link-1.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group relative flex h-10 w-10 items-center justify-center"
+                    >
+                      <div
+                        className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        style={{
+                          backgroundColor: "#0099ff",
+                          WebkitMaskImage: "url('/linkedin.png')",
+                          WebkitMaskRepeat: "no-repeat",
+                          WebkitMaskSize: "contain",
+                          WebkitMaskPosition: "center",
+                          maskImage: "url('/linkedin.png')",
+                          maskRepeat: "no-repeat",
+                          maskSize: "contain",
+                          maskPosition: "center",
+                        }}
+                      />
+                      <img
+                        src="/linkedin.png"
+                        alt="LinkedIn"
+                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-300 group-hover:opacity-0"
+                      />
+                    </a>
 
-  
-</div>
+                    <a
+                      href="https://your-link-2.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group relative flex h-10 w-10 items-center justify-center"
+                    >
+                      <div
+                        className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        style={{
+                          backgroundColor: "#0099ff",
+                          WebkitMaskImage: "url('/behance.png')",
+                          WebkitMaskRepeat: "no-repeat",
+                          WebkitMaskSize: "contain",
+                          WebkitMaskPosition: "center",
+                          maskImage: "url('/behance.png')",
+                          maskRepeat: "no-repeat",
+                          maskSize: "contain",
+                          maskPosition: "center",
+                        }}
+                      />
+                      <img
+                        src="/behance.png"
+                        alt="Behance"
+                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-300 group-hover:opacity-0"
+                      />
+                    </a>
 
+                    <a
+                      href="https://your-link-3.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group relative flex h-10 w-10 items-center justify-center"
+                    >
+                      <div
+                        className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        style={{
+                          backgroundColor: "#0099ff",
+                          WebkitMaskImage: "url('/upwork.png')",
+                          WebkitMaskRepeat: "no-repeat",
+                          WebkitMaskSize: "contain",
+                          WebkitMaskPosition: "center",
+                          maskImage: "url('/upwork.png')",
+                          maskRepeat: "no-repeat",
+                          maskSize: "contain",
+                          maskPosition: "center",
+                        }}
+                      />
+                      <img
+                        src="/upwork.png"
+                        alt="Upwork"
+                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-300 group-hover:opacity-0"
+                      />
+                    </a>
+                  </div>
+                </div>
+              </div>
 
- </div>
+              <div
+                className={`relative order-2 w-full self-start overflow-visible lg:-mt-10 lg:basis-[46%] lg:max-w-[46%] lg:ml-auto ${
+                  helloVisible ? "translate-x-0 opacity-100" : "translate-x-24 opacity-0"
+                } transition-all duration-700 ease-out`}
+                style={{ transitionDelay: "0.7s" }}
+              >
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
+                <div className="relative flex justify-end lg:pr-2">
+                  <Image
+                    src="/wenshe.png"
+                    alt="Wence portrait"
+                    width={560}
+                    height={560}
+                    priority
+                    className="relative z-10 h-auto w-full max-w-[34rem] object-contain grayscale drop-shadow-[0_26px_45px_rgba(0,0,0,0.42)]"
+                  />
+                </div>
+              </div>
+            </div>
 
+            <div
+              ref={buttonsRef}
+              className="relative z-20 mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:-mt-24"
+            >
+              <button
+                className={`relative flex h-[160px] w-full flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
+                  buttonsVisible[0] ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
+                }`}
+                style={{ fontFamily: "Arial, sans-serif" }}
+              >
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
+                <div className="flex items-start justify-between">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0b9dff] shadow-[0_10px_30px_rgba(0,153,255,0.24)]">
+                    <Code className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="text-[2.2rem] font-bold leading-none text-white">
+                    {totalCreativeProjects}
+                  </div>
+                </div>
+                <div className="mt-5 flex flex-col gap-1">
+                  <span className="text-left text-[11px] uppercase tracking-[0.08em] text-white/76">
+                    Total Projects
+                  </span>
+                  <span className="text-left text-sm text-white/58">
+                    Creative graphics and storytelling
+                  </span>
+                </div>
+                <ArrowUpRight className="absolute bottom-5 right-5 h-4 w-4 text-white" />
+              </button>
 
-{/* Right: Image (same as v6.png style) */}
-<div
-  className={`relative order-2 w-full sm:basis-[44%] sm:max-w-[44%] flex-shrink-0 self-start sm:ml-auto mt-2 sm:mt-0 lg:-mt-12 transition-all duration-700 ease-out ${
-    helloVisible
-      ? "opacity-100 translate-x-0"
-      : "opacity-0 translate-x-24"
-  }`}
-  style={{ transitionDelay: "0.7s" }}
->
-  <Image
-    src="/wenshe.png"
-    alt="Wence portrait"
-    width={520}
-    height={520}
-    priority
-    className="
-      w-full
-      h-auto
-      object-contain
-      grayscale
-      drop-shadow-2xl
-    "
-  />
-  
-  {/* NEW LARGE GLASSMORPHISM BUTTONS OVER IMAGE */}
-  <div
-    ref={buttonsRef}
-    className="absolute bottom-1 left-3 right-3 z-20 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:left-[-128%] sm:right-auto sm:w-[228%] sm:gap-3"
-  >
+              <button
+                className={`relative flex h-[160px] w-full flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
+                  buttonsVisible[1] ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
+                }`}
+                style={{ fontFamily: "Arial, sans-serif" }}
+              >
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
+                <div className="flex items-start justify-between">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0b9dff] shadow-[0_10px_30px_rgba(0,153,255,0.24)]">
+                    <Medal className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="text-[2.2rem] font-bold leading-none text-white">
+                    {totalCertificates}
+                  </div>
+                </div>
+                <div className="mt-5 flex flex-col gap-1">
+                  <span className="text-left text-[11px] uppercase tracking-[0.08em] text-white/76">
+                    Certificates
+                  </span>
+                  <span className="text-left text-sm text-white/58">
+                    Professional skills validated
+                  </span>
+                </div>
+                <ArrowUpRight className="absolute bottom-5 right-5 h-4 w-4 text-white" />
+              </button>
 
-  {/* Button 1 as horizontal glass card */}
-  <button 
-    
-    className={`w-full h-[150px] relative rounded-lg backdrop-blur-xl bg-black/35 border border-white/20 shadow-lg shadow-black/10 p-4 flex flex-col justify-start transition-all duration-300 hover:duration-200 hover:scale-105 hover:shadow-xl hover:shadow-white/20 ${
-  buttonsVisible[0] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-}`}
-
-    style={{ fontFamily: "Arial, sans-serif" }}
-  >
-    {/* Top row: Icon left, Number right */}
-    <div className="flex justify-between items-start">
-      {/* Icon */}
-      <div className="w-12 h-12 flex items-center justify-center rounded-full bg-[#0099ff]">
-        <Code className="w-6 h-6 text-white" />
+              <button
+                className={`relative flex h-[160px] w-full flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
+                  buttonsVisible[2] ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
+                }`}
+                style={{ fontFamily: "Arial, sans-serif" }}
+              >
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
+                <div className="flex items-start justify-between">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0b9dff] shadow-[0_10px_30px_rgba(0,153,255,0.24)]">
+                    <Globe className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="text-[2.2rem] font-bold leading-none text-white">2</div>
+                </div>
+                <div className="mt-5 flex flex-col gap-1">
+                  <span className="text-left text-[11px] uppercase tracking-[0.08em] text-white/76">
+                    Years of Experience
+                  </span>
+                  <span className="text-left text-sm text-white/58">
+                    Continuous learning journey
+                  </span>
+                </div>
+                <ArrowUpRight className="absolute bottom-5 right-5 h-4 w-4 text-white" />
+              </button>
+            </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Number */}
-      <div className="text-3xl font-bold leading-none">{totalCreativeProjects}</div>
-    </div>
-
-    {/* Bottom-left: Title + Description */}
-    <div className="flex flex-col gap-0.5 mt-4">
-      <span className="text-sm uppercase opacity-80 text-left">TOTAL PROJECTS</span>
-      <span className="text-xs opacity-70 text-left">Creative graphics and storytelling</span>
-    </div>
-
-    {/* Bottom-right: Arrow */}
-    <ArrowUpRight className="w-4 h-4 text-white absolute bottom-4 right-4" />
-  </button>
-
-  {/* Button 2 */}
-  <button
-    className={`w-full h-[150px] relative rounded-lg backdrop-blur-xl bg-black/35 border border-white/20 shadow-lg shadow-black/10 p-4 flex flex-col justify-start transition-all duration-300 hover:duration-200 hover:scale-105 hover:shadow-xl hover:shadow-white/20 ${
-  buttonsVisible[1] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-}`}
-
-    style={{ fontFamily: "Arial, sans-serif" }}
-  >
-    {/* Top row: Icon left, Number right */}
-    <div className="flex justify-between items-start">
-      {/* Icon */}
-      <div className="w-12 h-12 flex items-center justify-center rounded-full bg-[#0099ff]">
-        <Medal className="w-6 h-6 text-white" />
-      </div>
-
-      {/* Number */}
-      <div className="text-3xl font-bold leading-none">{totalCertificates}</div>
-    </div>
-
-    {/* Bottom-left: Title + Description */}
-    <div className="flex flex-col gap-0.5 mt-4">
-      <span className="text-sm uppercase opacity-80 text-left">Certificates</span>
-      <span className="text-xs opacity-70 text-left">Professional skills validated</span>
-    </div>
-
-    {/* Bottom-right: Arrow */}
-    <ArrowUpRight className="w-4 h-4 text-white absolute bottom-4 right-4" />
-  </button>
-
-  {/* Button 3 */}
-  <button
-      className={`w-full h-[150px] relative rounded-lg backdrop-blur-xl bg-black/35 border border-white/20 shadow-lg shadow-black/10 p-4 flex flex-col justify-start transition-all duration-300 hover:duration-200 hover:scale-105 hover:shadow-xl hover:shadow-white/20 ${
-  buttonsVisible[2] ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-}`}
-  style={{ fontFamily: "Arial, sans-serif" }}
-  >
-    {/* Top row: Icon left, Number right */}
-    <div className="flex justify-between items-start">
-      {/* Icon */}
-      <div className="w-12 h-12 flex items-center justify-center rounded-full bg-[#0099ff]">
-        <Globe className="w-6 h-6 text-white" />
-      </div>
-
-      {/* Number */}
-      <div className="text-3xl font-bold leading-none">{2}</div>
-    </div>
-
-    {/* Bottom-left: Title + Description */}
-    <div className="flex flex-col gap-0.5 mt-4">
-      <span className="text-[11px] uppercase opacity-80 text-left">YEARS OF EXPERIENCE</span>
-      <span className="text-xs opacity-70 text-left">Continuous learning journey</span>
-    </div>
-
-    {/* Bottom-right: Arrow */}
-    <ArrowUpRight className="w-4 h-4 text-white absolute bottom-4 right-4" />
-  </button>
-
-  {/* Slide-Up Keyframes */}
-  <style jsx>{`
-    .animate-slideUp {
-      opacity: 0;
-      transform: translateY(50px);
-      animation: slideUp 0.7s forwards;
-    }
-    @keyframes slideUp {
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-  `}</style>
-
-  </div>
-</div>
-
-  </div>
-</div>
-</div>
-
-<div className="relative mt-16 flex flex-col items-center overflow-hidden transition-all duration-700 ease-out lg:mt-20">
+<div className="relative mt-16 flex flex-col items-center overflow-visible transition-all duration-700 ease-out lg:mt-20">
   <div className="pointer-events-none absolute inset-0">
     <div className="absolute left-[6%] top-[8%] h-52 w-52 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
     <div className="absolute right-[7%] bottom-[12%] h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(255,145,72,0.12)_0%,transparent_74%)] blur-3xl" />
@@ -1604,12 +1536,14 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
     }`}
     style={{ transitionDelay: showAbout ? "0.55s" : "0s" }}
   >
-    <div className="pointer-events-none absolute inset-0">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-      <div className="absolute right-[10%] top-[14%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,transparent_74%)] blur-3xl" />
-    </div>
+    <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
+    <div className={glassSectionPanelClass}>
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+        <div className="absolute right-[10%] top-[14%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,transparent_74%)] blur-3xl" />
+      </div>
 
-    <div className={`${glassSectionInnerClass} grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start`}>
+      <div className={`${glassSectionInnerClass} grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start`}>
       <div className="max-w-xl">
         <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Creative Stack</p>
         <h2
@@ -1751,11 +1685,12 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
     </div>
   </div>
 </div>
+</div>
 
 {/* ===== PORTFOLIO SHOWCASE SECTION ===== */}
 <div
   ref={portfolioRef}
-  className="relative mt-16 flex flex-col items-center overflow-hidden transition-all duration-700 ease-out lg:mt-20"
+  className="relative mt-16 flex flex-col items-center overflow-visible transition-all duration-700 ease-out lg:mt-20"
 >
   <div className="pointer-events-none absolute inset-0">
     <div className="absolute left-[12%] top-[12%] h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,transparent_72%)] blur-3xl" />
@@ -1763,17 +1698,19 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
   </div>
 
   <div className={`${glassSectionClass} z-10`}>
-    <div
-      className={`pointer-events-none absolute inset-0 z-30 rounded-xl bg-black/40 transition-opacity duration-300 ${
-        isAnyModalOpen ? "opacity-100" : "opacity-0"
-      }`}
-    />
-    <div className="pointer-events-none absolute inset-0">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-      <div className="absolute right-[7%] top-[12%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,transparent_74%)] blur-3xl" />
-    </div>
+    <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
+    <div className={glassSectionPanelClass}>
+      <div
+        className={`pointer-events-none absolute inset-0 z-30 rounded-[24px] bg-black/40 transition-opacity duration-300 ${
+          isAnyModalOpen ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+        <div className="absolute right-[7%] top-[12%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,transparent_74%)] blur-3xl" />
+      </div>
 
-    <div className={`${glassSectionInnerClass} space-y-8`}>
+      <div className={`${glassSectionInnerClass} space-y-8`}>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
         <div
           className={`transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
@@ -1917,7 +1854,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                         className="h-full w-full !items-start !justify-start"
                         containerClassName="h-full !items-start !justify-start"
                       >
-                        <CardBody className="flex h-full w-full flex-col rounded-[22px] border border-white/10 bg-white/10 p-4 shadow-lg backdrop-blur-xl transition-all duration-700 hover:scale-[1.02] hover:bg-white/20 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)]">
+                        <CardBody className="relative flex h-full w-full flex-col overflow-hidden rounded-[22px] border border-white/10 bg-white/10 p-4 shadow-lg backdrop-blur-xl transition-all duration-700 hover:scale-[1.02] hover:bg-white/20 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)]">
                           <CardItem translateZ={90} className="w-full">
                             <Image
                               src={project.image}
@@ -1982,6 +1919,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         </div>
       </div>
     </div>
+  </div>
 
   {isDetailsModalMounted &&
     selectedProject &&
@@ -2338,16 +2276,18 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 {/* ADDITIONAL SECTIONS FOR SIDE NAV */}
 
      
-      <div ref={reviewsRef} className="relative mt-16 flex flex-col items-center overflow-hidden transition-all duration-700 ease-out lg:mt-20">
+      <div ref={reviewsRef} className="relative mt-16 flex flex-col items-center overflow-visible transition-all duration-700 ease-out lg:mt-20">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute left-1/2 top-[12%] h-64 w-[72%] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,rgba(0,153,255,0.03)_44%,transparent_72%)] blur-3xl" />
         </div>
         <div className={`${glassSectionClass} z-10`}>
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-            <div className="absolute right-[6%] top-[10%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,transparent_74%)] blur-3xl" />
-          </div>
-          <div className={`${glassSectionInnerClass} space-y-8`}>
+          <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
+          <div className={glassSectionPanelClass}>
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+              <div className="absolute right-[6%] top-[10%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,transparent_74%)] blur-3xl" />
+            </div>
+            <div className={`${glassSectionInnerClass} space-y-8`}>
             <div
               className={`flex flex-col gap-6 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                 showReviewsIntro ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-6 scale-95"
@@ -2384,18 +2324,21 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               </div>
             </div>
           </div>
+          </div>
         </div>
       </div>
-      <div ref={contactRef} className="relative mt-16 flex flex-col items-center overflow-hidden pb-20 transition-all duration-700 ease-out lg:mt-20">
+      <div ref={contactRef} className="relative mt-16 flex flex-col items-center overflow-visible pb-20 transition-all duration-700 ease-out lg:mt-20">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute right-[8%] top-[16%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
           <div className="absolute left-[10%] bottom-[12%] h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,transparent_74%)] blur-3xl" />
         </div>
         <div className={`${glassSectionClass} z-10`}>
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-          </div>
-          <div className={`${glassSectionInnerClass} grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:gap-10`}>
+          <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
+          <div className={glassSectionPanelClass}>
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+            </div>
+            <div className={`${glassSectionInnerClass} grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:gap-10`}>
             <div className="flex flex-col justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Contact</p>
@@ -2441,87 +2384,92 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                     href={platform.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group rounded-2xl border border-white/12 bg-white/[0.04] p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#00d4ff]/35 hover:bg-white/[0.07] hover:shadow-[0_14px_34px_rgba(0,153,255,0.16)]"
+                    className="group relative overflow-hidden rounded-2xl border border-white/12 bg-white/[0.04] p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#00d4ff]/35 hover:bg-white/[0.07] hover:shadow-[0_14px_34px_rgba(0,153,255,0.16)]"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-white">{platform.label}</span>
-                      <ArrowUpRight className="h-4 w-4 text-[#8fdcff] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-white">{platform.label}</span>
+                        <ArrowUpRight className="h-4 w-4 text-[#8fdcff] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                      </div>
+                      <p className="mt-3 text-xs leading-relaxed text-white/62">
+                        {platform.description}
+                      </p>
                     </div>
-                    <p className="mt-3 text-xs leading-relaxed text-white/62">
-                      {platform.description}
-                    </p>
                   </a>
                 ))}
               </div>
 
-              <div className="rounded-[26px] border border-white/12 bg-black/20 p-4 backdrop-blur-md sm:p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-base font-semibold text-white">Send a message</h3>
-                    <p className="mt-1 text-sm text-white/60">
-                      Leave your email and message here, and it will be sent to Gmail.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowContactForm((prev) => !prev)}
-                    className="rounded-full border border-white/15 bg-white/6 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/80 transition-colors hover:bg-white/10"
-                  >
-                    {showContactForm ? "Close" : "Write"}
-                  </button>
-                </div>
-
-                {showContactForm && (
-                  <form onSubmit={handleContactSubmit} className="mt-5 space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <input
-                        type="text"
-                        value={contactForm.name}
-                        onChange={(event) => updateContactField("name", event.target.value)}
-                        placeholder="Your name"
-                        className="w-full rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/40 focus:border-[#00d4ff]/55"
-                        required
-                      />
-                      <input
-                        type="email"
-                        value={contactForm.email}
-                        onChange={(event) => updateContactField("email", event.target.value)}
-                        placeholder="Your email"
-                        className="w-full rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/40 focus:border-[#00d4ff]/55"
-                        required
-                      />
-                    </div>
-                    <textarea
-                      value={contactForm.message}
-                      onChange={(event) => updateContactField("message", event.target.value)}
-                      placeholder="Tell me about your project..."
-                      className="min-h-[150px] w-full rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/40 focus:border-[#00d4ff]/55"
-                      required
-                    />
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <p
-                        className={`text-sm ${
-                          contactSubmitState.status === "error"
-                            ? "text-[#ffb4b4]"
-                            : contactSubmitState.status === "success"
-                              ? "text-[#9ff3c8]"
-                              : "text-white/55"
-                        }`}
-                      >
-                        {contactSubmitState.message || "Use a Gmail app password in SMTP settings for delivery."}
+              <div className="relative overflow-hidden rounded-[26px] border border-white/12 bg-black/20 p-4 backdrop-blur-md sm:p-5">
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-semibold text-white">Send a message</h3>
+                      <p className="mt-1 text-sm text-white/60">
+                        Leave your email and message here, and it will be sent to Gmail.
                       </p>
-                      <button
-                        type="submit"
-                        disabled={contactSubmitState.status === "sending"}
-                        className="inline-flex items-center justify-center rounded-full bg-[#0099ff] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#00a6ff] disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {contactSubmitState.status === "sending" ? "Sending..." : "Send message"}
-                      </button>
                     </div>
-                  </form>
-                )}
+                    <button
+                      type="button"
+                      onClick={() => setShowContactForm((prev) => !prev)}
+                      className="rounded-full border border-white/15 bg-white/6 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/80 transition-colors hover:bg-white/10"
+                    >
+                      {showContactForm ? "Close" : "Write"}
+                    </button>
+                  </div>
+
+                  {showContactForm && (
+                    <form onSubmit={handleContactSubmit} className="mt-5 space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <input
+                          type="text"
+                          value={contactForm.name}
+                          onChange={(event) => updateContactField("name", event.target.value)}
+                          placeholder="Your name"
+                          className="w-full rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/40 focus:border-[#00d4ff]/55"
+                          required
+                        />
+                        <input
+                          type="email"
+                          value={contactForm.email}
+                          onChange={(event) => updateContactField("email", event.target.value)}
+                          placeholder="Your email"
+                          className="w-full rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/40 focus:border-[#00d4ff]/55"
+                          required
+                        />
+                      </div>
+                      <textarea
+                        value={contactForm.message}
+                        onChange={(event) => updateContactField("message", event.target.value)}
+                        placeholder="Tell me about your project..."
+                        className="min-h-[150px] w-full rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-white/40 focus:border-[#00d4ff]/55"
+                        required
+                      />
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p
+                          className={`text-sm ${
+                            contactSubmitState.status === "error"
+                              ? "text-[#ffb4b4]"
+                              : contactSubmitState.status === "success"
+                                ? "text-[#9ff3c8]"
+                                : "text-white/55"
+                          }`}
+                        >
+                          {contactSubmitState.message || "Use a Gmail app password in SMTP settings for delivery."}
+                        </p>
+                        <button
+                          type="submit"
+                          disabled={contactSubmitState.status === "sending"}
+                          className="inline-flex items-center justify-center rounded-full bg-[#0099ff] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#00a6ff] disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {contactSubmitState.status === "sending" ? "Sending..." : "Send message"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -2567,8 +2515,8 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
                 const content = (
                   <>
-                    <div className={`absolute left-0 top-0 h-full w-[3px] ${accentClass}`} />
-                    <div className="pl-3">
+                    <div className={`absolute left-0 top-0 z-10 h-full w-[3px] ${accentClass}`} />
+                    <div className="relative z-10 pl-3">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-[10px] uppercase tracking-[0.22em] text-white/42">
                           {social.label}
