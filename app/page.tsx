@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { Fragment, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { Listbox, Transition } from "@headlessui/react";
 import { FloatingDock, type FloatingDockItem } from "@/components/ui/floating-dock";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import { CardBody, CardContainer, CardItem } from "@/components/ui/3d-card";
@@ -15,7 +16,22 @@ import {
   PORTFOLIO_UPDATED_EVENT,
   fetchPortfolioContentFromSupabase,
 } from "@/lib/portfolio-data";
-import { Home as HomeIcon, User, Video, MessageSquareQuote, Mail, Code, Medal, Globe, ArrowUpRight, Film, Palette, ExternalLink } from "lucide-react"; // added icons
+import {
+  Home as HomeIcon,
+  User,
+  Video,
+  MessageSquareQuote,
+  Mail,
+  Code,
+  Medal,
+  Globe,
+  ArrowUpRight,
+  Film,
+  Palette,
+  ExternalLink,
+  Check,
+  ChevronDown,
+} from "lucide-react"; // added icons
 
 const MODAL_TRANSITION_MS = 520;
 const MODAL_OPEN_DELAY_MS = 10;
@@ -94,8 +110,279 @@ type NewProjectForm = {
 type ContactFormState = {
   name: string;
   email: string;
+  serviceType: string;
+  videoEditType: string;
   message: string;
 };
+
+type ContactSelectOption = {
+  value: string;
+  label: string;
+  description: string;
+};
+
+type RateTableRow = {
+  label: string;
+  price: string;
+  details?: string;
+};
+
+const getDefaultContactFormState = (): ContactFormState => ({
+  name: "",
+  email: "",
+  serviceType: "",
+  videoEditType: "",
+  message: "",
+});
+
+const contactServiceOptions: ContactSelectOption[] = [
+  {
+    value: "video-edit",
+    label: "Video edit",
+    description: "Cuts, pacing, motion, captions, and story flow.",
+  },
+  {
+    value: "graphic-design",
+    label: "Graphic design",
+    description: "Posters, visuals, layouts, and branded creative assets.",
+  },
+];
+
+const videoEditTypeOptions: ContactSelectOption[] = [
+  {
+    value: "long-form",
+    label: "Long-form edits",
+    description: "YouTube videos, interviews, vlogs, and full-length content.",
+  },
+  {
+    value: "short-form",
+    label: "Short-form edits",
+    description: "Reels, TikToks, Shorts, and quick vertical content.",
+  },
+];
+
+const videoEditingRateRows: RateTableRow[] = [
+  {
+    label: "Long-form videos",
+    price: "$80 - $120",
+    details:
+      "Clean cuts and pacing, audio sync and cleanup, basic color correction, light motion graphics, and optional simple captions.",
+  },
+  {
+    label: "Short-form basic edit",
+    price: "$10 - $25",
+    details: "Jump cuts, basic captions, and light zooms.",
+  },
+  {
+    label: "Short-form engaging edit",
+    price: "$25 - $50",
+    details:
+      "Dynamic captions, zooms and sound effects, B-roll inserts, and fast-paced editing.",
+  },
+  {
+    label: "Short-form high-end",
+    price: "$50 - $100",
+    details:
+      "Custom animations, advanced transitions, visual storytelling edits, and branded style.",
+  },
+];
+
+const bundleRateRows: RateTableRow[] = [
+  {
+    label: "1 long video + 3 shorts",
+    price: "$140 - $180",
+  },
+  {
+    label: "1 long video + 5 shorts",
+    price: "$180 - $250",
+  },
+  {
+    label: "Monthly packages",
+    price: "Custom",
+    details: "Flexible monthly pricing based on volume and turnaround.",
+  },
+];
+
+const addOnRateRows: RateTableRow[] = [
+  {
+    label: "Subtitles",
+    price: "+$10 - $25",
+    details: "Full-video subtitles.",
+  },
+  {
+    label: "Thumbnail design",
+    price: "+$10 - $20",
+  },
+  {
+    label: "Fast delivery",
+    price: "+$20 - $40",
+    details: "24-48 hour turnaround.",
+  },
+  {
+    label: "Extra revisions",
+    price: "+$10",
+  },
+];
+
+const rateNotes = [
+  "Prices may vary depending on complexity.",
+  "Discounts are available for bulk and long-term clients.",
+  "1-2 revisions are included.",
+] as const;
+
+type ContactSelectProps = {
+  label: string;
+  placeholder: string;
+  value: string;
+  options: ContactSelectOption[];
+  onChange: (value: string) => void;
+};
+
+function ContactSelect({
+  label,
+  placeholder,
+  value,
+  options,
+  onChange,
+}: ContactSelectProps) {
+  const selectedOption = options.find((option) => option.value === value);
+
+  return (
+    <Listbox value={value} onChange={onChange}>
+      <div className="relative z-20">
+        <Listbox.Button className="group relative w-full overflow-hidden rounded-[24px] border border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] px-4 py-3 text-left shadow-[0_14px_34px_rgba(0,0,0,0.16)] backdrop-blur-xl transition-all duration-300 hover:border-[#54cfff]/40 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))] focus:outline-none focus-visible:border-[#77dbff]/60 focus-visible:ring-2 focus-visible:ring-[#3ecfff]/25">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(0,212,255,0.12),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.04),transparent_60%)] opacity-80" />
+          <div className="relative flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-[#8fdcff]">
+                {label}
+              </p>
+              <p
+                className={`mt-1 text-sm font-medium transition-colors ${
+                  selectedOption ? "text-white" : "text-white/42"
+                }`}
+              >
+                {selectedOption?.label || placeholder}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-white/48">
+                {selectedOption?.description || "Choose the option that fits your project."}
+              </p>
+            </div>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/72 transition-all duration-300 group-hover:border-[#61d4ff]/35 group-hover:text-[#b5ecff]">
+              <ChevronDown className="h-4 w-4 transition-transform duration-300 group-data-[headlessui-state=open]:rotate-180" />
+            </span>
+          </div>
+        </Listbox.Button>
+
+        <Transition
+          as={Fragment}
+          enter="transition duration-200 ease-out"
+          enterFrom="translate-y-2 opacity-0 scale-[0.98]"
+          enterTo="translate-y-0 opacity-100 scale-100"
+          leave="transition duration-150 ease-in"
+          leaveFrom="translate-y-0 opacity-100 scale-100"
+          leaveTo="translate-y-1 opacity-0 scale-[0.99]"
+        >
+          <Listbox.Options className="absolute left-0 right-0 z-30 mt-3 space-y-2 rounded-[24px] border border-white/14 bg-[linear-gradient(180deg,rgba(9,16,27,0.96),rgba(5,9,16,0.98))] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-2xl focus:outline-none">
+            {options.map((option) => (
+              <Listbox.Option
+                key={option.value}
+                value={option.value}
+                className={({ active }) =>
+                  `cursor-pointer rounded-[18px] border px-4 py-3 transition-all duration-200 ${
+                    active
+                      ? "border-[#59d4ff]/35 bg-[#0b1d30] shadow-[0_10px_28px_rgba(0,153,255,0.14)]"
+                      : "border-transparent bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]"
+                  }`
+                }
+              >
+                {({ selected }) => (
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p
+                        className={`text-sm font-semibold ${
+                          selected ? "text-[#aeeeff]" : "text-white"
+                        }`}
+                      >
+                        {option.label}
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-white/50">
+                        {option.description}
+                      </p>
+                    </div>
+                    <span
+                      className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ${
+                        selected
+                          ? "border-[#63dbff]/45 bg-[#0d3244] text-[#baf2ff]"
+                          : "border-white/10 bg-white/[0.03] text-transparent"
+                      }`}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
+                )}
+              </Listbox.Option>
+            ))}
+          </Listbox.Options>
+        </Transition>
+      </div>
+    </Listbox>
+  );
+}
+
+type CompactRateTableProps = {
+  title: string;
+  subtitle?: string;
+  rows: RateTableRow[];
+};
+
+function CompactRateTable({
+  title,
+  subtitle,
+  rows,
+}: CompactRateTableProps) {
+  return (
+    <div className="overflow-hidden rounded-[20px] border border-white/10 bg-black/18">
+      <div className="border-b border-white/8 px-4 py-3">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-[#8fdcff]">
+          {title}
+        </p>
+        {subtitle ? (
+          <p className="mt-1 text-[11px] leading-relaxed text-white/50">
+            {subtitle}
+          </p>
+        ) : null}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-[11px] text-white/78">
+          <thead className="bg-white/[0.03] text-white/42">
+            <tr>
+              <th className="px-4 py-2 font-medium">Item</th>
+              <th className="px-4 py-2 text-right font-medium">Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={`${title}-${row.label}`} className="border-t border-white/6 align-top">
+                <td className="px-4 py-3">
+                  <p className="font-medium text-white/88">{row.label}</p>
+                  {row.details ? (
+                    <p className="mt-1 leading-relaxed text-white/46">
+                      {row.details}
+                    </p>
+                  ) : null}
+                </td>
+                <td className="px-4 py-3 text-right font-semibold text-[#b8efff]">
+                  {row.price}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 type SocialLink = {
   label: string;
@@ -187,14 +474,11 @@ const [modalVisible, setModalVisible] = useState(false);
 const [showReviewsIntro, setShowReviewsIntro] = useState(false);
 const [showReviewsTestimonials, setShowReviewsTestimonials] = useState(false);
 const [showContactForm, setShowContactForm] = useState(false);
+const [showRates, setShowRates] = useState(false);
 const [showTikTokModal, setShowTikTokModal] = useState(false);
 const [isTikTokBubbleMounted, setIsTikTokBubbleMounted] = useState(false);
 const [isTikTokBubbleVisible, setIsTikTokBubbleVisible] = useState(false);
-const [contactForm, setContactForm] = useState<ContactFormState>({
-  name: "",
-  email: "",
-  message: "",
-});
+const [contactForm, setContactForm] = useState<ContactFormState>(getDefaultContactFormState);
 const [contactSubmitState, setContactSubmitState] = useState<{
   status: "idle" | "sending" | "success" | "error";
   message: string;
@@ -799,11 +1083,30 @@ const updateContactField = (field: keyof ContactFormState, value: string) => {
   setContactForm((prev) => ({
     ...prev,
     [field]: value,
+    ...(field === "serviceType" && value !== "video-edit"
+      ? { videoEditType: "" }
+      : {}),
   }));
 };
 
 const handleContactSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
   event.preventDefault();
+
+  if (!contactForm.serviceType) {
+    setContactSubmitState({
+      status: "error",
+      message: "Choose the type of project you want help with.",
+    });
+    return;
+  }
+
+  if (contactForm.serviceType === "video-edit" && !contactForm.videoEditType) {
+    setContactSubmitState({
+      status: "error",
+      message: "Choose whether you need long-form or short-form video edits.",
+    });
+    return;
+  }
 
   setContactSubmitState({
     status: "sending",
@@ -829,11 +1132,7 @@ const handleContactSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
       );
     }
 
-    setContactForm({
-      name: "",
-      email: "",
-      message: "",
-    });
+    setContactForm(getDefaultContactFormState());
     setContactSubmitState({
       status: "success",
       message: "Your message was sent successfully.",
@@ -953,7 +1252,7 @@ const creativeTools = [
 const contactPlatforms = [
   {
     label: "Upwork",
-    href: "https://www.upwork.com/",
+    href: "https://www.upwork.com/freelancers/~01c7183b8ea44ccc28",
     description: "Hire or connect with me on Upwork.",
   },
   {
@@ -963,7 +1262,7 @@ const contactPlatforms = [
   },
   {
     label: "LinkedIn",
-    href: "https://www.linkedin.com/",
+    href: "https://www.linkedin.com/in/wence-dante-de-vera-29077a2ba/",
     description: "Connect professionally on LinkedIn.",
   },
 ] as const;
@@ -2286,6 +2585,11 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <div className="absolute right-[6%] top-[10%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,transparent_74%)] blur-3xl" />
+              <div className="absolute left-[4%] top-[22%] h-44 w-44 rounded-full border border-white/6 opacity-60" />
+              <div className="absolute right-[12%] bottom-[16%] h-32 w-32 rounded-[28px] border border-[#00d4ff]/10 opacity-70" />
+              <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(rgba(255,255,255,0.18)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(circle_at_center,black,transparent_78%)]" />
+              <div className="absolute inset-y-[16%] left-[7%] w-px bg-gradient-to-b from-transparent via-white/16 to-transparent" />
+              <div className="absolute inset-y-[22%] right-[7%] w-px bg-gradient-to-b from-transparent via-[#8fdcff]/18 to-transparent" />
             </div>
             <div className={`${glassSectionInnerClass} space-y-8`}>
             <div
@@ -2338,7 +2642,11 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
             </div>
-            <div className={`${glassSectionInnerClass} grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:gap-10`}>
+            <div
+              className={`${glassSectionInnerClass} grid gap-8 ${
+                showRates ? "" : "lg:grid-cols-[0.95fr_1.05fr] lg:gap-10"
+              }`}
+            >
             <div className="flex flex-col justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Contact</p>
@@ -2362,7 +2670,15 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowContactForm((prev) => !prev)}
+                  onClick={() => {
+                    if (showRates) {
+                      setShowRates(false);
+                      setShowContactForm(true);
+                      return;
+                    }
+
+                    setShowContactForm((prev) => !prev);
+                  }}
                   className="inline-flex items-center justify-center rounded-full border border-[#00d4ff]/45 bg-[#04101a]/70 px-5 py-2.5 text-sm font-semibold text-[#9be8ff] transition-colors hover:bg-[#072033]"
                 >
                   {showContactForm ? "Hide message form" : "Open message form"}
@@ -2373,10 +2689,81 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                 >
                   Email directly
                 </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showRates) {
+                      setShowRates(false);
+                      return;
+                    }
+
+                    setShowContactForm(false);
+                    setShowRates(true);
+                  }}
+                  className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white/85 transition-colors hover:bg-white/10"
+                >
+                  {showRates ? "Hide rates" : "Rates"}
+                </button>
               </div>
+
+              {showRates && (
+                <div className="mt-5 overflow-hidden rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(10,18,28,0.92),rgba(5,10,16,0.98))] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-[#8fdcff]">
+                        Rates
+                      </p>
+                      <h3 className="mt-2 text-base font-semibold text-white">
+                        Video Editing Services
+                      </h3>
+                      <p className="mt-1 max-w-xl text-xs leading-relaxed text-white/56">
+                        A compact starting price sheet for long-form, short-form,
+                        bundles, and add-ons.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-[#8fdcff]/20 bg-[#07141f] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#aeeaff]">
+                      USD
+                    </span>
+                  </div>
+
+                  <div className="mt-4 -mx-1 overflow-x-auto pb-1">
+                    <div className="flex min-w-full gap-3 px-1">
+                      <div className="min-w-[360px] flex-[1.35]">
+                        <CompactRateTable
+                          title="Core Pricing"
+                          subtitle="YouTube videos, podcasts, reels, TikToks, and Shorts."
+                          rows={videoEditingRateRows}
+                        />
+                      </div>
+                      <div className="min-w-[280px] flex-1">
+                        <CompactRateTable
+                          title="Bundle Offers"
+                          rows={bundleRateRows}
+                        />
+                      </div>
+                      <div className="min-w-[280px] flex-1">
+                        <CompactRateTable
+                          title="Add-Ons"
+                          rows={addOnRateRows}
+                        />
+                      </div>
+                      <div className="min-w-[180px] max-w-[190px] shrink-0 rounded-[20px] border border-white/10 bg-white/[0.03] px-3 py-3">
+                        <p className="text-[10px] uppercase tracking-[0.22em] text-white/44">
+                          Notes
+                        </p>
+                        <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-white/58">
+                          {rateNotes.map((note) => (
+                            <p key={note}>{note}</p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="space-y-4">
+            {!showRates && <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-3">
                 {contactPlatforms.map((platform) => (
                   <a
@@ -2399,7 +2786,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                 ))}
               </div>
 
-              <div className="relative overflow-hidden rounded-[26px] border border-white/12 bg-black/20 p-4 backdrop-blur-md sm:p-5">
+              <div className="relative overflow-visible rounded-[26px] border border-white/12 bg-black/20 p-4 backdrop-blur-md sm:p-5">
                 <div className="relative z-10">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -2437,6 +2824,32 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                           required
                         />
                       </div>
+                      <div
+                        className={`grid gap-4 ${
+                          contactForm.serviceType === "video-edit"
+                            ? "sm:grid-cols-2"
+                            : ""
+                        }`}
+                      >
+                        <ContactSelect
+                          label="Service"
+                          placeholder="Select a service"
+                          value={contactForm.serviceType}
+                          options={contactServiceOptions}
+                          onChange={(nextValue) => updateContactField("serviceType", nextValue)}
+                        />
+                        {contactForm.serviceType === "video-edit" && (
+                          <ContactSelect
+                            label="Edit type"
+                            placeholder="Select video edit type"
+                            value={contactForm.videoEditType}
+                            options={videoEditTypeOptions}
+                            onChange={(nextValue) =>
+                              updateContactField("videoEditType", nextValue)
+                            }
+                          />
+                        )}
+                      </div>
                       <textarea
                         value={contactForm.message}
                         onChange={(event) => updateContactField("message", event.target.value)}
@@ -2454,7 +2867,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                 : "text-white/55"
                           }`}
                         >
-                          {contactSubmitState.message || "Use a Gmail app password in SMTP settings for delivery."}
+                          {contactSubmitState.message || "Your message will be sent directly to my Gmail inbox."}
                         </p>
                         <button
                           type="submit"
@@ -2468,7 +2881,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                   )}
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
           </div>
         </div>
