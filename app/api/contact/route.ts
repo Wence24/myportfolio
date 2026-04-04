@@ -50,6 +50,10 @@ export async function POST(request: Request) {
     typeof body.serviceType === "string" ? body.serviceType.trim() : "";
   const videoEditType =
     typeof body.videoEditType === "string" ? body.videoEditType.trim() : "";
+  const selectedRateSummary =
+    typeof body.selectedRateSummary === "string"
+      ? body.selectedRateSummary.trim()
+      : "";
   const message = typeof body.message === "string" ? body.message.trim() : "";
 
   if (!name || !email || !serviceType || !message) {
@@ -141,6 +145,7 @@ export async function POST(request: Request) {
         ...(selectedVideoEditType
           ? [`Edit type: ${getInquiryLabel(selectedVideoEditType)}`]
           : []),
+        ...(selectedRateSummary ? [`Selected rate: ${selectedRateSummary}`] : []),
         "",
         "Message:",
         message,
@@ -158,6 +163,11 @@ export async function POST(request: Request) {
               ? `<p><strong>Edit type:</strong> ${escapeHtml(
                   getInquiryLabel(selectedVideoEditType)
                 )}</p>`
+              : ""
+          }
+          ${
+            selectedRateSummary
+              ? `<p><strong>Selected rate:</strong> ${escapeHtml(selectedRateSummary)}</p>`
               : ""
           }
           <p><strong>Message:</strong></p>

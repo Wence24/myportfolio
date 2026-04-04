@@ -196,30 +196,30 @@ function IconContainer({
     return value - center;
   });
 
-  const widthTransform = useTransform(distance, [-130, 0, 130], [40, 62, 40]);
-  const heightTransform = useTransform(distance, [-130, 0, 130], [40, 62, 40]);
-  const widthTransformIcon = useTransform(distance, [-130, 0, 130], [18, 26, 18]);
-  const heightTransformIcon = useTransform(distance, [-130, 0, 130], [18, 26, 18]);
+  const widthTransform = useTransform(distance, [-130, 0, 130], [40, 56, 40]);
+  const heightTransform = useTransform(distance, [-130, 0, 130], [40, 56, 40]);
+  const widthTransformIcon = useTransform(distance, [-130, 0, 130], [18, 24, 18]);
+  const heightTransformIcon = useTransform(distance, [-130, 0, 130], [18, 24, 18]);
 
   const width = useSpring(widthTransform, {
-    mass: 0.12,
-    stiffness: 165,
-    damping: 14,
+    mass: 0.08,
+    stiffness: 260,
+    damping: 22,
   });
   const height = useSpring(heightTransform, {
-    mass: 0.12,
-    stiffness: 165,
-    damping: 14,
+    mass: 0.08,
+    stiffness: 260,
+    damping: 22,
   });
   const widthIcon = useSpring(widthTransformIcon, {
-    mass: 0.12,
-    stiffness: 165,
-    damping: 14,
+    mass: 0.08,
+    stiffness: 260,
+    damping: 22,
   });
   const heightIcon = useSpring(heightTransformIcon, {
-    mass: 0.12,
-    stiffness: 165,
-    damping: 14,
+    mass: 0.08,
+    stiffness: 260,
+    damping: 22,
   });
 
   const body = (
@@ -242,6 +242,7 @@ function IconContainer({
             initial={{ opacity: 0, x: vertical ? 8 : "-50%", y: vertical ? "-50%" : 8 }}
             animate={{ opacity: 1, x: vertical ? 0 : "-50%", y: vertical ? "-50%" : 0 }}
             exit={{ opacity: 0, x: vertical ? 6 : "-50%", y: vertical ? "-50%" : 4 }}
+            transition={{ duration: 0.14, ease: "easeOut" }}
             className={cn(
               "pointer-events-none absolute z-50 w-fit whitespace-pre rounded-md border px-2 py-0.5 text-xs",
               "border-gray-200 bg-gray-100 text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white",

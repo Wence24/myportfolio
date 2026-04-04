@@ -1,8 +1,7 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { animate } from "motion/react";
 
 interface GlowingEffectProps {
   blur?: number;
@@ -31,92 +30,122 @@ const GlowingEffect = memo(
     disabled = true,
   }: GlowingEffectProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const rectRef = useRef<DOMRect | null>(null);
     const lastPosition = useRef({ x: 0, y: 0 });
-    const animationFrameRef = useRef<number>(0);
-
-    const handleMove = useCallback(
-      (e?: MouseEvent | { x: number; y: number }) => {
-        if (!containerRef.current) return;
-
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-        }
-
-        animationFrameRef.current = requestAnimationFrame(() => {
-          const element = containerRef.current;
-          if (!element) return;
-
-          const { left, top, width, height } = element.getBoundingClientRect();
-          const mouseX = e?.x ?? lastPosition.current.x;
-          const mouseY = e?.y ?? lastPosition.current.y;
-
-          if (e) {
-            lastPosition.current = { x: mouseX, y: mouseY };
-          }
-
-          const center = [left + width * 0.5, top + height * 0.5];
-          const distanceFromCenter = Math.hypot(
-            mouseX - center[0],
-            mouseY - center[1]
-          );
-          const inactiveRadius = 0.5 * Math.min(width, height) * inactiveZone;
-
-          if (distanceFromCenter < inactiveRadius) {
-            element.style.setProperty("--active", "0");
-            return;
-          }
-
-          const isActive =
-            mouseX > left - proximity &&
-            mouseX < left + width + proximity &&
-            mouseY > top - proximity &&
-            mouseY < top + height + proximity;
-
-          element.style.setProperty("--active", isActive ? "1" : "0");
-
-          if (!isActive) return;
-
-          const currentAngle =
-            parseFloat(element.style.getPropertyValue("--start")) || 0;
-          const targetAngle =
-            (180 * Math.atan2(mouseY - center[1], mouseX - center[0])) /
-              Math.PI +
-            90;
-
-          const angleDiff = ((targetAngle - currentAngle + 180) % 360) - 180;
-          const newAngle = currentAngle + angleDiff;
-
-          animate(currentAngle, newAngle, {
-            duration: movementDuration,
-            ease: [0.16, 1, 0.3, 1],
-            onUpdate: (value) => {
-              element.style.setProperty("--start", String(value));
-            },
-          });
-        });
-      },
-      [inactiveZone, proximity, movementDuration]
-    );
+    const animationFrameRef = useRef<number | null>(null);
+    const isPointerInsideRef = useRef(false);
 
     useEffect(() => {
       if (disabled) return;
 
-      const handleScroll = () => handleMove();
-      const handlePointerMove = (e: PointerEvent) => handleMove(e);
+      const element = containerRef.current;
+      const host = element?.parentElement;
+      if (!element || !host) return;
 
-      window.addEventListener("scroll", handleScroll, { passive: true });
-      document.body.addEventListener("pointermove", handlePointerMove, {
-        passive: true,
-      });
+      const updateRect = () => {
+        rectRef.current = host.getBoundingClientRect();
+      };
+
+      const flushGlowPosition = () => {
+        animationFrameRef.current = null;
+
+        const currentRect = rectRef.current;
+        if (!currentRect) return;
+
+        const { left, top, width, height } = currentRect;
+        const { x: mouseX, y: mouseY } = lastPosition.current;
+        const centerX = left + width * 0.5;
+        const centerY = top + height * 0.5;
+        const distanceFromCenter = Math.hypot(mouseX - centerX, mouseY - centerY);
+        const inactiveRadius = 0.5 * Math.min(width, height) * inactiveZone;
+
+        if (distanceFromCenter < inactiveRadius) {
+          element.style.setProperty("--active", "0");
+          return;
+        }
+
+        const isActive =
+          isPointerInsideRef.current &&
+          mouseX > left - proximity &&
+          mouseX < left + width + proximity &&
+          mouseY > top - proximity &&
+          mouseY < top + height + proximity;
+
+        element.style.setProperty("--active", isActive ? "1" : "0");
+
+        if (!isActive) return;
+
+        const currentAngle =
+          Number.parseFloat(element.style.getPropertyValue("--start")) || 0;
+        const targetAngle =
+          (180 * Math.atan2(mouseY - centerY, mouseX - centerX)) / Math.PI + 90;
+        const angleDiff = ((targetAngle - currentAngle + 180) % 360) - 180;
+        const smoothing = Math.min(
+          1,
+          Math.max(0.18, movementDuration * 0.35)
+        );
+        const nextAngle = currentAngle + angleDiff * smoothing;
+
+        if (Math.abs(nextAngle - currentAngle) < 0.1) return;
+        element.style.setProperty("--start", String(nextAngle));
+      };
+
+      const scheduleGlowUpdate = () => {
+        if (animationFrameRef.current !== null) return;
+        animationFrameRef.current = requestAnimationFrame(flushGlowPosition);
+      };
+
+      const handlePointerEnter = (event: PointerEvent) => {
+        isPointerInsideRef.current = true;
+        updateRect();
+        lastPosition.current = { x: event.clientX, y: event.clientY };
+        scheduleGlowUpdate();
+      };
+
+      const handlePointerMove = (event: PointerEvent) => {
+        if (!isPointerInsideRef.current) return;
+        lastPosition.current = { x: event.clientX, y: event.clientY };
+        scheduleGlowUpdate();
+      };
+
+      const handlePointerLeave = () => {
+        isPointerInsideRef.current = false;
+        rectRef.current = null;
+        element.style.setProperty("--active", "0");
+        if (animationFrameRef.current !== null) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+      };
+
+      const handleViewportChange = () => {
+        if (!isPointerInsideRef.current) return;
+        updateRect();
+        scheduleGlowUpdate();
+      };
+
+      updateRect();
+
+      const resizeObserver = new ResizeObserver(handleViewportChange);
+      resizeObserver.observe(host);
+      host.addEventListener("pointerenter", handlePointerEnter);
+      host.addEventListener("pointermove", handlePointerMove, { passive: true });
+      host.addEventListener("pointerleave", handlePointerLeave);
+      window.addEventListener("scroll", handleViewportChange, { passive: true });
+      window.addEventListener("resize", handleViewportChange);
 
       return () => {
-        if (animationFrameRef.current) {
+        resizeObserver.disconnect();
+        host.removeEventListener("pointerenter", handlePointerEnter);
+        host.removeEventListener("pointermove", handlePointerMove);
+        host.removeEventListener("pointerleave", handlePointerLeave);
+        window.removeEventListener("scroll", handleViewportChange);
+        window.removeEventListener("resize", handleViewportChange);
+        if (animationFrameRef.current !== null) {
           cancelAnimationFrame(animationFrameRef.current);
         }
-        window.removeEventListener("scroll", handleScroll);
-        document.body.removeEventListener("pointermove", handlePointerMove);
       };
-    }, [handleMove, disabled]);
+    }, [disabled, inactiveZone, movementDuration, proximity]);
 
     return (
       <>
@@ -173,7 +202,7 @@ const GlowingEffect = memo(
               "rounded-[inherit]",
               'after:content-[""] after:rounded-[inherit] after:absolute after:inset-[calc(-1*var(--glowingeffect-border-width))]',
               "after:[border:var(--glowingeffect-border-width)_solid_transparent]",
-              "after:[background:var(--gradient)] after:[background-attachment:fixed]",
+              "after:[background:var(--gradient)]",
               "after:opacity-[var(--active)] after:transition-opacity after:duration-300",
               "after:[mask-clip:padding-box,border-box]",
               "after:[mask-composite:intersect]",

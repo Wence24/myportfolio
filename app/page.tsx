@@ -35,6 +35,8 @@ import {
 
 const MODAL_TRANSITION_MS = 520;
 const MODAL_OPEN_DELAY_MS = 10;
+const CONTACT_PANEL_TRANSITION_MS = 220;
+const CONTACT_PANEL_OPEN_DELAY_MS = 8;
 
 export default function Home() {
   const router = useRouter();
@@ -126,6 +128,8 @@ type RateTableRow = {
   price: string;
   details?: string;
 };
+
+type RateCategory = "video-edit" | "graphic-design";
 
 const getDefaultContactFormState = (): ContactFormState => ({
   name: "",
@@ -224,11 +228,183 @@ const addOnRateRows: RateTableRow[] = [
   },
 ];
 
+const graphicDesignPosterRows: RateTableRow[] = [
+  {
+    label: "Social media poster - Basic",
+    price: "$20 - $40",
+    details: "Simple layout for clean, quick poster graphics.",
+  },
+  {
+    label: "Social media poster - Branded / Mid-tier",
+    price: "$40 - $80",
+    details: "More polished branded visuals with stronger composition and styling.",
+  },
+  {
+    label: "Social media poster - High-end / Ads / Premium",
+    price: "$80 - $120",
+    details: "Ad-ready creative with premium layout, stronger hierarchy, and visual polish.",
+  },
+  {
+    label: "Social media post - Single post",
+    price: "$35 - $60",
+    details: "One designed social post tailored to your brand or campaign.",
+  },
+  {
+    label: "Social media post - Carousel",
+    price: "$60 - $100",
+    details: "Multi-slide carousel built for engagement and clear storytelling.",
+  },
+];
+
+const graphicDesignBrandRows: RateTableRow[] = [
+  {
+    label: "YouTube thumbnail - Standard",
+    price: "$10 - $25",
+    details: "Clean thumbnail design with readable text and a strong focal point.",
+  },
+  {
+    label: "YouTube thumbnail - High CTR / Advanced",
+    price: "$25 - $50",
+    details: "More refined thumbnail treatment focused on higher click-through appeal.",
+  },
+  {
+    label: "Logo design - Basic",
+    price: "$30 - $80",
+    details: "Simple logo concept for a straightforward visual identity.",
+  },
+  {
+    label: "Logo design - Premium",
+    price: "$80 - $150",
+    details: "More developed logo work with stronger refinement and presentation.",
+  },
+  {
+    label: "Brand kit",
+    price: "$100 - $250",
+    details: "Logo, color palette, and font direction in one brand-ready package.",
+  },
+];
+
+const graphicDesignMarketingRows: RateTableRow[] = [
+  {
+    label: "Marketing materials - Posters / Flyers",
+    price: "$20 - $60",
+    details: "Promotional layouts for events, announcements, and campaigns.",
+  },
+  {
+    label: "Marketing materials - Banners",
+    price: "$15 - $40",
+    details: "Channel art, Facebook banners, and similar wide-format headers.",
+  },
+  {
+    label: "Marketing materials - Presentation slides",
+    price: "$20 - $60",
+    details: "Slides with cleaner structure, readability, and visual consistency.",
+  },
+];
+
 const rateNotes = [
   "Prices may vary depending on complexity.",
   "Discounts are available for bulk and long-term clients.",
   "1-2 revisions are included.",
 ] as const;
+
+const graphicDesignRateNotes = [
+  "Prices may vary depending on design complexity and turnaround.",
+  "Bundle discounts are available for recurring content or brand work.",
+  "Revisions can be adjusted depending on the scope of the project.",
+] as const;
+
+type HeroSignatureFrame = {
+  key: string;
+  side: "left" | "right";
+  topRange: readonly [number, number];
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+type HeroMarkerLayout = {
+  circleX: number;
+  circleY: number;
+  bendX: number;
+  bendY: number;
+  anchorX: number;
+  anchorY: number;
+};
+
+const heroSignatureFrames: readonly HeroSignatureFrame[] = [
+  {
+    key: "pacing",
+    side: "left",
+    topRange: [47, 52] as const,
+    title: "Cinematic pacing",
+    description: "Cuts shaped around rhythm, scene flow, and cleaner transitions.",
+    icon: Film,
+  },
+  {
+    key: "identity",
+    side: "left",
+    topRange: [92, 96] as const,
+    title: "Brand-first visuals",
+    description: "Layouts and posters polished to feel sharp, intentional, and clear.",
+    icon: Palette,
+  },
+  {
+    key: "hook",
+    side: "right",
+    topRange: [52, 58] as const,
+    title: "Social content hooks",
+    description: "Visual decisions built to catch attention fast without losing clarity.",
+    icon: Globe,
+  },
+  {
+    key: "finish",
+    side: "right",
+    topRange: [94, 98] as const,
+    title: "Signature finish",
+    description: "A final layer of refinement that keeps the work memorable.",
+    icon: Medal,
+  },
+] as const;
+
+const createHeroMarkerLayouts = (): HeroMarkerLayout[] => {
+  const leftMarkerConfigs = [
+    { circleX: 8.5, bendX: 18.5, anchorX: 42.5, anchorY: 74 },
+    { circleX: 30.5, bendX: 36.5, anchorX: 54.5, anchorY: 103 },
+  ] as const;
+
+  const rightMarkerConfigs = [
+    { circleX: 89.5, bendX: 79.5, anchorX: 58.5, anchorY: 75.5 },
+    { circleX: 67.5, bendX: 61.5, anchorX: 46.5, anchorY: 104 },
+  ] as const;
+
+  return heroSignatureFrames.map((frame, index) => {
+    const [minTop, maxTop] = frame.topRange;
+    const circleY = Math.round((minTop + maxTop) / 2);
+
+    if (frame.side === "left") {
+      const config = leftMarkerConfigs[index];
+      return {
+        circleX: config.circleX,
+        circleY,
+        bendX: config.bendX,
+        bendY: circleY,
+        anchorX: config.anchorX,
+        anchorY: config.anchorY,
+      };
+    }
+
+    const config = rightMarkerConfigs[index - leftMarkerConfigs.length];
+    return {
+      circleX: config.circleX,
+      circleY,
+      bendX: config.bendX,
+      bendY: circleY,
+      anchorX: config.anchorX,
+      anchorY: config.anchorY,
+    };
+  });
+};
 
 type ContactSelectProps = {
   label: string;
@@ -250,7 +426,7 @@ function ContactSelect({
   return (
     <Listbox value={value} onChange={onChange}>
       <div className="relative z-20">
-        <Listbox.Button className="group relative w-full overflow-hidden rounded-[24px] border border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] px-4 py-3 text-left shadow-[0_14px_34px_rgba(0,0,0,0.16)] backdrop-blur-xl transition-all duration-300 hover:border-[#54cfff]/40 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))] focus:outline-none focus-visible:border-[#77dbff]/60 focus-visible:ring-2 focus-visible:ring-[#3ecfff]/25">
+        <Listbox.Button className="group relative w-full overflow-hidden rounded-[24px] border border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] px-4 py-3 text-left shadow-[0_14px_34px_rgba(0,0,0,0.16)] backdrop-blur-xl transition-[border-color,background-color,box-shadow,transform] duration-180 ease-out hover:border-[#54cfff]/40 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))] focus:outline-none focus-visible:border-[#77dbff]/60 focus-visible:ring-2 focus-visible:ring-[#3ecfff]/25">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(0,212,255,0.12),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.04),transparent_60%)] opacity-80" />
           <div className="relative flex items-center justify-between gap-4">
             <div className="min-w-0">
@@ -268,8 +444,8 @@ function ContactSelect({
                 {selectedOption?.description || "Choose the option that fits your project."}
               </p>
             </div>
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/72 transition-all duration-300 group-hover:border-[#61d4ff]/35 group-hover:text-[#b5ecff]">
-              <ChevronDown className="h-4 w-4 transition-transform duration-300 group-data-[headlessui-state=open]:rotate-180" />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/72 transition-[border-color,color,transform] duration-180 ease-out group-hover:border-[#61d4ff]/35 group-hover:text-[#b5ecff]">
+              <ChevronDown className="h-4 w-4 transition-transform duration-180 ease-out group-data-[headlessui-state=open]:rotate-180" />
             </span>
           </div>
         </Listbox.Button>
@@ -334,15 +510,39 @@ type CompactRateTableProps = {
   title: string;
   subtitle?: string;
   rows: RateTableRow[];
+  onRowSelect?: (row: RateTableRow) => void;
+  isVisible?: boolean;
+  animationDelayMs?: number;
 };
 
 function CompactRateTable({
   title,
   subtitle,
   rows,
+  onRowSelect,
+  isVisible = true,
+  animationDelayMs = 0,
 }: CompactRateTableProps) {
+  const isInteractive = Boolean(onRowSelect);
+
+  const handleRowKeyDown = (
+    event: React.KeyboardEvent<HTMLTableRowElement>,
+    row: RateTableRow
+  ) => {
+    if (!onRowSelect) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onRowSelect(row);
+    }
+  };
+
   return (
-    <div className="overflow-hidden rounded-[20px] border border-white/10 bg-black/18">
+    <div
+      className={`transform-gpu overflow-hidden rounded-[20px] border border-white/10 bg-black/18 transition-[opacity,transform] duration-280 ease-out will-change-transform ${
+        isVisible ? "translate-y-0 scale-100 opacity-100" : "translate-y-3 scale-[0.98] opacity-0"
+      }`}
+      style={{ transitionDelay: `${animationDelayMs}ms` }}
+    >
       <div className="border-b border-white/8 px-4 py-3">
         <p className="text-[10px] uppercase tracking-[0.22em] text-[#8fdcff]">
           {title}
@@ -350,6 +550,11 @@ function CompactRateTable({
         {subtitle ? (
           <p className="mt-1 text-[11px] leading-relaxed text-white/50">
             {subtitle}
+          </p>
+        ) : null}
+        {isInteractive ? (
+          <p className="mt-2 text-[10px] uppercase tracking-[0.16em] text-white/30">
+            Click a rate to start a message
           </p>
         ) : null}
       </div>
@@ -363,7 +568,21 @@ function CompactRateTable({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={`${title}-${row.label}`} className="border-t border-white/6 align-top">
+              <tr
+                key={`${title}-${row.label}`}
+                className={`border-t border-white/6 align-top transition-all duration-200 ${
+                  isInteractive
+                    ? "cursor-pointer outline-none hover:bg-[#0a1723] focus:bg-[#0a1723]"
+                    : ""
+                }`}
+                onClick={() => onRowSelect?.(row)}
+                onKeyDown={(event) => handleRowKeyDown(event, row)}
+                role={isInteractive ? "button" : undefined}
+                tabIndex={isInteractive ? 0 : undefined}
+                aria-label={
+                  isInteractive ? `Select ${row.label} priced at ${row.price}` : undefined
+                }
+              >
                 <td className="px-4 py-3">
                   <p className="font-medium text-white/88">{row.label}</p>
                   {row.details ? (
@@ -373,7 +592,7 @@ function CompactRateTable({
                   ) : null}
                 </td>
                 <td className="px-4 py-3 text-right font-semibold text-[#b8efff]">
-                  {row.price}
+                  <span>{row.price}</span>
                 </td>
               </tr>
             ))}
@@ -394,6 +613,119 @@ type SocialLink = {
     href: string;
   }>;
 };
+
+type BackgroundLogoLabel = SocialLink["label"] | "Upwork" | "Fiverr" | "LinkedIn";
+
+function PlatformBackgroundLogo({
+  label,
+  className,
+}: {
+  label: BackgroundLogoLabel;
+  className?: string;
+}) {
+  if (label === "Facebook") {
+    return (
+      <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+        <path
+          d="M37.8 56V35.3h6.9l1-8.2h-7.9v-5.2c0-2.4.7-4 4-4h4.3v-7.1c-.8-.1-3.1-.3-5.9-.3-5.8 0-9.8 3.6-9.8 10.2v6.6h-6.6v8.2h6.6V56h7.4Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  if (label === "Instagram") {
+    return (
+      <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+        <rect x="12" y="12" width="40" height="40" rx="12" stroke="currentColor" strokeWidth="4" />
+        <circle cx="32" cy="32" r="9" stroke="currentColor" strokeWidth="4" />
+        <circle cx="44.5" cy="19.5" r="2.5" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  if (label === "LinkedIn") {
+    return (
+      <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+        <rect x="12" y="12" width="40" height="40" rx="10" stroke="currentColor" strokeWidth="4" />
+        <circle cx="23" cy="24" r="2.8" fill="currentColor" />
+        <path d="M23 30V45" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+        <path
+          d="M33 45V30M33 34.5C34.8 31.5 37.2 30 40.1 30C44.3 30 47 33 47 38.3V45"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  if (label === "Upwork") {
+    return (
+      <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+        <path
+          d="M16 21v12.2c0 5 3.6 8.8 8.7 8.8s8.7-3.8 8.7-8.8V21"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M39 24.5v26"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+        <path
+          d="M39 31.5c1.9-3.4 4.8-5.2 8.4-5.2 5 0 8.6 3.7 8.6 8.6S52.4 43.5 47.4 43.5c-3.6 0-6.4-1.6-8.4-4.8"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  if (label === "Fiverr") {
+    return (
+      <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+        <circle cx="43.5" cy="19.5" r="3.5" fill="currentColor" />
+        <path
+          d="M22 47V28.5C22 22.4 25.8 19 31.4 19h8.6"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M18 31h22"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
+  if (label === "TikTok") {
+    return (
+      <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+        <path
+          d="M39.6 18.2c2.1 2 4.4 3.3 7 3.8v6.1c-2.8-.1-5.6-1-8-2.6V37c0 8.8-7.1 15.9-15.9 15.9-3.4 0-6.5-1-9.1-2.9a16 16 0 0 0 7.9 1.2c5.1-.6 9-5 9-10.2V11.4h9.1v6.8Z"
+          fill="currentColor"
+        />
+        <path
+          d="M27.4 24.1a9.2 9.2 0 0 0-8.3 9.2c0 2.9 1.3 5.4 3.3 7.1a8.7 8.7 0 0 1-1-4c0-4.5 3-8.3 7.2-9.4v-2.9c-.4 0-.8 0-1.2 0Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  return null;
+}
 
 type SideNavIcon = React.ComponentType<{ size?: number; className?: string }>;
 
@@ -475,9 +807,16 @@ const [showReviewsIntro, setShowReviewsIntro] = useState(false);
 const [showReviewsTestimonials, setShowReviewsTestimonials] = useState(false);
 const [showContactForm, setShowContactForm] = useState(false);
 const [showRates, setShowRates] = useState(false);
+const [activeRateCategory, setActiveRateCategory] = useState<RateCategory>("video-edit");
+const [isContactFormMounted, setIsContactFormMounted] = useState(false);
+const [isContactFormVisible, setIsContactFormVisible] = useState(false);
+const [isRatesPanelMounted, setIsRatesPanelMounted] = useState(false);
+const [isRatesPanelVisible, setIsRatesPanelVisible] = useState(false);
 const [showTikTokModal, setShowTikTokModal] = useState(false);
 const [isTikTokBubbleMounted, setIsTikTokBubbleMounted] = useState(false);
 const [isTikTokBubbleVisible, setIsTikTokBubbleVisible] = useState(false);
+const [activeHeroMarker, setActiveHeroMarker] = useState<number | null>(null);
+const [selectedRateSummary, setSelectedRateSummary] = useState("");
 const [contactForm, setContactForm] = useState<ContactFormState>(getDefaultContactFormState);
 const [contactSubmitState, setContactSubmitState] = useState<{
   status: "idle" | "sending" | "success" | "error";
@@ -493,10 +832,15 @@ const reviewsRevealHasRun = useRef(false);
 
   const videoFullText = "VIDEO EDITOR";
   const graphicFullText = "GRAPHIC DESIGNER";
+const aboutFullName = "Wence Dante De Vera";
 
 const hasShownAbout = useRef(false);
 const hasShownHello = useRef(false);
 const tikTokBubbleRef = useRef<HTMLDivElement>(null);
+const contactMessageCardRef = useRef<HTMLDivElement>(null);
+const contactMessageRef = useRef<HTMLTextAreaElement>(null);
+const shouldFocusContactMessageRef = useRef(false);
+const heroMarkerLayouts = createHeroMarkerLayouts();
 
 
   const hasRun = useRef(false);
@@ -510,6 +854,8 @@ const tikTokBubbleRef = useRef<HTMLDivElement>(null);
 
   const [showSideNav, setShowSideNav] = useState(false);
   const [activeSection, setActiveSection] = useState("home");
+  const showSideNavRef = useRef(false);
+  const activeSectionRef = useRef("home");
   type SideNavId = "home" | "about" | "portfolio" | "reviews" | "contact";
   const [, setLogoTapCount] = useState(0);
   const logoTapResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -730,6 +1076,33 @@ useEffect(() => {
   return () => observer.disconnect();
 }, []);
 
+useEffect(() => {
+  if (activeHeroMarker === null) return;
+
+  const handleDismissHeroMarker = (event: MouseEvent | TouchEvent) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('[data-hero-marker-button="true"]')) return;
+    setActiveHeroMarker(null);
+  };
+
+  const handleEscapeHeroMarker = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      setActiveHeroMarker(null);
+    }
+  };
+
+  document.addEventListener("mousedown", handleDismissHeroMarker);
+  document.addEventListener("touchstart", handleDismissHeroMarker, { passive: true });
+  document.addEventListener("keydown", handleEscapeHeroMarker);
+
+  return () => {
+    document.removeEventListener("mousedown", handleDismissHeroMarker);
+    document.removeEventListener("touchstart", handleDismissHeroMarker);
+    document.removeEventListener("keydown", handleEscapeHeroMarker);
+  };
+}, [activeHeroMarker]);
+
 
 // Hello + Name typing animation
 useEffect(() => {
@@ -741,12 +1114,11 @@ useEffect(() => {
   setNameText("");
   setNameDone(false);
 
-  const fullName = "Wence Dante De Vera";
   let index = 0;
 
   const typeNextLetter = () => {
-    if (index < fullName.length) {
-      setNameText(fullName.slice(0, index + 1));
+    if (index < aboutFullName.length) {
+      setNameText(aboutFullName.slice(0, index + 1));
       index++;
       setTimeout(typeNextLetter, 100);
     } else {
@@ -776,7 +1148,11 @@ useEffect(() => {
 
       // Show side nav after hero
       if (heroRef.current) {
-        setShowSideNav(window.scrollY > heroRef.current.offsetHeight - 200);
+        const nextShowSideNav = window.scrollY > heroRef.current.offsetHeight - 200;
+        if (showSideNavRef.current !== nextShowSideNav) {
+          showSideNavRef.current = nextShowSideNav;
+          setShowSideNav(nextShowSideNav);
+        }
       }
       
 
@@ -793,7 +1169,10 @@ useEffect(() => {
         if (!s.ref.current) continue;
         const r = s.ref.current.getBoundingClientRect();
         if (r.top <= window.innerHeight * 0.45 && r.bottom >= 0) {
-          setActiveSection(s.id);
+          if (activeSectionRef.current !== s.id) {
+            activeSectionRef.current = s.id;
+            setActiveSection(s.id);
+          }
           break;
         }
       }
@@ -818,7 +1197,11 @@ useEffect(() => {
 
   const observer = new IntersectionObserver(
     ([entry]) => {
-      setShowSideNav(!entry.isIntersecting);
+      const nextShowSideNav = !entry.isIntersecting;
+      if (showSideNavRef.current !== nextShowSideNav) {
+        showSideNavRef.current = nextShowSideNav;
+        setShowSideNav(nextShowSideNav);
+      }
     },
     { threshold: 0 }
   );
@@ -868,33 +1251,45 @@ const handleSecretLogoTap = () => {
   });
 };
 
-  // NAV LIST WITH ACTIVE UNDERLINE
+  // NAV LIST
   const navList = (
-    <ul
-  className="mt-2 mb-4 flex flex-col gap-2 font-semibold tracking-[0.02em] lg:mb-0 lg:mt-0 lg:flex-row lg:items-center lg:gap-6"
->
-  {[
-    { name: "Home", ref: null }, // null because top of page
-    { name: "About", ref: aboutRef },
-    { name: "Portfolio", ref: portfolioRef },
-    { name: "Contact", ref: contactRef },
-  ].map((item) => (
-    <li
-      key={item.name}
-      className={`p-1 font-normal cursor-pointer text-white ${
-        activeSection.toLowerCase() === item.name.toLowerCase()
-          ? "border-b-2 border-white"
-          : ""
-      }`}
-      onClick={() => {
-        scrollToSection(item.ref);
-      }}
-    >
-      {item.name}
-    </li>
-  ))}
-</ul>
+    <ul className="flex w-full items-center justify-center gap-1.5 rounded-full border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.025))] p-1.5 shadow-[0_18px_45px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+      {[
+        { name: "Home", ref: null }, // null because top of page
+        { name: "About", ref: aboutRef },
+        { name: "Portfolio", ref: portfolioRef },
+        { name: "Contact", ref: contactRef },
+      ].map((item) => {
+        const isActive = activeSection.toLowerCase() === item.name.toLowerCase();
 
+        return (
+          <li key={item.name}>
+            <button
+              type="button"
+              onClick={() => {
+                scrollToSection(item.ref);
+              }}
+              className={`group relative inline-flex min-w-[102px] items-center justify-center gap-2 overflow-hidden rounded-full px-4 py-2.5 text-sm font-medium tracking-[0.01em] transition-[transform,background-color,color,box-shadow] duration-180 ease-out ${
+                isActive
+                  ? "bg-[linear-gradient(135deg,rgba(0,153,255,0.95),rgba(104,222,255,0.85))] text-white shadow-[0_12px_30px_rgba(0,153,255,0.26)]"
+                  : "text-white/72 hover:-translate-y-[1px] hover:bg-white/[0.08] hover:text-white"
+              }`}
+              aria-current={isActive ? "page" : undefined}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full transition-colors duration-180 ${
+                    isActive ? "bg-white" : "bg-white/25 group-hover:bg-[#8fe3ff]"
+                  }`}
+                />
+                <span>{item.name}</span>
+                {!isActive ? (
+                  <span className="pointer-events-none absolute inset-x-5 bottom-[3px] h-px bg-gradient-to-r from-transparent via-[#8fe3ff]/80 to-transparent opacity-0 transition-opacity duration-180 group-hover:opacity-100" />
+                ) : null}
+              </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 
 useEffect(() => {
@@ -997,6 +1392,67 @@ useEffect(() => {
   };
 }, [showTikTokModal]);
 
+useEffect(() => {
+  let openTimer: ReturnType<typeof setTimeout> | null = null;
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  if (showContactForm) {
+    setIsContactFormMounted(true);
+    openTimer = setTimeout(() => {
+      setIsContactFormVisible(true);
+    }, CONTACT_PANEL_OPEN_DELAY_MS);
+  } else {
+    setIsContactFormVisible(false);
+    closeTimer = setTimeout(() => {
+      setIsContactFormMounted(false);
+    }, CONTACT_PANEL_TRANSITION_MS);
+  }
+
+  return () => {
+    if (openTimer) clearTimeout(openTimer);
+    if (closeTimer) clearTimeout(closeTimer);
+  };
+}, [showContactForm]);
+
+useEffect(() => {
+  let openTimer: ReturnType<typeof setTimeout> | null = null;
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  if (showRates) {
+    setIsRatesPanelMounted(true);
+    openTimer = setTimeout(() => {
+      setIsRatesPanelVisible(true);
+    }, CONTACT_PANEL_OPEN_DELAY_MS);
+  } else {
+    setIsRatesPanelVisible(false);
+    closeTimer = setTimeout(() => {
+      setIsRatesPanelMounted(false);
+    }, CONTACT_PANEL_TRANSITION_MS);
+  }
+
+  return () => {
+    if (openTimer) clearTimeout(openTimer);
+    if (closeTimer) clearTimeout(closeTimer);
+  };
+}, [showRates]);
+
+useEffect(() => {
+  if (!isContactFormVisible || !shouldFocusContactMessageRef.current) return;
+
+  const focusTimer = setTimeout(() => {
+    contactMessageCardRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    contactMessageRef.current?.focus();
+    const messageLength = contactMessageRef.current?.value.length ?? 0;
+    contactMessageRef.current?.setSelectionRange(messageLength, messageLength);
+    shouldFocusContactMessageRef.current = false;
+  }, 180);
+
+  return () => clearTimeout(focusTimer);
+}, [isContactFormVisible]);
+
 const closeDetailsModal = () => {
   setShowModal(false);
 };
@@ -1080,6 +1536,10 @@ const handleAddProjectSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 };
 
 const updateContactField = (field: keyof ContactFormState, value: string) => {
+  if (field === "serviceType") {
+    setSelectedRateSummary("");
+  }
+
   setContactForm((prev) => ({
     ...prev,
     [field]: value,
@@ -1087,6 +1547,84 @@ const updateContactField = (field: keyof ContactFormState, value: string) => {
       ? { videoEditType: "" }
       : {}),
   }));
+};
+
+const openContactFormPanel = (options?: { focusMessage?: boolean }) => {
+  if (options?.focusMessage) {
+    shouldFocusContactMessageRef.current = true;
+  }
+
+  setContactSubmitState({
+    status: "idle",
+    message: "",
+  });
+  setShowRates(false);
+  setShowContactForm(true);
+};
+
+const closeContactFormPanel = () => {
+  shouldFocusContactMessageRef.current = false;
+  setShowContactForm(false);
+};
+
+const toggleContactFormPanel = () => {
+  if (showRates) {
+    openContactFormPanel();
+    return;
+  }
+
+  if (showContactForm) {
+    closeContactFormPanel();
+    return;
+  }
+
+  openContactFormPanel();
+};
+
+const toggleRatesPanel = () => {
+  shouldFocusContactMessageRef.current = false;
+
+  if (showRates) {
+    setShowRates(false);
+    return;
+  }
+
+  setShowContactForm(false);
+  if (contactForm.serviceType === "graphic-design") {
+    setActiveRateCategory("graphic-design");
+  } else if (contactForm.serviceType === "video-edit") {
+    setActiveRateCategory("video-edit");
+  }
+  setShowRates(true);
+};
+
+const inferVideoEditTypeFromRateLabel = (label: string) => {
+  const normalizedLabel = label.toLowerCase();
+
+  if (normalizedLabel.includes("long-form")) {
+    return "long-form";
+  }
+
+  if (normalizedLabel.includes("short-form")) {
+    return "short-form";
+  }
+
+  return "";
+};
+
+const handleRateRowSelect = (row: RateTableRow, rateCategory: RateCategory) => {
+  const inferredVideoEditType =
+    rateCategory === "video-edit" ? inferVideoEditTypeFromRateLabel(row.label) : "";
+  const rateSummary = `${row.label} - ${row.price}`;
+
+  setContactForm((prev) => ({
+    ...prev,
+    serviceType: rateCategory,
+    videoEditType: inferredVideoEditType,
+  }));
+  setSelectedRateSummary(rateSummary);
+
+  openContactFormPanel({ focusMessage: true });
 };
 
 const handleContactSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -1119,7 +1657,10 @@ const handleContactSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(contactForm),
+      body: JSON.stringify({
+        ...contactForm,
+        selectedRateSummary,
+      }),
     });
 
     const payload = (await response.json().catch(() => null)) as
@@ -1133,6 +1674,7 @@ const handleContactSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     }
 
     setContactForm(getDefaultContactFormState());
+    setSelectedRateSummary("");
     setContactSubmitState({
       status: "success",
       message: "Your message was sent successfully.",
@@ -1157,7 +1699,7 @@ const totalCertificates = portfolioProjects.Certificates?.length || 0;
 const activeCategoryMeta =
   portfolioCategories.find((item) => item.name === activeBox) ?? portfolioCategories[0];
 const glassSectionClass =
-  "relative w-full max-w-7xl mx-auto rounded-[26px] border border-white/10 bg-white/[0.03] p-[1.5px] shadow-[0_18px_60px_rgba(0,0,0,0.24)]";
+  "relative mx-auto w-full max-w-7xl rounded-[26px] border border-white/10 bg-white/[0.03] p-[1.5px] shadow-[0_18px_60px_rgba(0,0,0,0.24)] transform-gpu [backface-visibility:hidden]";
 const glassSectionPanelClass =
   "relative overflow-hidden rounded-[24px] bg-[linear-gradient(180deg,rgba(14,19,27,0.94),rgba(8,12,18,0.98))] backdrop-blur-xl";
 const glassSectionInnerClass =
@@ -1169,9 +1711,65 @@ const mainSectionGlowProps = {
   spread: 34,
   proximity: 128,
   inactiveZone: 0.01,
-  movementDuration: 0.8,
+  movementDuration: 0.55,
   borderWidth: 1.5,
 };
+const ratePanelTitle =
+  activeRateCategory === "video-edit" ? "Video Editing Services" : "Graphic Design Services";
+const ratePanelSubtitle =
+  activeRateCategory === "video-edit"
+    ? "A compact starting price sheet for long-form, short-form, bundles, and add-ons. Click any rate to open the message form with that rate attached to your inquiry."
+    : "A compact starting price sheet for posters, thumbnails, branding, and marketing materials. Click any rate to open the message form with that rate attached to your inquiry.";
+const ratePanelToggleLabel =
+  activeRateCategory === "video-edit" ? "Graphic Design" : "Video Edit";
+const activeRateNotes =
+  activeRateCategory === "video-edit" ? rateNotes : graphicDesignRateNotes;
+const activeRateSections =
+  activeRateCategory === "video-edit"
+    ? [
+        {
+          title: "Core Pricing",
+          subtitle: "YouTube videos, podcasts, reels, TikToks, and Shorts.",
+          rows: videoEditingRateRows,
+          wrapperClass: "min-w-[360px] flex-[1.35]",
+          animationDelayMs: 60,
+        },
+        {
+          title: "Bundle Offers",
+          rows: bundleRateRows,
+          wrapperClass: "min-w-[280px] flex-1",
+          animationDelayMs: 120,
+        },
+        {
+          title: "Add-Ons",
+          rows: addOnRateRows,
+          wrapperClass: "min-w-[280px] flex-1",
+          animationDelayMs: 180,
+        },
+      ]
+    : [
+        {
+          title: "Social & Content",
+          subtitle: "Poster systems, social graphics, and carousel content.",
+          rows: graphicDesignPosterRows,
+          wrapperClass: "min-w-[330px] flex-[1.2]",
+          animationDelayMs: 60,
+        },
+        {
+          title: "Branding",
+          subtitle: "Thumbnail work, logos, and fuller brand identity support.",
+          rows: graphicDesignBrandRows,
+          wrapperClass: "min-w-[290px] flex-1",
+          animationDelayMs: 120,
+        },
+        {
+          title: "Marketing Materials",
+          subtitle: "Support assets for promos, banners, and presentations.",
+          rows: graphicDesignMarketingRows,
+          wrapperClass: "min-w-[290px] flex-1",
+          animationDelayMs: 180,
+        },
+      ];
 const creativeTools = [
   {
     name: "Adobe Premiere Pro",
@@ -1347,7 +1945,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           <div className={`intro-burst ${introPulse ? "intro-burst-active" : ""}`} />
 
           <div
-            className={`relative z-10 flex h-full items-center justify-center transition-all duration-500 ${
+            className={`relative z-10 flex h-full items-center justify-center transition-[opacity,transform] duration-280 ease-out ${
               introLogoVisible
                 ? "opacity-100 scale-100 translate-y-0"
                 : "opacity-0 scale-75 translate-y-3"
@@ -1373,7 +1971,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(180deg, rgba(4,8,13,0.08) 0%, rgba(0,0,0,0.34) 100%), linear-gradient(122deg, rgba(255,255,255,0.035) 0%, transparent 32%, transparent 72%, rgba(255,255,255,0.014) 100%), radial-gradient(circle at 50% 0%, rgba(255,255,255,0.04) 0%, transparent 40%)",
+              "linear-gradient(180deg, rgba(1,4,8,0.56) 0%, rgba(1,3,6,0.82) 58%, rgba(1,2,5,0.94) 100%), linear-gradient(122deg, rgba(255,255,255,0.02) 0%, transparent 30%, transparent 72%, rgba(255,255,255,0.01) 100%), radial-gradient(circle at 50% 0%, rgba(255,255,255,0.018) 0%, transparent 34%), radial-gradient(circle at 50% 40%, rgba(0,153,255,0.06) 0%, transparent 24%)",
           }}
         />
         <div
@@ -1393,44 +1991,77 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
       </div>
 
       {/* NAVBAR */}
-      <div className="relative z-50">
-        
+      <div className="relative z-50 px-2 pt-3 sm:px-4 lg:px-5">
         <nav
          ref={navbarRef}
-          className="sticky top-0 w-full rounded-none border-b border-white/10 bg-black/78 px-4 py-2 font-semibold tracking-[0.02em] backdrop-blur-md lg:px-8 lg:py-4"
+          className="sticky top-3 mx-auto w-full max-w-[1520px] overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,8,14,0.9),rgba(5,10,18,0.76))] px-3 py-3.5 font-semibold tracking-[0.02em] shadow-[0_22px_60px_rgba(0,0,0,0.3)] backdrop-blur-2xl lg:px-5"
         >
-          <div className="flex items-center justify-between relative">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/28 to-transparent" />
+            <div className="absolute -left-8 top-1/2 h-24 w-24 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.2)_0%,transparent_70%)] blur-2xl opacity-80" />
+            <div className="absolute right-[-1.5rem] top-[-1.25rem] h-24 w-24 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.12)_0%,transparent_72%)] blur-2xl opacity-55" />
+            <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.14)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:28px_28px] [mask-image:radial-gradient(circle_at_center,black,transparent_78%)]" />
+          </div>
+
+          <div className="relative flex items-center gap-3 lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:gap-5">
             <button
               type="button"
               onClick={handleSecretLogoTap}
-              className="rounded-full p-1 transition-transform duration-200 hover:scale-105"
+              className="group inline-flex shrink-0 items-center gap-3 rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-2 pr-4 transition-[transform,border-color,background-color,box-shadow] duration-180 ease-out hover:-translate-y-[1px] hover:border-white/20 hover:bg-white/[0.06] hover:shadow-[0_14px_32px_rgba(0,0,0,0.18)] lg:pr-5"
               aria-label="Portfolio logo"
             >
-              <Image src="/logo.png" alt="Logo" width={40} height={40} priority />
+              <span className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,rgba(6,21,34,0.96),rgba(12,46,74,0.9))] shadow-[0_12px_28px_rgba(0,153,255,0.2)]">
+                <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(132,223,255,0.35),transparent_58%)] opacity-90" />
+                <Image
+                  src="/logo.png"
+                  alt="Logo"
+                  width={40}
+                  height={40}
+                  priority
+                  className="relative h-auto w-[28px] drop-shadow-[0_6px_12px_rgba(255,255,255,0.08)]"
+                />
+              </span>
+
+              <span className="hidden min-w-0 flex-col text-left md:flex">
+                <span className="text-[10px] uppercase tracking-[0.26em] text-[#8fdcff]">
+                  Creative Portfolio
+                </span>
+                <span className="mt-1 text-sm font-semibold text-white">
+                  Wence Dante De Vera
+                </span>
+              </span>
             </button>
-            <div className="hidden lg:block">{navList}</div>
+
+            <div className="hidden min-w-0 lg:flex lg:items-center lg:justify-center">
+              <div className="w-full max-w-[780px] xl:max-w-[860px]">
+                {navList}
+              </div>
+            </div>
+
+            <div className="hidden xl:flex items-center justify-end">
+              <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-left shadow-[0_14px_36px_rgba(0,0,0,0.16)]">
+                <span className="h-2 w-2 rounded-full bg-[#8fe3ff] shadow-[0_0_12px_rgba(143,227,255,0.75)] animate-pulse-slow" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-[10px] uppercase tracking-[0.22em] text-white/36">
+                    Open for projects
+                  </span>
+                  <span className="mt-0.5 text-xs font-medium text-white/64">
+                    Video edits and graphic design work
+                  </span>
+                </span>
+              </div>
+            </div>
           </div>
         </nav>
 
-        {/* EDGE GLOW BELOW NAVBAR */}
-        <div
-          className="absolute left-0 w-full pointer-events-none animate-pulse-slow"
-          style={{
-            top: "100%",
-            height: "16px",
-            background:
-              "linear-gradient(to bottom, rgba(230, 239, 248, 0.24) 0%, rgba(157, 182, 205, 0.12) 38%, rgba(255,255,255,0.0) 100%)",
-            filter: "blur(15px)",
-            zIndex: 49,
-          }}
-        />
+        <div className="pointer-events-none absolute left-1/2 top-full h-14 w-[min(88vw,1180px)] -translate-x-1/2 bg-[radial-gradient(circle,rgba(118,208,255,0.2)_0%,rgba(118,208,255,0.08)_38%,transparent_72%)] blur-2xl" />
       </div>
 
      {/* SIDE NAV */}
 <div
   className={`
     fixed right-5 top-1/2 -translate-y-1/2 z-50
-    transition-all duration-500 ease-out
+    transition-[opacity,transform] duration-220 ease-out
     ${showSideNav 
       ? "translate-x-0 opacity-100"    // slide in from right
       : "translate-x-full opacity-0"}  // slide out to right
@@ -1450,7 +2081,6 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             transformOrigin: "center",
           }}
         >
-          {/* VIDEO EDITOR */}
           <span
             className="absolute top-0 left-0 text-gray-400 text-sm sm:text-base select-none pointer-events-none"
             style={{
@@ -1466,7 +2096,6 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             )}
           </span>
 
-          {/* GRAPHIC DESIGNER */}
           <span
             className="absolute top-0 right-0 text-gray-400 text-sm sm:text-base select-none pointer-events-none"
             style={{
@@ -1487,21 +2116,41 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               className={`
                 text-[16rem] sm:text-[22rem] md:text-[30rem] lg:text-[40rem]
                 portfolio-heading portfolio-main-text select-none pointer-events-none leading-none
-                text-white
+                text-white/38
               `}
               data-text="PORTFOLIO"
             >
               PORTFOLIO
             </h1>
           </div>
-            {/* SMALL SOCIAL / LINK IMAGES — RIGHT SIDE UNDER PORTFOLIO */}
-
-          
         </div>
 
-        {/* IMAGE */}
         <div
-          className={`absolute z-20 transition-all duration-1000 ${
+          className={`pointer-events-none absolute left-1/2 top-[5%] z-10 hidden h-[34rem] w-[34rem] -translate-x-1/2 rounded-full transition-[opacity,transform] duration-[780ms] ease-out lg:block ${
+            imageVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          }`}
+          style={{
+            background:
+              "radial-gradient(circle, rgba(0,153,255,0.18) 0%, rgba(0,153,255,0.07) 28%, rgba(255,255,255,0.04) 44%, transparent 72%)",
+            filter: "blur(10px)",
+          }}
+        />
+        <div
+          className={`pointer-events-none absolute left-1/2 top-[8%] z-10 hidden h-[31rem] w-[31rem] -translate-x-1/2 transition-[opacity,transform] duration-[780ms] ease-out lg:block ${
+            imageVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
+          }`}
+          style={{
+            background:
+              "conic-gradient(from 205deg, transparent 0deg, rgba(143,227,255,0.16) 54deg, transparent 112deg, transparent 360deg)",
+            WebkitMask:
+              "radial-gradient(circle, transparent 61%, black 63%, black 65.5%, transparent 67.5%)",
+            mask:
+              "radial-gradient(circle, transparent 61%, black 63%, black 65.5%, transparent 67.5%)",
+          }}
+        />
+
+        <div
+          className={`pointer-events-none absolute z-20 transition-all duration-1000 ${
             imageVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
           style={{ top: "1%" }}
@@ -1512,11 +2161,131 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             width={810}
             height={810}
             priority
-            className="object-contain grayscale"
+            className="object-contain grayscale brightness-[1.1] contrast-[1.12] drop-shadow-[0_30px_80px_rgba(0,0,0,0.56)]"
           />
         </div>
 
-      </div>  {/* <-- this closes the absolute text container */}
+        <div className="pointer-events-none absolute left-[10%] right-[10%] top-[64%] z-[11] hidden h-[23rem] -translate-y-1/2 xl:block">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full overflow-visible">
+            {heroSignatureFrames.map((frame, index) => {
+              const isActive = activeHeroMarker === index;
+              const layout = heroMarkerLayouts[index];
+              const lineLoadDelay = 180 + index * 120;
+
+              if (!layout) return null;
+
+              return (
+                <path
+                  key={frame.key}
+                  d={`M ${layout.anchorX} ${layout.anchorY} L ${layout.bendX} ${layout.bendY} L ${layout.circleX} ${layout.circleY}`}
+                  fill="none"
+                  stroke={isActive ? "rgba(168,235,255,0.88)" : "rgba(255,255,255,0.3)"}
+                  strokeWidth={isActive ? 0.3 : 0.2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pathLength={1}
+                  style={{
+                    opacity: imageVisible ? 1 : 0,
+                    strokeDasharray: 1,
+                    strokeDashoffset: imageVisible ? 0 : 1,
+                    transition: `stroke-dashoffset 860ms cubic-bezier(0.22,1,0.36,1) ${lineLoadDelay}ms, opacity 320ms ease-out ${lineLoadDelay}ms, stroke 260ms ease-out, stroke-width 260ms ease-out`,
+                  }}
+                />
+              );
+            })}
+          </svg>
+        </div>
+
+        <div className="absolute left-[10%] right-[10%] top-[64%] z-[12] hidden h-[23rem] -translate-y-1/2 xl:block">
+          {heroSignatureFrames.map((frame, index) => {
+            const Icon = frame.icon;
+            const isActive = activeHeroMarker === index;
+            const layout = heroMarkerLayouts[index];
+            const popupOffsetRem =
+              frame.key === "identity" ? -4 : frame.key === "finish" ? 4 : 0;
+            const markerLoadDelay = 420 + index * 110;
+
+            if (!layout) return null;
+
+            return (
+              <div
+                key={frame.key}
+                className="absolute"
+                style={{
+                  left: `${layout.circleX}%`,
+                  top: `${layout.circleY}%`,
+                  opacity: imageVisible ? 1 : 0,
+                  transform: imageVisible
+                    ? "translate(-50%, -50%) scale(1)"
+                    : "translate(-50%, -50%) scale(0.72)",
+                  transition: `transform 560ms cubic-bezier(0.22,1,0.36,1) ${markerLoadDelay}ms, opacity 320ms ease-out ${markerLoadDelay}ms`,
+                }}
+              >
+                <button
+                  type="button"
+                  data-hero-marker-button="true"
+                  aria-pressed={isActive}
+                  onClick={() =>
+                    setActiveHeroMarker((currentMarker) =>
+                      currentMarker === index ? null : index
+                    )
+                  }
+                  className={`relative flex h-7 w-7 items-center justify-center rounded-full border bg-transparent transition-[transform,border-color,box-shadow] duration-220 ease-out ${
+                    isActive
+                      ? "scale-105 border-[#8fdcff]/58 shadow-[0_0_14px_rgba(143,227,255,0.16)]"
+                      : "border-white/20 hover:scale-[1.04] hover:border-[#8fdcff]/34 hover:shadow-[0_0_10px_rgba(143,227,255,0.1)]"
+                  }`}
+                >
+                  <span
+                    className={`absolute inset-[3px] rounded-full border transition-colors duration-220 ${
+                      isActive ? "border-[#8fdcff]/44" : "border-white/12"
+                    }`}
+                  />
+                  <span
+                    className={`relative h-1.5 w-1.5 rounded-full transition-all duration-220 ${
+                      isActive
+                        ? "bg-[#eafcff] shadow-[0_0_8px_rgba(143,227,255,0.58)]"
+                        : "bg-white/78 shadow-[0_0_6px_rgba(255,255,255,0.12)]"
+                    }`}
+                  />
+                </button>
+
+                <div
+                  className={`absolute w-[232px] transition-[opacity,transform,filter] duration-220 ease-out ${
+                    isActive
+                      ? "pointer-events-auto -translate-x-1/2 translate-y-0 opacity-100 blur-0"
+                      : "pointer-events-none -translate-x-1/2 translate-y-2 opacity-0 blur-[2px]"
+                  }`}
+                  style={{
+                    left: `calc(50% + ${popupOffsetRem}rem)`,
+                    top: "2.45rem",
+                  }}
+                >
+                  <div className="relative overflow-hidden rounded-[16px] border border-white/10 bg-[linear-gradient(135deg,rgba(5,11,18,0.92),rgba(8,17,27,0.8))] px-4 py-2 shadow-[0_16px_36px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(143,227,255,0.08),transparent_44%)]" />
+                    <div className="relative flex items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[#9be8ff]">
+                        <Icon className="h-3 w-3" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[8px] uppercase tracking-[0.26em] text-[#8fdcff]/68">
+                          Signature Frame
+                        </p>
+                        <p className="mt-0.5 text-[13px] font-semibold leading-snug text-white">
+                          {frame.title}
+                        </p>
+                        <p className="mt-0.5 text-[10px] leading-snug text-white/58">
+                          {frame.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
 
       {/* ===== ABOUT ME SECTION ===== */}
@@ -1531,10 +2300,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         </div>
 
         <div
-          className={`relative z-10 w-full max-w-7xl rounded-[32px] border border-white/10 bg-white/[0.03] p-[1.5px] shadow-[0_28px_80px_rgba(0,0,0,0.28)] transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          className={`relative z-10 w-full max-w-7xl rounded-[32px] border border-white/10 bg-white/[0.03] p-[1.5px] shadow-[0_28px_80px_rgba(0,0,0,0.28)] transform-gpu [backface-visibility:hidden] transition-[opacity,transform] duration-420 ease-out ${
             showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
-          style={{ transitionDelay: showAbout ? "0.4s" : "0s" }}
+          style={{ transitionDelay: showAbout ? "0.16s" : "0s" }}
         >
           <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
           <div className="relative overflow-hidden rounded-[30px] bg-[linear-gradient(180deg,rgba(18,25,34,0.92),rgba(11,18,26,0.96))] backdrop-blur-xl">
@@ -1545,7 +2314,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
             <div className="relative z-10 px-4 pt-4 pb-5 sm:px-6 sm:pt-6 sm:pb-6 lg:px-6 lg:pt-6 lg:pb-7">
             <div
-              className={`transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              className={`transition-[opacity,transform] duration-420 ease-out ${
                 showAbout ? "translate-y-0 opacity-100" : "-translate-y-4 opacity-0"
               }`}
             >
@@ -1554,10 +2323,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               </span>
             </div>
 
-            <div className="relative flex w-full flex-col items-start justify-between gap-6 lg:flex-row lg:gap-8">
-              <div className="order-1 w-full lg:basis-[54%] lg:max-w-[54%] lg:pr-6">
+            <div className="relative flex w-full flex-col items-start justify-between gap-6 lg:flex-row lg:gap-8 lg:pb-16 xl:pb-20">
+              <div className="order-1 w-full lg:basis-[58%] lg:max-w-[58%] lg:pr-8">
                 <h3
-                  className={`mt-5 text-5xl font-bold leading-[0.95] transition-all duration-700 sm:text-[4.3rem] ${
+                  className={`mt-5 text-5xl font-bold leading-[0.95] transition-[opacity,transform] duration-420 ease-out sm:text-[4.3rem] ${
                     helloVisible ? "translate-x-0 opacity-100" : "-translate-x-64 opacity-0"
                   }`}
                   style={{
@@ -1571,27 +2340,33 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                 </h3>
 
                 <h4
-                  className="mt-2 flex items-center text-5xl font-bold leading-[0.98] tracking-[-0.02em] text-white transition-all duration-700 delay-300 sm:text-[5.2rem]"
+                  className="relative mt-2 block text-5xl font-bold leading-[0.98] tracking-[-0.02em] text-white transition-[opacity,transform] duration-420 sm:text-[4.4rem] sm:whitespace-nowrap xl:text-[5.2rem]"
+                  aria-label={aboutFullName}
                   style={{
                     opacity: helloVisible ? 1 : 0,
                     transform: helloVisible ? "translateX(0)" : "translateX(-64px)",
-                    transition: "all 0.7s ease-out 0.3s",
+                    transition: "opacity 0.42s ease-out 0.12s, transform 0.42s ease-out 0.12s",
                   }}
                 >
-                  <span>{nameText}</span>
-                  {!nameDone && (
-                    <span className="ml-1 inline-block h-[1em] w-[2px] bg-white animate-blink" />
-                  )}
+                  <span aria-hidden="true" className="invisible block">
+                    {aboutFullName}
+                  </span>
+                  <span aria-hidden="true" className="absolute inset-0">
+                    <span>{nameText}</span>
+                    {!nameDone && (
+                      <span className="ml-1 inline-block h-[1em] w-[2px] bg-white animate-blink align-baseline" />
+                    )}
+                  </span>
                 </h4>
 
                 <p
-                  className={`mt-5 max-w-2xl text-sm text-justify text-white transition-all duration-700 sm:text-base ${
+                  className={`mt-5 max-w-2xl text-sm text-justify text-white transition-[opacity,transform] duration-420 ease-out sm:text-base ${
                     helloVisible ? "translate-y-0 opacity-80" : "-translate-y-3 opacity-0"
                   }`}
                   style={{
                     opacity: helloVisible ? 0.74 : 0,
                     lineHeight: 1.55,
-                    transitionDelay: "0.4s",
+                    transitionDelay: "0.14s",
                   }}
                 >
                   I am a 4th-year BSIT student and a skilled video editor with 2 years of
@@ -1606,14 +2381,14 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                   <a
                     href="/Wence-De-Vera-CV.pdf"
                     download
-                    className="inline-flex items-center justify-center rounded-xl px-8 py-3 text-sm font-bold transition-all duration-200 ease-in hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(0,153,255,0.22)] sm:text-base"
+                    className="inline-flex items-center justify-center rounded-xl px-8 py-3 text-sm font-bold transition-[transform,box-shadow,opacity] duration-160 ease-out hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(0,153,255,0.22)] sm:text-base"
                     style={{
                       fontFamily: "'Condenso', sans-serif",
                       background: "linear-gradient(135deg, #0099ff, #18c8ff)",
                       color: "white",
                       opacity: helloVisible ? 1 : 0,
                       transform: helloVisible ? "translateY(0)" : "translateY(12px)",
-                      transitionDelay: "0.4s",
+                      transitionDelay: "0.14s",
                     }}
                   >
                     Download CV
@@ -1621,12 +2396,12 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
                   <a
                     href="#projects"
-                    className="inline-flex items-center justify-center rounded-xl border border-[#0099ff]/65 bg-[#07131d] px-8 py-3 text-sm font-bold text-[#19b7ff] transition-all duration-200 ease-in hover:-translate-y-0.5 hover:border-[#20c4ff] hover:shadow-[0_14px_30px_rgba(0,153,255,0.14)] sm:text-base"
+                    className="inline-flex items-center justify-center rounded-xl border border-[#0099ff]/65 bg-[#07131d] px-8 py-3 text-sm font-bold text-[#19b7ff] transition-[transform,border-color,box-shadow,opacity] duration-160 ease-out hover:-translate-y-0.5 hover:border-[#20c4ff] hover:shadow-[0_14px_30px_rgba(0,153,255,0.14)] sm:text-base"
                     style={{
                       fontFamily: "'Condenso', sans-serif",
                       opacity: helloVisible ? 1 : 0,
                       transform: helloVisible ? "translateY(0)" : "translateY(12px)",
-                      transitionDelay: "0.6s",
+                      transitionDelay: "0.18s",
                     }}
                   >
                     <span className="mr-2">{'<>'}</span> View Projects
@@ -1640,7 +2415,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                       className="group relative flex h-10 w-10 items-center justify-center"
                     >
                       <div
-                        className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
                         style={{
                           backgroundColor: "#0099ff",
                           WebkitMaskImage: "url('/linkedin.png')",
@@ -1656,7 +2431,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                       <img
                         src="/linkedin.png"
                         alt="LinkedIn"
-                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-300 group-hover:opacity-0"
+                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
                       />
                     </a>
 
@@ -1667,7 +2442,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                       className="group relative flex h-10 w-10 items-center justify-center"
                     >
                       <div
-                        className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
                         style={{
                           backgroundColor: "#0099ff",
                           WebkitMaskImage: "url('/behance.png')",
@@ -1683,7 +2458,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                       <img
                         src="/behance.png"
                         alt="Behance"
-                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-300 group-hover:opacity-0"
+                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
                       />
                     </a>
 
@@ -1694,7 +2469,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                       className="group relative flex h-10 w-10 items-center justify-center"
                     >
                       <div
-                        className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
                         style={{
                           backgroundColor: "#0099ff",
                           WebkitMaskImage: "url('/upwork.png')",
@@ -1710,7 +2485,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                       <img
                         src="/upwork.png"
                         alt="Upwork"
-                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-300 group-hover:opacity-0"
+                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
                       />
                     </a>
                   </div>
@@ -1718,10 +2493,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               </div>
 
               <div
-                className={`relative order-2 w-full self-start overflow-visible lg:-mt-10 lg:basis-[46%] lg:max-w-[46%] lg:ml-auto ${
+                className={`relative order-2 w-full self-start overflow-visible lg:-mt-10 lg:basis-[42%] lg:max-w-[42%] lg:ml-auto ${
                   helloVisible ? "translate-x-0 opacity-100" : "translate-x-24 opacity-0"
                 } transition-all duration-700 ease-out`}
-                style={{ transitionDelay: "0.7s" }}
+                style={{ transitionDelay: "0.2s" }}
               >
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
                 <div className="relative flex justify-end lg:pr-2">
@@ -1739,10 +2514,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
             <div
               ref={buttonsRef}
-              className="relative z-20 mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:-mt-24"
+              className="relative z-20 mt-6 grid grid-cols-1 gap-3 sm:mt-7 sm:grid-cols-3 lg:-mt-16 xl:-mt-24"
             >
               <button
-                className={`relative flex h-[160px] w-full flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
+                className={`relative flex h-[160px] w-full transform-gpu flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-[opacity,transform,box-shadow] duration-180 ease-out will-change-transform hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
                   buttonsVisible[0] ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
                 }`}
                 style={{ fontFamily: "Arial, sans-serif" }}
@@ -1768,7 +2543,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               </button>
 
               <button
-                className={`relative flex h-[160px] w-full flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
+                className={`relative flex h-[160px] w-full transform-gpu flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-[opacity,transform,box-shadow] duration-180 ease-out will-change-transform hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
                   buttonsVisible[1] ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
                 }`}
                 style={{ fontFamily: "Arial, sans-serif" }}
@@ -1794,7 +2569,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               </button>
 
               <button
-                className={`relative flex h-[160px] w-full flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
+                className={`relative flex h-[160px] w-full transform-gpu flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-[opacity,transform,box-shadow] duration-180 ease-out will-change-transform hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
                   buttonsVisible[2] ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
                 }`}
                 style={{ fontFamily: "Arial, sans-serif" }}
@@ -1830,10 +2605,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
   </div>
 
   <div
-    className={`${glassSectionClass} z-10 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+    className={`${glassSectionClass} z-10 transition-[opacity,transform] duration-420 ease-out ${
       showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
     }`}
-    style={{ transitionDelay: showAbout ? "0.55s" : "0s" }}
+    style={{ transitionDelay: showAbout ? "0.2s" : "0s" }}
   >
     <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
     <div className={glassSectionPanelClass}>
@@ -1916,7 +2691,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         {creativeTools.map((tool, index) => (
           <div
             key={tool.name}
-            className={`group relative overflow-hidden rounded-[28px] border border-white/12 p-4 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-white/22 ${
+            className={`group relative overflow-hidden rounded-[28px] border border-white/12 p-4 backdrop-blur-xl transition-[transform,border-color,box-shadow,background-color,opacity] duration-180 ease-out hover:-translate-y-1 hover:border-white/22 ${
               index === 0 ? "sm:col-span-2" : ""
             }`}
             style={{
@@ -1925,7 +2700,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             }}
           >
             <div
-              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
               style={{
                 background:
                   "linear-gradient(135deg, rgba(255,255,255,0.12), transparent 38%, transparent 100%)",
@@ -2012,7 +2787,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
       <div className={`${glassSectionInnerClass} space-y-8`}>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
         <div
-          className={`transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          className={`transition-[opacity,transform] duration-420 ease-out ${
             showPortfolio ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-6 scale-95"
           }`}
         >
@@ -2035,7 +2810,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         </div>
 
         <div
-          className={`transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          className={`transition-[opacity,transform] duration-420 ease-out ${
             showPortfolio ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-6 scale-95"
           }`}
         >
@@ -2066,7 +2841,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
       </div>
 
       <div
-        className={`w-full transition-all duration-[850ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`w-full transition-[opacity,transform] duration-[520ms] ease-out ${
           showPortfolio ? "opacity-100 translate-y-0 blur-0" : "pointer-events-none opacity-0 translate-y-8 blur-sm"
         }`}
       >
@@ -2088,10 +2863,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                       setAnimateTab(true);
                     }, 50);
                   }}
-                  className={`group rounded-[22px] border p-4 text-left transition-all duration-300 ${
+                  className={`group rounded-[22px] border p-4 text-left transition-[transform,border-color,background-color,box-shadow] duration-180 ease-out ${
                     isActive
-                      ? "border-[#00d4ff]/35 bg-[#04101a]/72 shadow-[0_16px_34px_rgba(0,153,255,0.18)]"
-                      : "border-white/12 bg-white/[0.04] hover:-translate-y-1 hover:border-[#00d4ff]/28 hover:bg-white/[0.07]"
+                      ? "border-[#00d4ff]/24 bg-[#04101a]/68 shadow-[0_10px_22px_rgba(0,153,255,0.12)]"
+                      : "border-white/12 bg-white/[0.04] hover:-translate-y-1 hover:border-[#00d4ff]/22 hover:bg-white/[0.07]"
                   }`}
                   style={{
                     animation: showPortfolio ? "fadeIn 0.7s ease forwards" : "none",
@@ -2121,27 +2896,12 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             })}
           </div>
 
-          <div className="mt-2 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] px-4 pb-4 pt-1 sm:px-5 sm:pb-5 sm:pt-2">
-            <div className="flex flex-col gap-3 border-b border-white/10 pb-1 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">
-                  {activeCategoryMeta.name}
-                </p>
-                <h3 className="mt-2 text-xl font-semibold text-white sm:text-2xl">
-                  {activeCategoryMeta.description}
-                </h3>
-              </div>
-              <p className="text-sm text-white/55">
-                {activeProjects.length} {activeProjects.length === 1 ? "item" : "items"} in this
-                category
-              </p>
-            </div>
-
+          <div className="mt-2 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-4 sm:px-5 sm:py-5">
             {showPortfolio &&
               (activeProjects.length > 0 ? (
                 <div
                   key={`${activeBox}-${animateTab ? "in" : "out"}`}
-                  className="mt-1 grid grid-cols-1 auto-rows-fr gap-6 md:grid-cols-2 xl:grid-cols-3"
+                  className="grid grid-cols-1 auto-rows-fr gap-6 md:grid-cols-2 xl:grid-cols-3"
                 >
                   {activeProjects.map((project, index) => (
                     <div
@@ -2593,7 +3353,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             </div>
             <div className={`${glassSectionInnerClass} space-y-8`}>
             <div
-              className={`flex flex-col gap-6 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              className={`flex flex-col gap-6 transition-[opacity,transform] duration-420 ease-out ${
                 showReviewsIntro ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-6 scale-95"
               }`}
             >
@@ -2609,15 +3369,16 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                 >
                   Real feedback from people I&apos;ve created with.
                 </h2>
-                <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/72 sm:text-base">
+                <p className="mt-4 max-w-[68rem] text-sm leading-relaxed text-white/72 sm:text-base lg:max-w-[72rem] xl:max-w-[78rem]">
                   These stories come from clients and collaborators who trusted me with edits,
-                  visuals, revisions, and delivery. The interactive review showcase on the right
-                  stays exactly as part of the experience, now paired with a cleaner introduction.
+                  visuals, revisions, and delivery. Every review reflects the care, consistency,
+                  and creative direction I bring into each project. They also show how I approach
+                  communication, revision flow, and the final polish from start to finish.
                 </p>
               </div>
             </div>
             <div
-              className={`w-full transition-all duration-[850ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              className={`w-full transition-[opacity,transform,filter] duration-[520ms] ease-out ${
                 showReviewsTestimonials
                   ? "opacity-100 translate-y-0 blur-0"
                   : "pointer-events-none opacity-0 translate-y-8 blur-sm"
@@ -2670,15 +3431,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               <div className="mt-6 flex flex-wrap gap-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    if (showRates) {
-                      setShowRates(false);
-                      setShowContactForm(true);
-                      return;
-                    }
-
-                    setShowContactForm((prev) => !prev);
-                  }}
+                  onClick={toggleContactFormPanel}
                   className="inline-flex items-center justify-center rounded-full border border-[#00d4ff]/45 bg-[#04101a]/70 px-5 py-2.5 text-sm font-semibold text-[#9be8ff] transition-colors hover:bg-[#072033]"
                 >
                   {showContactForm ? "Hide message form" : "Open message form"}
@@ -2691,70 +3444,81 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                 </a>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (showRates) {
-                      setShowRates(false);
-                      return;
-                    }
-
-                    setShowContactForm(false);
-                    setShowRates(true);
-                  }}
+                  onClick={toggleRatesPanel}
                   className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white/85 transition-colors hover:bg-white/10"
                 >
                   {showRates ? "Hide rates" : "Rates"}
                 </button>
               </div>
 
-              {showRates && (
-                <div className="mt-5 overflow-hidden rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(10,18,28,0.92),rgba(5,10,16,0.98))] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.24em] text-[#8fdcff]">
-                        Rates
-                      </p>
-                      <h3 className="mt-2 text-base font-semibold text-white">
-                        Video Editing Services
-                      </h3>
-                      <p className="mt-1 max-w-xl text-xs leading-relaxed text-white/56">
-                        A compact starting price sheet for long-form, short-form,
-                        bundles, and add-ons.
-                      </p>
-                    </div>
-                    <span className="rounded-full border border-[#8fdcff]/20 bg-[#07141f] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#aeeaff]">
-                      USD
-                    </span>
-                  </div>
-
-                  <div className="mt-4 -mx-1 overflow-x-auto pb-1">
-                    <div className="flex min-w-full gap-3 px-1">
-                      <div className="min-w-[360px] flex-[1.35]">
-                        <CompactRateTable
-                          title="Core Pricing"
-                          subtitle="YouTube videos, podcasts, reels, TikToks, and Shorts."
-                          rows={videoEditingRateRows}
-                        />
-                      </div>
-                      <div className="min-w-[280px] flex-1">
-                        <CompactRateTable
-                          title="Bundle Offers"
-                          rows={bundleRateRows}
-                        />
-                      </div>
-                      <div className="min-w-[280px] flex-1">
-                        <CompactRateTable
-                          title="Add-Ons"
-                          rows={addOnRateRows}
-                        />
-                      </div>
-                      <div className="min-w-[180px] max-w-[190px] shrink-0 rounded-[20px] border border-white/10 bg-white/[0.03] px-3 py-3">
-                        <p className="text-[10px] uppercase tracking-[0.22em] text-white/44">
-                          Notes
+              {isRatesPanelMounted && (
+                <div className="mt-5">
+                  <div
+                    className={`transform-gpu rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(10,18,28,0.92),rgba(5,10,16,0.98))] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-[opacity,transform] duration-220 ease-out will-change-transform sm:p-5 ${
+                      isRatesPanelVisible
+                        ? "translate-y-0 scale-100"
+                        : "-translate-y-4 scale-[0.985] pointer-events-none"
+                    } ${isRatesPanelVisible ? "opacity-100" : "opacity-0"}`}
+                  >
+                    <div
+                      className={`flex flex-col gap-3 transition-opacity duration-180 ease-out sm:flex-row sm:items-start sm:justify-between sm:gap-4 ${
+                        isRatesPanelVisible ? "opacity-100" : "opacity-0"
+                      }`}
+                    >
+                      <div className="max-w-xl">
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-[#8fdcff]">
+                          Rates
                         </p>
-                        <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-white/58">
-                          {rateNotes.map((note) => (
-                            <p key={note}>{note}</p>
-                          ))}
+                        <h3 className="mt-2 text-base font-semibold text-white">
+                          {ratePanelTitle}
+                        </h3>
+                        <p className="mt-1 max-w-xl text-xs leading-relaxed text-white/56">
+                          {ratePanelSubtitle}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveRateCategory((previous) =>
+                            previous === "video-edit" ? "graphic-design" : "video-edit"
+                          )
+                        }
+                        className="inline-flex w-fit shrink-0 items-center justify-center self-start rounded-full border border-[#8fdcff]/20 bg-[#07141f] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#aeeaff] transition-[transform,border-color,background-color] duration-180 ease-out hover:-translate-y-[1px] hover:border-[#8fdcff]/38 hover:bg-[#0a1b29]"
+                      >
+                        {ratePanelToggleLabel}
+                      </button>
+                    </div>
+
+                    <div className="mt-4 -mx-1 overflow-x-auto pb-1">
+                      <div className="flex min-w-full gap-3 px-1">
+                        {activeRateSections.map((section) => (
+                          <div key={section.title} className={section.wrapperClass}>
+                            <CompactRateTable
+                              title={section.title}
+                              subtitle={section.subtitle}
+                              rows={section.rows}
+                              onRowSelect={(row) => handleRateRowSelect(row, activeRateCategory)}
+                              isVisible={isRatesPanelVisible}
+                              animationDelayMs={section.animationDelayMs}
+                            />
+                          </div>
+                        ))}
+                        <div
+                          className={`w-[160px] min-w-[160px] max-w-[160px] shrink-0 rounded-[20px] border border-white/10 bg-white/[0.03] px-3 py-3 transition-[opacity,transform] duration-260 ease-out ${
+                            isRatesPanelVisible
+                              ? "translate-y-0 scale-100 opacity-100"
+                              : "translate-y-3 scale-[0.98] opacity-0"
+                          }`}
+                          style={{ transitionDelay: "120ms" }}
+                        >
+                          <p className="text-[10px] uppercase tracking-[0.22em] text-white/44">
+                            Notes
+                          </p>
+                          <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-white/58">
+                            {activeRateNotes.map((note) => (
+                              <p key={note}>{note}</p>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2765,28 +3529,48 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
             {!showRates && <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-3">
-                {contactPlatforms.map((platform) => (
-                  <a
-                    key={platform.label}
-                    href={platform.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group relative overflow-hidden rounded-2xl border border-white/12 bg-white/[0.04] p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#00d4ff]/35 hover:bg-white/[0.07] hover:shadow-[0_14px_34px_rgba(0,153,255,0.16)]"
-                  >
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-white">{platform.label}</span>
-                        <ArrowUpRight className="h-4 w-4 text-[#8fdcff] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                {contactPlatforms.map((platform) => {
+                  const logoClass =
+                    platform.label === "Upwork"
+                      ? "text-[#8af0b5]/10 group-hover:text-[#8af0b5]/14"
+                      : platform.label === "Fiverr"
+                        ? "text-[#7df3aa]/10 group-hover:text-[#7df3aa]/14"
+                        : "text-[#6ec8ff]/10 group-hover:text-[#6ec8ff]/14";
+
+                  return (
+                    <a
+                      key={platform.label}
+                      href={platform.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group relative overflow-hidden rounded-2xl border border-white/12 bg-white/[0.04] p-4 text-left transition-[transform,border-color,background-color,box-shadow] duration-180 ease-out hover:-translate-y-1 hover:border-[#00d4ff]/35 hover:bg-white/[0.07] hover:shadow-[0_14px_34px_rgba(0,153,255,0.16)]"
+                    >
+                      <div
+                        className={`pointer-events-none absolute inset-y-0 right-2 flex items-center justify-center transition-[opacity,transform,color] duration-180 ease-out ${logoClass}`}
+                      >
+                        <PlatformBackgroundLogo
+                          label={platform.label}
+                          className="h-16 w-16 translate-x-2 opacity-90 group-hover:translate-x-1 sm:h-20 sm:w-20"
+                        />
                       </div>
-                      <p className="mt-3 text-xs leading-relaxed text-white/62">
-                        {platform.description}
-                      </p>
-                    </div>
-                  </a>
-                ))}
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-white">{platform.label}</span>
+                          <ArrowUpRight className="h-4 w-4 text-[#8fdcff] transition-transform duration-180 ease-out group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                        </div>
+                        <p className="mt-3 text-xs leading-relaxed text-white/62">
+                          {platform.description}
+                        </p>
+                      </div>
+                    </a>
+                  );
+                })}
               </div>
 
-              <div className="relative overflow-visible rounded-[26px] border border-white/12 bg-black/20 p-4 backdrop-blur-md sm:p-5">
+              <div
+                ref={contactMessageCardRef}
+                className="relative overflow-visible rounded-[26px] border border-white/12 bg-black/20 p-4 backdrop-blur-md sm:p-5"
+              >
                 <div className="relative z-10">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -2797,15 +3581,22 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setShowContactForm((prev) => !prev)}
+                      onClick={toggleContactFormPanel}
                       className="rounded-full border border-white/15 bg-white/6 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/80 transition-colors hover:bg-white/10"
                     >
                       {showContactForm ? "Close" : "Write"}
                     </button>
                   </div>
 
-                  {showContactForm && (
-                    <form onSubmit={handleContactSubmit} className="mt-5 space-y-4">
+                  {isContactFormMounted && (
+                    <div
+                      className={`mt-5 transform-gpu transition-[opacity,transform] duration-220 ease-out will-change-transform ${
+                        isContactFormVisible
+                          ? "translate-y-0 scale-100 opacity-100"
+                          : "-translate-y-3 scale-[0.985] opacity-0 pointer-events-none"
+                      }`}
+                    >
+                    <form onSubmit={handleContactSubmit} className="space-y-4">
                       <div className="grid gap-4 sm:grid-cols-2">
                         <input
                           type="text"
@@ -2851,6 +3642,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                         )}
                       </div>
                       <textarea
+                        ref={contactMessageRef}
                         value={contactForm.message}
                         onChange={(event) => updateContactField("message", event.target.value)}
                         placeholder="Tell me about your project..."
@@ -2867,7 +3659,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                 : "text-white/55"
                           }`}
                         >
-                          {contactSubmitState.message || "Your message will be sent directly to my Gmail inbox."}
+                          {contactSubmitState.message ||
+                            (selectedRateSummary
+                              ? `Selected rate: ${selectedRateSummary}`
+                              : "Select a rate in the Rates section to attach it to your inquiry.")}
                         </p>
                         <button
                           type="submit"
@@ -2878,6 +3673,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                         </button>
                       </div>
                     </form>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2889,8 +3685,9 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
       <div className="relative flex flex-col items-center overflow-hidden pb-14 lg:pb-16">
         <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         <div className="relative z-10 w-full max-w-5xl px-5 sm:px-8 lg:px-10">
-          <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#050a12]/88 px-5 py-5 shadow-[0_18px_60px_rgba(0,0,0,0.2)] sm:px-6 sm:py-6">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#050a12]/88 px-5 py-5 shadow-[0_18px_60px_rgba(0,0,0,0.2)] transform-gpu [backface-visibility:hidden] sm:px-6 sm:py-6">
+            <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
+            <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-xl">
                 <p className="text-[10px] uppercase tracking-[0.34em] text-[#8fdcff]">
                   Socials
@@ -2917,7 +3714,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               </a>
             </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="relative z-10 mt-5 grid gap-3 md:grid-cols-3">
               {socialLinks.map((social, index) => {
                 const accentClass =
                   index === 0
@@ -2925,16 +3722,30 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                     : index === 1
                       ? "bg-[#8ef0d2]"
                       : "bg-[#ffd28e]";
+                const logoClass =
+                  index === 0
+                    ? "text-[#6ec8ff]/10 group-hover:text-[#6ec8ff]/14"
+                    : index === 1
+                      ? "text-[#8ef0d2]/10 group-hover:text-[#8ef0d2]/14"
+                      : "text-[#ffd28e]/10 group-hover:text-[#ffd28e]/14";
 
                 const content = (
                   <>
+                    <div
+                      className={`pointer-events-none absolute inset-y-0 right-2 flex items-center justify-center transition-[opacity,transform,color] duration-180 ease-out ${logoClass}`}
+                    >
+                      <PlatformBackgroundLogo
+                        label={social.label}
+                        className="h-20 w-20 translate-x-2 opacity-90 group-hover:translate-x-1 sm:h-24 sm:w-24"
+                      />
+                    </div>
                     <div className={`absolute left-0 top-0 z-10 h-full w-[3px] ${accentClass}`} />
                     <div className="relative z-10 pl-3">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-[10px] uppercase tracking-[0.22em] text-white/42">
                           {social.label}
                         </span>
-                        <ArrowUpRight className="h-4 w-4 text-white/45 transition-all duration-300 group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                        <ArrowUpRight className="h-4 w-4 text-white/45 transition-[color,transform] duration-180 ease-out group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                       </div>
                       <p className="mt-3 text-sm font-semibold text-white sm:text-[15px]">
                         {social.handle}
@@ -2952,7 +3763,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                       <button
                         type="button"
                         onClick={() => setShowTikTokModal((previous) => !previous)}
-                        className={`group relative w-full overflow-hidden rounded-[22px] border bg-white/[0.03] px-4 py-4 text-left transition-all duration-300 hover:-translate-y-1 hover:bg-white/[0.06] ${
+                        className={`group relative w-full overflow-hidden rounded-[22px] border bg-white/[0.03] px-4 py-4 text-left transition-[transform,border-color,background-color,box-shadow] duration-180 ease-out hover:-translate-y-1 hover:bg-white/[0.06] ${
                           showTikTokModal
                             ? "border-white/22 shadow-[0_14px_36px_rgba(0,0,0,0.2)]"
                             : "border-white/10 hover:border-white/18"
@@ -2965,19 +3776,19 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
                       {isTikTokBubbleMounted && (
                         <div
-                          className={`absolute bottom-full left-1/2 z-20 mb-3 w-[220px] -translate-x-1/2 transition-all duration-200 ease-out ${
+                          className={`absolute bottom-full left-1/2 z-20 mb-3 w-[220px] -translate-x-1/2 transition-[opacity,transform] duration-140 ease-out ${
                             isTikTokBubbleVisible
                               ? "translate-y-0 opacity-100"
                               : "translate-y-2 opacity-0"
                           }`}
                         >
                           <div
-                            className={`relative rounded-[20px] border border-white/12 bg-[#060b12]/96 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-all duration-200 ease-out ${
+                            className={`relative rounded-[20px] border border-white/12 bg-[#060b12]/96 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-[opacity,transform] duration-140 ease-out ${
                               isTikTokBubbleVisible ? "scale-100" : "scale-95"
                             }`}
                           >
                             <div
-                              className={`pointer-events-none absolute bottom-0 left-1/2 h-3 w-3 -translate-x-1/2 translate-y-1/2 rotate-45 border-b border-r border-white/12 bg-[#060b12]/96 transition-all duration-200 ease-out ${
+                              className={`pointer-events-none absolute bottom-0 left-1/2 h-3 w-3 -translate-x-1/2 translate-y-1/2 rotate-45 border-b border-r border-white/12 bg-[#060b12]/96 transition-opacity duration-140 ease-out ${
                                 isTikTokBubbleVisible ? "opacity-100" : "opacity-0"
                               }`}
                             />
@@ -2992,7 +3803,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={() => setShowTikTokModal(false)}
-                                  className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:translate-x-0.5 hover:bg-white/[0.08]"
+                                  className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-white transition-[transform,background-color,border-color] duration-160 ease-out hover:translate-x-0.5 hover:bg-white/[0.08]"
                                 >
                                   {option.label}
                                 </a>
@@ -3011,7 +3822,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                     href={social.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group relative overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-white/18 hover:bg-white/[0.06]"
+                    className="group relative overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left transition-[transform,border-color,background-color] duration-180 ease-out hover:-translate-y-1 hover:border-white/18 hover:bg-white/[0.06]"
                   >
                     {content}
                   </a>
@@ -3019,7 +3830,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               })}
             </div>
 
-            <div className="mt-5 flex flex-col gap-2 border-t border-white/10 pt-4 text-sm text-white/50 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative z-10 mt-5 flex flex-col gap-2 border-t border-white/10 pt-4 text-sm text-white/50 sm:flex-row sm:items-center sm:justify-between">
               <p>Wence Dante De Vera</p>
               <p className="text-[11px] uppercase tracking-[0.18em] text-white/34">
                 Creative edits, visuals, and social content
@@ -3028,7 +3839,6 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           </div>
         </div>
       </div>
-
       <style>{`
         .intro-backdrop-idle {
           background: radial-gradient(circle at 50% 50%, rgba(10, 10, 10, 0.92) 0%, rgba(0, 0, 0, 1) 72%);
@@ -3154,12 +3964,8 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           background-position: center;
           -webkit-background-clip: text;
           background-clip: text;
-          -webkit-mask-image: linear-gradient(to top, black 45%, transparent 100%);
-          mask-image: linear-gradient(to top, black 45%, transparent 100%);
-          -webkit-mask-repeat: no-repeat;
-          mask-repeat: no-repeat;
           pointer-events: none;
-          opacity: 0.2;
+          opacity: 0.08;
         }
 
         @keyframes pulseSlow {
