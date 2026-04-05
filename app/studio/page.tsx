@@ -12,6 +12,7 @@ import {
   fetchPortfolioContentFromSupabase,
   isSupabaseConfigured,
   savePortfolioContentToSupabase,
+  uploadPortfolioAssetToSupabase,
 } from "@/lib/portfolio-data";
 
 type PortfolioProject = {
@@ -19,6 +20,11 @@ type PortfolioProject = {
   description: string;
   image: string;
   designLink: string;
+  videoCategory?: string;
+  videoParentLabel?: string;
+  videoUrl?: string;
+  videoUrls?: string[];
+  videoPosterUrls?: string[];
   showDetailsModal?: boolean;
   details?: {
     title: string;
@@ -36,6 +42,10 @@ type ProjectForm = {
   description: string;
   image: string;
   designLink: string;
+  videoCategory: string;
+  videoParentLabel: string;
+  videoUrls: string[];
+  videoPosterUrls: string[];
   showDetailsModal: boolean;
   detailsTitle: string;
   detailsDescription: string;
@@ -69,10 +79,91 @@ const STUDIO_PASSWORD_STORAGE_KEY = "portfolio-studio-password";
 const DEFAULT_STUDIO_EMAIL = "aiakosedt@gmail.com";
 const DEFAULT_STUDIO_PASSWORD = "Wence_dante24";
 const MAX_IMAGE_UPLOAD_SIZE = 2 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_SIZE = 256 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_SIZE_MB = Math.floor(MAX_VIDEO_UPLOAD_SIZE / (1024 * 1024));
 
 type StudioCredentials = {
   email: string;
   password: string;
+};
+
+const DEFAULT_VIDEO_EDIT_GROUP = "Featured Edits";
+
+const getVideoProjectCategory = (project: PortfolioProject) =>
+  project.videoCategory?.trim() || project.title?.trim() || DEFAULT_VIDEO_EDIT_GROUP;
+
+const getVideoProjectParentLabel = (project: PortfolioProject) => {
+  const explicitLabel = project.videoParentLabel?.trim() || "";
+  if (explicitLabel) {
+    return explicitLabel;
+  }
+
+  const legacyCategoryLabel = project.videoCategory?.trim() || "";
+  if (legacyCategoryLabel && legacyCategoryLabel !== project.title.trim()) {
+    return legacyCategoryLabel;
+  }
+
+  const legacyDetailsLabel = project.details?.title?.trim() || "";
+  if (
+    legacyDetailsLabel &&
+    legacyDetailsLabel !== project.title.trim() &&
+    legacyDetailsLabel.toLowerCase() !== "project details"
+  ) {
+    return legacyDetailsLabel;
+  }
+
+  return "";
+};
+
+const isMp4VideoSource = (value: string) =>
+  /^data:video\/mp4/i.test(value) || /\.mp4(?:[?#].*)?$/i.test(value);
+
+const isMp4VideoFile = (file: File) => {
+  const fileName = file.name.trim().toLowerCase();
+  return file.type === "video/mp4" || fileName.endsWith(".mp4");
+};
+
+const getProjectVideoUrls = (project: PortfolioProject) => {
+  const uploadedVideoUrls = Array.isArray(project.videoUrls)
+    ? project.videoUrls
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0 && isMp4VideoSource(item))
+    : [];
+
+  if (uploadedVideoUrls.length > 0) {
+    return uploadedVideoUrls;
+  }
+
+  const trimmedVideoUrl = project.videoUrl?.trim();
+  if (trimmedVideoUrl && isMp4VideoSource(trimmedVideoUrl)) {
+    return [trimmedVideoUrl];
+  }
+
+  const trimmedLink = project.designLink?.trim();
+  if (trimmedLink && trimmedLink !== "#" && isMp4VideoSource(trimmedLink)) {
+    return [trimmedLink];
+  }
+
+  return [];
+};
+
+const getProjectVideoPosterUrls = (project: PortfolioProject, clipCount: number) => {
+  const rawVideoPosterUrls = Array.isArray(project.videoPosterUrls)
+    ? project.videoPosterUrls
+    : [];
+  const normalizedVideoPosterUrls = rawVideoPosterUrls.map((item) =>
+    typeof item === "string" ? item.trim() : ""
+  );
+
+  if (clipCount <= 0) {
+    return normalizedVideoPosterUrls;
+  }
+
+  return Array.from({ length: clipCount }, (_, index) => normalizedVideoPosterUrls[index] || "");
+};
+
+const getProjectVideoUrl = (project: PortfolioProject) => {
+  return getProjectVideoUrls(project)[0] || "";
 };
 
 const fallbackProjects: PortfolioProjects = {
@@ -153,6 +244,10 @@ function createEmptyProjectForm(): ProjectForm {
     description: "",
     image: "",
     designLink: "",
+    videoCategory: "",
+    videoParentLabel: "",
+    videoUrls: [""],
+    videoPosterUrls: [""],
     showDetailsModal: true,
     detailsTitle: "",
     detailsDescription: "",
@@ -222,11 +317,19 @@ function normalizeTestimonials(value: unknown): Testimonial[] {
 }
 
 function toForm(project: PortfolioProject): ProjectForm {
+  const videoUrls = getProjectVideoUrls(project);
+  const hasVideoUrls = videoUrls.length > 0;
+  const videoPosterUrls = getProjectVideoPosterUrls(project, hasVideoUrls ? videoUrls.length : 1);
+
   return {
     title: project.title,
     description: project.description,
     image: project.image,
     designLink: project.designLink,
+    videoCategory: project.videoCategory || "",
+    videoParentLabel: getVideoProjectParentLabel(project),
+    videoUrls: hasVideoUrls ? videoUrls : [""],
+    videoPosterUrls: hasVideoUrls ? videoPosterUrls : [videoPosterUrls[0] || ""],
     showDetailsModal: project.showDetailsModal ?? false,
     detailsTitle: project.details?.title || "",
     detailsDescription: project.details?.description || "",
@@ -238,11 +341,22 @@ function toForm(project: PortfolioProject): ProjectForm {
   };
 }
 
-function toProject(form: ProjectForm): PortfolioProject {
+function toProject(form: ProjectForm, category: PortfolioCategory): PortfolioProject {
   const trimmedTitle = form.title.trim();
   const trimmedDescription = form.description.trim();
   const trimmedImage = form.image.trim();
   const trimmedLink = form.designLink.trim();
+  const trimmedVideoCategory = form.videoCategory.trim();
+  const trimmedVideoParentLabel = form.videoParentLabel.trim();
+  const shouldEnableDetailsModal = category !== "Video Edit" && form.showDetailsModal;
+  const trimmedVideoEntries = form.videoUrls
+    .map((item, index) => ({
+      videoUrl: item.trim(),
+      posterUrl: form.videoPosterUrls[index]?.trim() || "",
+    }))
+    .filter((entry) => entry.videoUrl.length > 0 && isMp4VideoSource(entry.videoUrl));
+  const trimmedVideoUrls = trimmedVideoEntries.map((entry) => entry.videoUrl);
+  const trimmedVideoPosterUrls = trimmedVideoEntries.map((entry) => entry.posterUrl);
   const galleryImages = form.galleryImages
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
@@ -252,10 +366,25 @@ function toProject(form: ProjectForm): PortfolioProject {
     description: trimmedDescription || "Project description will be added soon.",
     image: trimmedImage || "/comradz.png",
     designLink: trimmedLink || "#",
-    showDetailsModal: form.showDetailsModal,
+    showDetailsModal: shouldEnableDetailsModal,
   };
 
-  if (form.showDetailsModal) {
+  if (category === "Video Edit") {
+    project.videoCategory =
+      trimmedVideoCategory || trimmedTitle || DEFAULT_VIDEO_EDIT_GROUP;
+    if (trimmedVideoParentLabel) {
+      project.videoParentLabel = trimmedVideoParentLabel;
+    }
+    if (trimmedVideoUrls.length > 0) {
+      project.videoUrls = trimmedVideoUrls;
+      project.videoUrl = trimmedVideoUrls[0];
+      if (trimmedVideoPosterUrls.some((item) => item.length > 0)) {
+        project.videoPosterUrls = trimmedVideoPosterUrls;
+      }
+    }
+  }
+
+  if (shouldEnableDetailsModal) {
     project.details = {
       title: form.detailsTitle.trim() || trimmedTitle || "Project Details",
       description:
@@ -309,26 +438,6 @@ function getStoredStudioCredentials(): StudioCredentials {
   }
 }
 
-const readFileAsDataUrl = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-
-      reject(new Error("Failed to read the selected file."));
-    };
-
-    reader.onerror = () => {
-      reject(new Error("Failed to read the selected file."));
-    };
-
-    reader.readAsDataURL(file);
-  });
-
 type ImageFieldProps = {
   id: string;
   label: string;
@@ -347,6 +456,7 @@ function ImageField({
   previewHeightClassName = "h-36",
 }: ImageFieldProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
 
   const handleFiles = async (files: FileList | null) => {
@@ -363,12 +473,18 @@ function ImageField({
       return;
     }
 
+    setIsUploading(true);
+
     try {
-      const imageValue = await readFileAsDataUrl(file);
-      onChange(imageValue);
+      const asset = await uploadPortfolioAssetToSupabase(file, "images");
+      onChange(asset.url);
       setUploadError("");
-    } catch {
-      setUploadError("That image could not be read. Try another file.");
+    } catch (error) {
+      setUploadError(
+        error instanceof Error ? error.message : "That image could not be uploaded."
+      );
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -411,7 +527,7 @@ function ImageField({
           isDragging
             ? "border-[#0099ff]/70 bg-[#0099ff]/12"
             : "border-white/15 bg-black/20 hover:border-[#0099ff]/45 hover:bg-[#0099ff]/8"
-        }`}
+        } ${isUploading ? "pointer-events-none opacity-70" : ""}`}
       >
         <input
           id={`${id}-upload`}
@@ -419,12 +535,13 @@ function ImageField({
           accept="image/*"
           className="sr-only"
           onChange={handleInputChange}
+          disabled={isUploading}
         />
         <span className="text-sm font-medium text-white/90">
-          Drag an image here or click to upload
+          {isUploading ? "Uploading image..." : "Drag an image here or click to upload"}
         </span>
         <span className="mt-1 text-xs text-white/55">
-          You can still paste a path, URL, or data URL above. Best under 2 MB.
+          Uploaded images are saved to Supabase Storage. You can still paste a path or URL above.
         </span>
       </label>
 
@@ -451,6 +568,188 @@ function ImageField({
           />
         </div>
       )}
+    </div>
+  );
+}
+
+type VideoFieldProps = {
+  id: string;
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  previewHeightClassName?: string;
+};
+
+function VideoField({
+  id,
+  label,
+  value,
+  placeholder,
+  onChange,
+  previewHeightClassName = "h-40",
+}: VideoFieldProps) {
+  const trimmedValue = value.trim();
+  const hasValue = trimmedValue.length > 0;
+  const hasMp4Value = isMp4VideoSource(trimmedValue);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState("");
+
+  const handleFiles = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+
+    const fileName = file.name.trim().toLowerCase();
+    const isMp4File = file.type === "video/mp4" || fileName.endsWith(".mp4");
+
+    if (!isMp4File) {
+      setUploadError("Please choose an MP4 video file.");
+      return;
+    }
+
+    if (file.size > MAX_VIDEO_UPLOAD_SIZE) {
+      setUploadError(`Please keep MP4 uploads under ${MAX_VIDEO_UPLOAD_SIZE_MB} MB.`);
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(1);
+
+    try {
+      const asset = await uploadPortfolioAssetToSupabase(file, "videos", {
+        onProgress: ({ percentage }) => {
+          setUploadProgress(Math.max(1, Math.min(100, Math.round(percentage))));
+        },
+      });
+      onChange(asset.url);
+      setUploadProgress(100);
+      setUploadError("");
+    } catch (error) {
+      setUploadProgress(null);
+      setUploadError(
+        error instanceof Error ? error.message : "That MP4 could not be uploaded."
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    await handleFiles(event.target.files);
+    event.target.value = "";
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    await handleFiles(event.dataTransfer.files);
+  };
+
+  return (
+    <div className="space-y-2">
+      <label htmlFor={id} className="block text-sm text-white/85">
+        {label}
+      </label>
+
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+      />
+
+      <p className="text-xs leading-relaxed text-white/55">
+        Use a direct `.mp4` path, a public URL, or upload one below.
+      </p>
+
+      <label
+        htmlFor={`${id}-upload`}
+        onDragEnter={() => setIsDragging(true)}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center transition-all ${
+          isDragging
+            ? "border-[#0099ff]/70 bg-[#0099ff]/12"
+            : "border-white/15 bg-black/20 hover:border-[#0099ff]/45 hover:bg-[#0099ff]/8"
+        } ${isUploading ? "pointer-events-none opacity-70" : ""}`}
+      >
+        <input
+          id={`${id}-upload`}
+          type="file"
+          accept="video/mp4,.mp4"
+          className="sr-only"
+          onChange={handleInputChange}
+          disabled={isUploading}
+        />
+        <span className="text-sm font-medium text-white/90">
+          {isUploading ? "Uploading MP4..." : "Drag an MP4 here or click to upload"}
+        </span>
+        <span className="mt-1 text-xs text-white/55">
+          Uploaded videos are saved to Supabase Storage. Max {MAX_VIDEO_UPLOAD_SIZE_MB} MB.
+        </span>
+      </label>
+
+      {uploadError && <p className="text-xs text-amber-200">{uploadError}</p>}
+
+      {uploadProgress !== null && (
+        <div className="rounded-xl border border-[#8fdcff]/18 bg-[#071722]/80 px-3 py-3">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span className="font-medium text-white/82">
+              {isUploading ? "Uploading to Supabase" : "Upload complete"}
+            </span>
+            <span className="font-semibold text-[#8fdcff]">{uploadProgress}%</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-[linear-gradient(90deg,#36d1ff,#0099ff)] transition-[width] duration-200"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {hasValue ? (
+        hasMp4Value ? (
+          <div className="overflow-hidden rounded-xl border border-white/15 bg-black/30">
+            <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                MP4 Preview
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadError("");
+                  setUploadProgress(null);
+                  onChange("");
+                }}
+                className="text-[11px] uppercase tracking-[0.14em] text-white/55 transition-colors hover:text-white"
+              >
+                Clear
+              </button>
+            </div>
+            <video
+              src={trimmedValue}
+              className={`w-full object-cover ${previewHeightClassName}`}
+              controls
+              playsInline
+              muted
+              preload="metadata"
+            />
+          </div>
+        ) : (
+          <div className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-4 text-sm leading-relaxed text-amber-100">
+            Use a direct `.mp4` file path or URL for Video Edit projects.
+          </div>
+        )
+      ) : null}
     </div>
   );
 }
@@ -496,6 +795,11 @@ export default function StudioPage() {
   });
   const [activeCategory, setActiveCategory] = useState<PortfolioCategory>("Graphic Design");
   const [form, setForm] = useState<ProjectForm>(createEmptyProjectForm());
+  const [isBulkVideoDragging, setIsBulkVideoDragging] = useState(false);
+  const [isBulkVideoUploading, setIsBulkVideoUploading] = useState(false);
+  const [bulkVideoUploadProgress, setBulkVideoUploadProgress] = useState<number | null>(null);
+  const [bulkVideoUploadMessage, setBulkVideoUploadMessage] = useState("");
+  const [bulkVideoUploadError, setBulkVideoUploadError] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [testimonials, setTestimonials] = useState<Testimonial[]>(() => {
     if (typeof window === "undefined") return fallbackTestimonials;
@@ -513,7 +817,7 @@ export default function StudioPage() {
   const [editingTestimonialIndex, setEditingTestimonialIndex] = useState<number | null>(
     null
   );
-  const projectPreview = useMemo(() => toProject(form), [form]);
+  const projectPreview = useMemo(() => toProject(form, activeCategory), [form, activeCategory]);
   const testimonialPreview = useMemo(
     () => toTestimonial(testimonialForm),
     [testimonialForm]
@@ -594,6 +898,20 @@ export default function StudioPage() {
     () => projects[activeCategory] || [],
     [projects, activeCategory]
   );
+  const isVideoEditCategory = activeCategory === "Video Edit";
+  const projectPreviewVideoUrls = getProjectVideoUrls(projectPreview);
+  const projectPreviewVideoPosterUrls = getProjectVideoPosterUrls(
+    projectPreview,
+    projectPreviewVideoUrls.length || 1
+  );
+  const projectPreviewPosterImage =
+    projectPreviewVideoPosterUrls[0] || projectPreview.image || "";
+  const projectPreviewVideoPosterCount = projectPreviewVideoPosterUrls.filter(
+    (item) => item.length > 0
+  ).length;
+  const projectPreviewVideoUrl = getProjectVideoUrl(projectPreview);
+  const projectPreviewVideoCategory = getVideoProjectCategory(projectPreview);
+  const projectPreviewVideoParentLabel = getVideoProjectParentLabel(projectPreview);
 
   const persistStudioCredentials = (nextCredentials: StudioCredentials) => {
     setStudioCredentials(nextCredentials);
@@ -773,7 +1091,121 @@ export default function StudioPage() {
 
   const resetForm = () => {
     setForm(createEmptyProjectForm());
+    setIsBulkVideoDragging(false);
+    setIsBulkVideoUploading(false);
+    setBulkVideoUploadProgress(null);
+    setBulkVideoUploadMessage("");
+    setBulkVideoUploadError("");
     setEditingIndex(null);
+  };
+
+  const appendVideoUrlsToForm = (videoUrls: string[]) => {
+    if (videoUrls.length === 0) {
+      return;
+    }
+
+    setForm((prev) => {
+      const existingVideoEntries = prev.videoUrls
+        .map((item, index) => ({
+          videoUrl: item.trim(),
+          posterUrl: prev.videoPosterUrls[index]?.trim() || "",
+        }))
+        .filter((entry) => entry.videoUrl.length > 0 || entry.posterUrl.length > 0);
+      const nextVideoEntries = [
+        ...existingVideoEntries,
+        ...videoUrls.map((videoUrl) => ({
+          videoUrl,
+          posterUrl: "",
+        })),
+      ];
+
+      return {
+        ...prev,
+        videoUrls:
+          nextVideoEntries.length > 0
+            ? nextVideoEntries.map((entry) => entry.videoUrl)
+            : [""],
+        videoPosterUrls:
+          nextVideoEntries.length > 0
+            ? nextVideoEntries.map((entry) => entry.posterUrl)
+            : [""],
+      };
+    });
+  };
+
+  const handleBulkVideoFiles = async (files: FileList | null) => {
+    const nextFiles = Array.from(files ?? []);
+    if (nextFiles.length === 0) {
+      return;
+    }
+
+    const invalidFile = nextFiles.find((file) => !isMp4VideoFile(file));
+    if (invalidFile) {
+      setBulkVideoUploadError(`"${invalidFile.name}" is not an MP4 file.`);
+      return;
+    }
+
+    const oversizedFile = nextFiles.find((file) => file.size > MAX_VIDEO_UPLOAD_SIZE);
+    if (oversizedFile) {
+      setBulkVideoUploadError(
+        `"${oversizedFile.name}" is over ${MAX_VIDEO_UPLOAD_SIZE_MB} MB.`
+      );
+      return;
+    }
+
+    const totalBytes = nextFiles.reduce((total, file) => total + file.size, 0);
+    let uploadedBytes = 0;
+
+    setBulkVideoUploadError("");
+    setBulkVideoUploadMessage(
+      nextFiles.length === 1
+        ? "Uploading 1 clip to this carousel"
+        : `Uploading ${nextFiles.length} clips to this carousel`
+    );
+    setIsBulkVideoUploading(true);
+    setBulkVideoUploadProgress(1);
+
+    try {
+      for (const [index, file] of nextFiles.entries()) {
+        let currentFileUploadedBytes = 0;
+
+        setBulkVideoUploadMessage(
+          nextFiles.length === 1
+            ? "Uploading clip 1 of 1"
+            : `Uploading clip ${index + 1} of ${nextFiles.length}`
+        );
+
+        const asset = await uploadPortfolioAssetToSupabase(file, "videos", {
+          onProgress: ({ bytesUploaded }) => {
+            currentFileUploadedBytes = bytesUploaded;
+            const percentage =
+              totalBytes > 0
+                ? ((uploadedBytes + currentFileUploadedBytes) / totalBytes) * 100
+                : 0;
+
+            setBulkVideoUploadProgress(Math.max(1, Math.min(100, Math.round(percentage))));
+          },
+        });
+
+        uploadedBytes += file.size;
+        appendVideoUrlsToForm([asset.url]);
+        setBulkVideoUploadProgress(
+          Math.max(1, Math.min(100, Math.round((uploadedBytes / totalBytes) * 100)))
+        );
+      }
+
+      setBulkVideoUploadMessage(
+        nextFiles.length === 1 ? "1 clip uploaded to the carousel" : `${nextFiles.length} clips uploaded to the carousel`
+      );
+      setBulkVideoUploadProgress(100);
+    } catch (error) {
+      setBulkVideoUploadError(
+        error instanceof Error ? error.message : "One of the MP4 uploads failed."
+      );
+    } finally {
+      setIsBulkVideoUploading(false);
+      setIsBulkVideoDragging(false);
+    }
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -781,7 +1213,7 @@ export default function StudioPage() {
 
     const updatedProjects = { ...projects };
     const categoryProjects = [...updatedProjects[activeCategory]];
-    const nextProject = toProject(form);
+    const nextProject = toProject(form, activeCategory);
 
     if (editingIndex === null) {
       categoryProjects.push(nextProject);
@@ -796,6 +1228,11 @@ export default function StudioPage() {
 
   const handleEdit = (index: number) => {
     setEditingIndex(index);
+    setBulkVideoUploadProgress(null);
+    setBulkVideoUploadMessage("");
+    setBulkVideoUploadError("");
+    setIsBulkVideoDragging(false);
+    setIsBulkVideoUploading(false);
     setForm(toForm(activeProjects[index]));
   };
 
@@ -1052,6 +1489,11 @@ export default function StudioPage() {
             <h2 className="text-lg font-semibold">
               {editingIndex === null ? "Add Project" : "Edit Project"} - {activeCategory}
             </h2>
+            <p className="text-xs leading-relaxed text-white/65">
+              {isVideoEditCategory
+                ? "Each Video Edit project becomes one carousel. Add a custom heading or leave it blank to use the project title, then attach one or more direct .mp4 files."
+                : "Update the project card, optional external link, and the case-study details shown in the portfolio."}
+            </p>
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <input
@@ -1076,42 +1518,245 @@ export default function StudioPage() {
               />
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
-                <ImageField
-                  id="project-card-image"
-                  label="Card image"
-                  value={form.image}
-                  onChange={(value) =>
-                    setForm((prev) => ({ ...prev, image: value }))
-                  }
-                  placeholder="Card image path or URL"
-                />
+                {isVideoEditCategory ? (
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-[#8fdcff]/18 bg-[#06111a]/70 p-4 space-y-3">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">
+                          Bulk MP4 Upload
+                        </p>
+                        <p className="mt-2 text-xs leading-relaxed text-white/60">
+                          Drag multiple `.mp4` files here or click to upload several clips at once.
+                          Every successful upload is added to this project&apos;s clip list, and you
+                          can set a thumbnail for each clip below.
+                        </p>
+                      </div>
+
+                      <label
+                        htmlFor="project-video-bulk-upload"
+                        onDragEnter={() => setIsBulkVideoDragging(true)}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          setIsBulkVideoDragging(true);
+                        }}
+                        onDragLeave={() => setIsBulkVideoDragging(false)}
+                        onDrop={async (event) => {
+                          event.preventDefault();
+                          setIsBulkVideoDragging(false);
+                          await handleBulkVideoFiles(event.dataTransfer.files);
+                        }}
+                        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center transition-all ${
+                          isBulkVideoDragging
+                            ? "border-[#0099ff]/70 bg-[#0099ff]/12"
+                            : "border-white/15 bg-black/20 hover:border-[#0099ff]/45 hover:bg-[#0099ff]/8"
+                        } ${isBulkVideoUploading ? "pointer-events-none opacity-70" : ""}`}
+                      >
+                        <input
+                          id="project-video-bulk-upload"
+                          type="file"
+                          accept="video/mp4,.mp4"
+                          multiple
+                          className="sr-only"
+                          onChange={async (event) => {
+                            await handleBulkVideoFiles(event.target.files);
+                            event.target.value = "";
+                          }}
+                          disabled={isBulkVideoUploading}
+                        />
+                        <span className="text-sm font-medium text-white/90">
+                          {isBulkVideoUploading
+                            ? "Uploading clips..."
+                            : "Drag MP4 clips here or click to upload many"}
+                        </span>
+                        <span className="mt-1 text-xs text-white/55">
+                          Uploaded videos are saved to Supabase Storage and appended to this
+                          carousel.
+                        </span>
+                      </label>
+
+                      {bulkVideoUploadError ? (
+                        <p className="text-xs text-amber-200">{bulkVideoUploadError}</p>
+                      ) : null}
+
+                      {bulkVideoUploadProgress !== null ? (
+                        <div className="rounded-xl border border-[#8fdcff]/18 bg-[#071722]/80 px-3 py-3">
+                          <div className="flex items-center justify-between gap-3 text-xs">
+                            <span className="font-medium text-white/82">
+                              {bulkVideoUploadMessage || "Uploading clips"}
+                            </span>
+                            <span className="font-semibold text-[#8fdcff]">
+                              {bulkVideoUploadProgress}%
+                            </span>
+                          </div>
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className="h-full rounded-full bg-[linear-gradient(90deg,#36d1ff,#0099ff)] transition-[width] duration-200"
+                              style={{ width: `${bulkVideoUploadProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {form.videoUrls.map((videoUrl, index) => (
+                      <div
+                        key={`project-video-file-${index}`}
+                        className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3"
+                      >
+                        <VideoField
+                          id={`project-video-file-${index}`}
+                          label={form.videoUrls.length === 1 ? "MP4 file" : `MP4 clip ${index + 1}`}
+                          value={videoUrl}
+                          onChange={(value) =>
+                            setForm((prev) => {
+                              const nextVideoUrls = [...prev.videoUrls];
+                              nextVideoUrls[index] = value;
+                              return { ...prev, videoUrls: nextVideoUrls };
+                            })
+                          }
+                          placeholder={`Direct .mp4 file path or URL for clip ${index + 1}`}
+                        />
+                        <ImageField
+                          id={`project-video-thumbnail-${index}`}
+                          label={
+                            form.videoUrls.length === 1
+                              ? "Clip thumbnail"
+                              : `Clip ${index + 1} thumbnail`
+                          }
+                          value={form.videoPosterUrls[index] || ""}
+                          onChange={(value) =>
+                            setForm((prev) => {
+                              const nextVideoPosterUrls = [...prev.videoPosterUrls];
+                              nextVideoPosterUrls[index] = value;
+                              return { ...prev, videoPosterUrls: nextVideoPosterUrls };
+                            })
+                          }
+                          placeholder={`Image path or URL for clip ${index + 1} thumbnail`}
+                          previewHeightClassName="h-28"
+                        />
+                        {form.videoUrls.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm((prev) => ({
+                                ...prev,
+                                videoUrls: prev.videoUrls.filter((_, itemIndex) => itemIndex !== index),
+                                videoPosterUrls: prev.videoPosterUrls.filter(
+                                  (_, itemIndex) => itemIndex !== index
+                                ),
+                              }))
+                            }
+                            className="rounded-lg border border-white/20 px-3 text-xs hover:bg-white/10 transition-colors"
+                          >
+                            Remove clip
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          videoUrls: [...prev.videoUrls, ""],
+                          videoPosterUrls: [...prev.videoPosterUrls, ""],
+                        }))
+                      }
+                      className="inline-flex items-center gap-2 rounded-lg border border-[#0099ff]/60 px-3 py-2 text-xs text-[#8fd3ff] hover:bg-[#0099ff]/15 transition-colors"
+                    >
+                      <Plus size={14} />
+                      Add another MP4
+                    </button>
+                  </div>
+                ) : (
+                  <ImageField
+                    id="project-card-image"
+                    label="Card image"
+                    value={form.image}
+                    onChange={(value) =>
+                      setForm((prev) => ({ ...prev, image: value }))
+                    }
+                    placeholder="Card image path or URL"
+                  />
+                )}
                 <input
                   type="text"
                   value={form.designLink}
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, designLink: event.target.value }))
                   }
-                  placeholder="Design link"
+                  placeholder={isVideoEditCategory ? "Project link (optional)" : "Design link"}
                   className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
                 />
               </div>
 
-              <label className="flex items-center gap-2 text-sm text-white/85">
-                <input
-                  type="checkbox"
-                  checked={form.showDetailsModal}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      showDetailsModal: event.target.checked,
-                    }))
-                  }
-                  className="accent-[#0099ff]"
-                />
-                Enable details modal
-              </label>
+              {isVideoEditCategory && (
+                <div className="rounded-xl border border-[#8fdcff]/18 bg-[#06111a]/70 p-4 space-y-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">
+                      Video Carousel Setup
+                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-white/60">
+                      This single project holds the clips for one carousel. Leave the heading blank
+                      to use the project title as the carousel heading. The playable media for this
+                      section should be one or more direct `.mp4`
+                      files.
+                    </p>
+                  </div>
 
-              {form.showDetailsModal && (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <input
+                      type="text"
+                      value={form.videoCategory}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, videoCategory: event.target.value }))
+                      }
+                      placeholder="Carousel heading for this project (leave blank to use project title)"
+                      className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                    />
+                    <input
+                      type="text"
+                      value={form.videoParentLabel}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, videoParentLabel: event.target.value }))
+                      }
+                      placeholder="Small label under the title (e.g. Vast Professionals)"
+                      className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
+                    />
+                  </div>
+                  <div>
+                    <ImageField
+                      id="project-video-poster"
+                      label="Project poster fallback (optional)"
+                      value={form.image}
+                      onChange={(value) =>
+                        setForm((prev) => ({ ...prev, image: value }))
+                      }
+                      placeholder="Fallback poster image path or URL"
+                      previewHeightClassName="h-28"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {!isVideoEditCategory && (
+                <label className="flex items-center gap-2 text-sm text-white/85">
+                  <input
+                    type="checkbox"
+                    checked={form.showDetailsModal}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        showDetailsModal: event.target.checked,
+                      }))
+                    }
+                    className="accent-[#0099ff]"
+                  />
+                  Enable details modal
+                </label>
+              )}
+
+              {!isVideoEditCategory && form.showDetailsModal && (
                 <div className="rounded-xl border border-white/15 bg-black/25 p-3 space-y-3">
                   <input
                     type="text"
@@ -1235,37 +1880,225 @@ export default function StudioPage() {
 
               <div className="grid gap-4 lg:grid-cols-[1.15fr_0.95fr]">
                 <div className="overflow-hidden rounded-[22px] border border-white/15 bg-black/30">
-                  <img
-                    src={projectPreview.image}
-                    alt={projectPreview.title}
-                    className="h-52 w-full object-cover"
-                  />
-                  <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(0,153,255,0.08),rgba(8,10,18,0.14))] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-white">
-                        {projectPreview.title}
-                      </p>
-                      <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                        Project Card
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm leading-relaxed text-white/70 line-clamp-4">
-                      {projectPreview.description}
-                    </p>
-                  </div>
+                  {isVideoEditCategory ? (
+                    <>
+                      <div className="relative aspect-[16/9] bg-black">
+                        {projectPreviewVideoUrl ? (
+                          <video
+                            key={`${projectPreview.title}-${projectPreviewVideoUrl}`}
+                            src={projectPreviewVideoUrl}
+                            poster={projectPreviewPosterImage || undefined}
+                            className="h-full w-full object-cover"
+                            controls
+                            playsInline
+                            muted
+                            autoPlay
+                            loop
+                            preload="metadata"
+                          />
+                        ) : (
+                          <div
+                            className="flex h-full w-full items-center justify-center px-6 text-center"
+                            style={{
+                              background: projectPreviewPosterImage
+                                ? `linear-gradient(135deg, rgba(2, 6, 10, 0.7), rgba(2, 6, 10, 0.92)), url(${projectPreviewPosterImage}) center/cover`
+                                : "linear-gradient(135deg, rgba(4,10,18,0.98), rgba(6,18,28,0.92))",
+                            }}
+                          >
+                            <div className="max-w-sm">
+                              <p className="text-base font-semibold text-white">
+                                No direct MP4 clip added yet
+                              </p>
+                              <p className="mt-2 text-sm leading-relaxed text-white/62">
+                                Add one or more direct `.mp4` file paths or URLs and the Video
+                                Edit carousel will play those clips on the homepage.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="absolute left-4 top-4 rounded-full border border-[#8fdcff]/20 bg-[#06131d]/86 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#aeeaff] backdrop-blur-md">
+                          {projectPreviewVideoCategory}
+                        </div>
+                      </div>
+                      <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(0,153,255,0.08),rgba(8,10,18,0.14))] p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-white">
+                            {projectPreview.title}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                              MP4 Preview
+                            </span>
+                            <span className="rounded-full border border-white/12 bg-black/35 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/62">
+                              {projectPreviewVideoUrls.length}{" "}
+                              {projectPreviewVideoUrls.length === 1 ? "clip" : "clips"}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-white/70 line-clamp-4">
+                          {projectPreview.description}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <img
+                        src={projectPreview.image}
+                        alt={projectPreview.title}
+                        className="h-52 w-full object-cover"
+                      />
+                      <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(0,153,255,0.08),rgba(8,10,18,0.14))] p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-white">
+                              {projectPreview.title}
+                            </p>
+                            {projectPreviewVideoParentLabel ? (
+                              <p className="mt-1 text-xs text-white/46">
+                                under {projectPreviewVideoParentLabel}
+                              </p>
+                            ) : null}
+                          </div>
+                          <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                            Project Card
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-relaxed text-white/70 line-clamp-4">
+                          {projectPreview.description}
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="rounded-[22px] border border-white/15 bg-black/30 p-4 space-y-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-white">
-                      Details Preview
+                      {isVideoEditCategory ? "Carousel Setup" : "Details Preview"}
                     </p>
                     <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                      {projectPreview.showDetailsModal ? "Enabled" : "Disabled"}
+                      {isVideoEditCategory
+                        ? "Video Edit"
+                        : projectPreview.showDetailsModal
+                          ? "Enabled"
+                          : "Disabled"}
                     </span>
                   </div>
 
-                  {projectPreview.showDetailsModal && projectPreview.details ? (
+                  {isVideoEditCategory ? (
+                    <>
+                      <div className="rounded-xl border border-white/12 bg-black/35 p-4 space-y-3">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
+                            Carousel Heading
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-white">
+                            {projectPreviewVideoCategory}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
+                            MP4 Clips
+                          </p>
+                          {projectPreviewVideoUrls.length > 0 ? (
+                            <div className="mt-2 space-y-2">
+                              <p className="text-sm leading-relaxed text-white/68">
+                                {projectPreviewVideoUrls.length}{" "}
+                                {projectPreviewVideoUrls.length === 1 ? "clip is" : "clips are"}{" "}
+                                ready for this project carousel.
+                              </p>
+                              {projectPreviewVideoUrls.slice(0, 3).map((videoUrl, index) => (
+                                <p
+                                  key={`${videoUrl}-${index}`}
+                                  className="break-all text-xs leading-relaxed text-white/50"
+                                >
+                                  Clip {index + 1}: {videoUrl}
+                                </p>
+                              ))}
+                              {projectPreviewVideoUrls.length > 3 ? (
+                                <p className="text-xs leading-relaxed text-white/42">
+                                  +{projectPreviewVideoUrls.length - 3} more clips
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <p className="mt-1 break-all text-sm leading-relaxed text-white/68">
+                              Add one or more direct `.mp4` file paths or URLs so the carousel can
+                              play all of your clips.
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
+                            Clip Thumbnails
+                          </p>
+                          {projectPreviewVideoPosterCount > 0 ? (
+                            <p className="mt-1 text-sm leading-relaxed text-white/68">
+                              {projectPreviewVideoPosterCount}{" "}
+                              {projectPreviewVideoPosterCount === 1
+                                ? "thumbnail is"
+                                : "thumbnails are"}{" "}
+                              ready for this carousel.
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-sm leading-relaxed text-white/68">
+                              Upload an optional image for each clip to override the default
+                              project image poster.
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
+                            Project Link
+                          </p>
+                          <p className="mt-1 break-all text-sm leading-relaxed text-white/68">
+                            {projectPreview.designLink}
+                          </p>
+                        </div>
+                      </div>
+
+                      {projectPreview.showDetailsModal && projectPreview.details ? (
+                        <>
+                          <div className="overflow-hidden rounded-xl border border-white/12 bg-black/35">
+                            <img
+                              src={projectPreview.details.heroImage}
+                              alt={projectPreview.details.title}
+                              className="h-28 w-full object-cover"
+                            />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-white">
+                              {projectPreview.details.title}
+                            </h4>
+                            <p className="mt-2 text-sm leading-relaxed text-white/68 line-clamp-5">
+                              {projectPreview.details.description}
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {projectPreview.details.galleryImages
+                              .slice(0, 3)
+                              .map((image, index) => (
+                                <div
+                                  key={`${image}-${index}`}
+                                  className="overflow-hidden rounded-lg border border-white/10 bg-black/40"
+                                >
+                                  <img
+                                    src={image}
+                                    alt={`${projectPreview.details?.title} gallery ${index + 1}`}
+                                    className="h-16 w-full object-cover"
+                                  />
+                                </div>
+                              ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="rounded-xl border border-dashed border-white/12 bg-black/20 px-4 py-6 text-sm text-white/55">
+                          Turn on the details modal to preview the case-study images here.
+                        </p>
+                      )}
+                    </>
+                  ) : projectPreview.showDetailsModal && projectPreview.details ? (
                     <>
                       <div className="overflow-hidden rounded-xl border border-white/12 bg-black/35">
                         <img
@@ -1325,6 +2158,24 @@ export default function StudioPage() {
                     {project.description}
                   </p>
 
+                  {activeCategory === "Video Edit" && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="rounded-full border border-[#8fdcff]/25 bg-[#081622] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#aeeaff]">
+                        {getVideoProjectCategory(project)}
+                      </span>
+                      <span className="rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
+                        {(() => {
+                          const videoCount = getProjectVideoUrls(project).length;
+                          if (videoCount === 0) {
+                            return "Needs clips";
+                          }
+
+                          return `${videoCount} ${videoCount === 1 ? "clip" : "clips"} ready`;
+                        })()}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="mt-3 flex gap-2">
                     <button
                       type="button"
@@ -1348,7 +2199,9 @@ export default function StudioPage() {
 
               {activeProjects.length === 0 && (
                 <p className="text-sm text-white/65">
-                  No projects yet in this category.
+                  {activeCategory === "Video Edit"
+                    ? "No video edit projects yet. Add one project with a carousel heading and one or more direct .mp4 files."
+                    : "No projects yet in this category."}
                 </p>
               )}
             </div>
@@ -1466,7 +2319,7 @@ export default function StudioPage() {
 
                 <div className="relative flex min-h-[14rem] flex-col overflow-hidden rounded-[22px] border border-white/15 bg-black/35 p-4 shadow-[0_12px_26px_rgba(0,0,0,0.3)]">
                   <div className="pointer-events-none absolute right-3 top-1 text-[56px] leading-none text-[#00c6ff]/18">
-                    "
+                    &quot;
                   </div>
                   <div className="mb-3 flex items-center justify-between">
                     <span className="rounded-full border border-[#00c6ff]/35 bg-[#00c6ff]/10 px-3 py-1 text-[10px] tracking-[0.16em] text-[#86e9ff]">

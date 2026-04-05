@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Fragment, useEffect, useRef, useState } from "react";
+import React, { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -31,6 +31,10 @@ import {
   ExternalLink,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Play,
 } from "lucide-react"; // added icons
 
 const MODAL_TRANSITION_MS = 520;
@@ -64,6 +68,10 @@ const [newProjectForm, setNewProjectForm] = useState<NewProjectForm>(createEmpty
 
 
 const [animateTab, setAnimateTab] = useState(false);
+const [videoCarouselIndexes, setVideoCarouselIndexes] = useState<Record<string, number>>({});
+const [videoCarouselMotion, setVideoCarouselMotion] = useState<
+  Record<string, VideoCarouselMotionState>
+>({});
 
 const portfolioCategories = [
   {
@@ -88,6 +96,11 @@ type PortfolioProject = {
   description: string;
   image: string;
   designLink: string;
+  videoCategory?: string;
+  videoParentLabel?: string;
+  videoUrl?: string;
+  videoUrls?: string[];
+  videoPosterUrls?: string[];
   showDetailsModal?: boolean;
   details?: {
     title: string;
@@ -102,11 +115,257 @@ type NewProjectForm = {
   description: string;
   image: string;
   designLink: string;
+  videoCategory: string;
+  videoParentLabel: string;
+  videoUrls: string[];
   showDetailsModal: boolean;
   detailsTitle: string;
   detailsDescription: string;
   detailsHeroImage: string;
   galleryImages: string[];
+};
+
+type VideoCarouselMotionState = {
+  token: number;
+  direction: -1 | 1;
+};
+
+type CarouselClipVideoProps = {
+  playbackKey: string;
+  videoUrl: string;
+  posterUrl?: string;
+  isActive: boolean;
+  isVisible: boolean;
+};
+
+const DEFAULT_VIDEO_EDIT_GROUP = "Featured Edits";
+const carouselClipPlaybackTimes = new Map<string, number>();
+
+function CarouselClipVideo({
+  playbackKey,
+  videoUrl,
+  posterUrl,
+  isActive,
+  isVisible,
+}: CarouselClipVideoProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const lastPlaybackTimeRef = useRef(0);
+
+  const savePlaybackTime = useCallback((time: number) => {
+    if (!Number.isFinite(time) || time < 0) {
+      return;
+    }
+
+    lastPlaybackTimeRef.current = time;
+    carouselClipPlaybackTimes.set(playbackKey, time);
+  }, [playbackKey]);
+
+  const restorePlaybackTime = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    const savedPlaybackTime =
+      carouselClipPlaybackTimes.get(playbackKey) ?? lastPlaybackTimeRef.current;
+    if (
+      savedPlaybackTime > 0.15 &&
+      Math.abs(video.currentTime - savedPlaybackTime) > 0.35
+    ) {
+      try {
+        video.currentTime = savedPlaybackTime;
+      } catch {
+        // ignore currentTime assignment errors on partially loaded media
+      }
+    }
+  }, [playbackKey]);
+
+  const resumePlayback = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    restorePlaybackTime();
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      void playPromise.catch(() => {
+        // ignore autoplay interruptions from the browser
+      });
+    }
+  }, [restorePlaybackTime]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    if (isActive) {
+      if (video.readyState >= 1) {
+        resumePlayback();
+        return;
+      }
+
+      const handleReadyForResume = () => {
+        resumePlayback();
+      };
+
+      video.addEventListener("loadedmetadata", handleReadyForResume, { once: true });
+      video.addEventListener("canplay", handleReadyForResume, { once: true });
+      return () => {
+        video.removeEventListener("loadedmetadata", handleReadyForResume);
+        video.removeEventListener("canplay", handleReadyForResume);
+      };
+    }
+
+    savePlaybackTime(video.currentTime || lastPlaybackTimeRef.current);
+    video.pause();
+  }, [isActive, playbackKey, resumePlayback, savePlaybackTime, videoUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || isVisible) {
+      return;
+    }
+
+    savePlaybackTime(video.currentTime || lastPlaybackTimeRef.current);
+    video.pause();
+  }, [isVisible, playbackKey, savePlaybackTime]);
+
+  useEffect(() => {
+    lastPlaybackTimeRef.current = carouselClipPlaybackTimes.get(playbackKey) ?? 0;
+  }, [playbackKey, videoUrl]);
+
+  return (
+    <video
+      ref={videoRef}
+      src={videoUrl}
+      poster={posterUrl || undefined}
+      className="h-full w-full object-cover"
+      controls={isActive}
+      playsInline
+      muted
+      loop
+      preload="metadata"
+      onTimeUpdate={(event) => {
+        savePlaybackTime(event.currentTarget.currentTime);
+      }}
+      onSeeked={(event) => {
+        savePlaybackTime(event.currentTarget.currentTime);
+      }}
+      onPause={(event) => {
+        savePlaybackTime(event.currentTarget.currentTime);
+      }}
+      onEnded={(event) => {
+        savePlaybackTime(event.currentTarget.currentTime);
+      }}
+    />
+  );
+}
+
+const getVideoProjectCategory = (project: PortfolioProject) =>
+  project.videoCategory?.trim() || project.title?.trim() || DEFAULT_VIDEO_EDIT_GROUP;
+
+const getVideoProjectParentLabel = (
+  project: PortfolioProject,
+  fallbackGroupName = ""
+) => {
+  const explicitLabel = project.videoParentLabel?.trim() || "";
+  if (explicitLabel) {
+    return explicitLabel;
+  }
+
+  const legacyCategoryLabel = project.videoCategory?.trim() || "";
+  if (legacyCategoryLabel && legacyCategoryLabel !== project.title.trim()) {
+    return legacyCategoryLabel;
+  }
+
+  const legacyDetailsLabel = project.details?.title?.trim() || "";
+  if (
+    legacyDetailsLabel &&
+    legacyDetailsLabel !== project.title.trim() &&
+    legacyDetailsLabel.toLowerCase() !== "project details"
+  ) {
+    return legacyDetailsLabel;
+  }
+
+  const normalizedFallbackGroupName = fallbackGroupName.trim();
+  if (normalizedFallbackGroupName && normalizedFallbackGroupName !== project.title.trim()) {
+    return normalizedFallbackGroupName;
+  }
+
+  return "";
+};
+
+const getProjectVideoUrls = (project: PortfolioProject) => {
+  const uploadedVideoUrls = Array.isArray(project.videoUrls)
+    ? project.videoUrls
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+    : [];
+
+  if (uploadedVideoUrls.length > 0) {
+    return uploadedVideoUrls;
+  }
+
+  const trimmedVideoUrl = project.videoUrl?.trim();
+  if (trimmedVideoUrl) {
+    return [trimmedVideoUrl];
+  }
+
+  const trimmedLink = project.designLink?.trim();
+  if (!trimmedLink || trimmedLink === "#") {
+    return [];
+  }
+
+  if (
+    /^data:video\//i.test(trimmedLink) ||
+    /\.(mp4|webm|ogg|mov)(?:[?#].*)?$/i.test(trimmedLink)
+  ) {
+    return [trimmedLink];
+  }
+
+  return [];
+};
+
+const getProjectVideoPosterUrls = (project: PortfolioProject, clipCount: number) => {
+  const rawVideoPosterUrls = Array.isArray(project.videoPosterUrls)
+    ? project.videoPosterUrls
+    : [];
+  const normalizedVideoPosterUrls = rawVideoPosterUrls.map((item) =>
+    typeof item === "string" ? item.trim() : ""
+  );
+
+  if (clipCount <= 0) {
+    return normalizedVideoPosterUrls;
+  }
+
+  return Array.from({ length: clipCount }, (_, index) => normalizedVideoPosterUrls[index] || "");
+};
+
+const groupVideoProjects = (projects: PortfolioProject[]) => {
+  return projects.map((project, projectIndex) => {
+    const categoryName = getVideoProjectCategory(project);
+    const projectKey = `${categoryName}-${project.title || "video-project"}-${projectIndex}`;
+    const projectVideoUrls = getProjectVideoUrls(project);
+    const clipsToAdd = projectVideoUrls.length > 0 ? projectVideoUrls : [""];
+    const projectVideoPosterUrls = getProjectVideoPosterUrls(project, clipsToAdd.length);
+
+    return {
+      key: projectKey,
+      name: categoryName,
+      project,
+      clips: clipsToAdd.map((videoUrl, index) => ({
+        key: `${projectKey}-${index}-${videoUrl || "empty"}`,
+        project,
+        videoUrl,
+        posterUrl: projectVideoPosterUrls[index] || "",
+        clipIndex: index,
+        clipCount: clipsToAdd.length,
+      })),
+    };
+  });
 };
 
 type ContactFormState = {
@@ -735,6 +994,9 @@ function createEmptyProjectForm(): NewProjectForm {
     description: "",
     image: "",
     designLink: "",
+    videoCategory: "",
+    videoParentLabel: "",
+    videoUrls: [""],
     showDetailsModal: true,
     detailsTitle: "",
     detailsDescription: "",
@@ -1491,6 +1753,112 @@ const removeGalleryInput = (index: number) => {
   });
 };
 
+const getVideoCarouselIndex = (groupName: string, projectCount: number) => {
+  if (projectCount <= 0) {
+    return 0;
+  }
+
+  const currentIndex = videoCarouselIndexes[groupName] ?? 0;
+  return ((currentIndex % projectCount) + projectCount) % projectCount;
+};
+
+const getVideoCarouselMotionDirection = (
+  currentIndex: number,
+  nextIndex: number,
+  projectCount: number
+): -1 | 1 => {
+  if (projectCount <= 1) {
+    return 1;
+  }
+
+  const forwardDistance = (nextIndex - currentIndex + projectCount) % projectCount;
+  if (forwardDistance === 0) {
+    return 1;
+  }
+
+  return forwardDistance <= projectCount / 2 ? 1 : -1;
+};
+
+const triggerVideoCarouselMotion = (groupName: string, direction: -1 | 1) => {
+  setVideoCarouselMotion((prev) => ({
+    ...prev,
+    [groupName]: {
+      token: (prev[groupName]?.token ?? 0) + 1,
+      direction,
+    },
+  }));
+};
+
+const setVideoCarouselIndex = (groupName: string, nextIndex: number, projectCount: number) => {
+  if (projectCount <= 0) {
+    return;
+  }
+
+  const currentIndex = getVideoCarouselIndex(groupName, projectCount);
+  const normalizedNextIndex = ((nextIndex % projectCount) + projectCount) % projectCount;
+  if (normalizedNextIndex === currentIndex) {
+    return;
+  }
+
+  triggerVideoCarouselMotion(
+    groupName,
+    getVideoCarouselMotionDirection(currentIndex, normalizedNextIndex, projectCount)
+  );
+  setVideoCarouselIndexes((prev) => ({
+    ...prev,
+    [groupName]: normalizedNextIndex,
+  }));
+};
+
+const shiftVideoCarousel = (
+  groupName: string,
+  direction: -1 | 1,
+  projectCount: number
+) => {
+  if (projectCount <= 1) {
+    return;
+  }
+
+  triggerVideoCarouselMotion(groupName, direction >= 0 ? 1 : -1);
+  setVideoCarouselIndexes((prev) => {
+    const currentIndex = ((prev[groupName] ?? 0) % projectCount + projectCount) % projectCount;
+    return {
+      ...prev,
+      [groupName]: (currentIndex + direction + projectCount) % projectCount,
+    };
+  });
+};
+
+const getVideoCarouselClipOffset = (
+  clipIndex: number,
+  activeIndex: number,
+  clipCount: number
+) => {
+  if (clipCount <= 1) {
+    return 0;
+  }
+
+  if (clipCount === 2) {
+    return clipIndex === activeIndex ? 0 : 1;
+  }
+
+  const forwardDistance = (clipIndex - activeIndex + clipCount) % clipCount;
+
+  if (forwardDistance === 0) {
+    return 0;
+  }
+
+  if (forwardDistance === 1) {
+    return 1;
+  }
+
+  if (forwardDistance === clipCount - 1) {
+    return -1;
+  }
+
+  return forwardDistance < clipCount / 2 ? 2 : -2;
+};
+
 const handleAddProjectSubmit = (event: React.FormEvent<HTMLFormElement>) => {
   event.preventDefault();
 
@@ -1500,6 +1868,11 @@ const handleAddProjectSubmit = (event: React.FormEvent<HTMLFormElement>) => {
   const trimmedDescription = newProjectForm.description.trim();
   const trimmedCardImage = newProjectForm.image.trim();
   const trimmedDesignLink = newProjectForm.designLink.trim();
+  const trimmedVideoCategory = newProjectForm.videoCategory.trim();
+  const trimmedVideoParentLabel = newProjectForm.videoParentLabel.trim();
+  const trimmedVideoUrls = newProjectForm.videoUrls
+    .map((videoUrl) => videoUrl.trim())
+    .filter((videoUrl) => videoUrl.length > 0);
   const galleryImages = newProjectForm.galleryImages
     .map((img) => img.trim())
     .filter((img) => img.length > 0);
@@ -1509,10 +1882,22 @@ const handleAddProjectSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     description: trimmedDescription || "Project description will be added soon.",
     image: trimmedCardImage || fallbackImage,
     designLink: trimmedDesignLink || "#",
-    showDetailsModal: newProjectForm.showDetailsModal,
+    showDetailsModal: activeBox !== "Video Edit" && newProjectForm.showDetailsModal,
   };
 
-  if (newProjectForm.showDetailsModal) {
+  if (activeBox === "Video Edit") {
+    projectToAdd.videoCategory =
+      trimmedVideoCategory || trimmedTitle || DEFAULT_VIDEO_EDIT_GROUP;
+    if (trimmedVideoParentLabel) {
+      projectToAdd.videoParentLabel = trimmedVideoParentLabel;
+    }
+    if (trimmedVideoUrls.length > 0) {
+      projectToAdd.videoUrls = trimmedVideoUrls;
+      projectToAdd.videoUrl = trimmedVideoUrls[0];
+    }
+  }
+
+  if (activeBox !== "Video Edit" && newProjectForm.showDetailsModal) {
     projectToAdd.details = {
       title: newProjectForm.detailsTitle.trim() || trimmedTitle || "Project Details",
       description:
@@ -1692,12 +2077,25 @@ const handleContactSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 
 const isAnyModalOpen = isDetailsModalMounted || isAddProjectModalMounted;
 const activeProjects = portfolioProjects[activeBox] || [];
+const isVideoEditShowcase = activeBox === "Video Edit";
+const videoProjectGroups = isVideoEditShowcase ? groupVideoProjects(activeProjects) : [];
+const totalVideoClipCount = isVideoEditShowcase
+  ? videoProjectGroups.reduce((total, group) => total + group.clips.length, 0)
+  : 0;
 const totalCreativeProjects =
   (portfolioProjects["Graphic Design"]?.length || 0) +
   (portfolioProjects["Video Edit"]?.length || 0);
 const totalCertificates = portfolioProjects.Certificates?.length || 0;
 const activeCategoryMeta =
   portfolioCategories.find((item) => item.name === activeBox) ?? portfolioCategories[0];
+const activeCategoryCountText =
+  isVideoEditShowcase && videoProjectGroups.length > 0
+    ? `${totalVideoClipCount} ${totalVideoClipCount === 1 ? "clip" : "clips"} across ${
+        videoProjectGroups.length
+      } ${
+        videoProjectGroups.length === 1 ? "project carousel" : "project carousels"
+      }.`
+    : `${activeProjects.length} ${activeProjects.length === 1 ? "item" : "items"} currently showing.`;
 const glassSectionClass =
   "relative mx-auto w-full max-w-7xl rounded-[26px] border border-white/10 bg-white/[0.03] p-[1.5px] shadow-[0_18px_60px_rgba(0,0,0,0.24)] transform-gpu [backface-visibility:hidden]";
 const glassSectionPanelClass =
@@ -2803,9 +3201,9 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             Portfolio Showcase
           </h2>
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/72 sm:text-base">
-            Browse the work by category in one cleaner section. Graphics, Video Edit, and
-            Certificates still switch exactly the same way and only show the projects inside the
-            selected group.
+            Browse the work by category in one cleaner section. Graphic design keeps its visual
+            card layout, while video edits now break into grouped carousels with playable clips
+            inside the same showcase flow.
           </p>
         </div>
 
@@ -2833,7 +3231,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">Live Category</p>
               <p className="mt-3 text-lg font-semibold text-white">{activeCategoryMeta.name}</p>
               <p className="mt-2 text-xs leading-relaxed text-white/58">
-                {activeProjects.length} {activeProjects.length === 1 ? "item" : "items"} currently showing.
+                {activeCategoryCountText}
               </p>
             </div>
           </div>
@@ -2899,78 +3297,307 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           <div className="mt-2 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-4 sm:px-5 sm:py-5">
             {showPortfolio &&
               (activeProjects.length > 0 ? (
-                <div
-                  key={`${activeBox}-${animateTab ? "in" : "out"}`}
-                  className="grid grid-cols-1 auto-rows-fr gap-6 md:grid-cols-2 xl:grid-cols-3"
-                >
-                  {activeProjects.map((project, index) => (
-                    <div
-                      key={`${activeBox}-${project.title}-${index}`}
-                      className="-mt-4 h-full opacity-0 translate-y-6 animate-fadeIn"
-                      style={{ animationDelay: `${0.18 + index * 0.12}s` }}
-                    >
-                      <CardContainer
-                        className="h-full w-full !items-start !justify-start"
-                        containerClassName="h-full !items-start !justify-start"
-                      >
-                        <CardBody className="relative flex h-full w-full flex-col overflow-hidden rounded-[22px] border border-white/10 bg-white/10 p-4 shadow-lg backdrop-blur-xl transition-all duration-700 hover:scale-[1.02] hover:bg-white/20 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)]">
-                          <CardItem translateZ={90} className="w-full">
-                            <Image
-                              src={project.image}
-                              alt={project.title}
-                              width={400}
-                              height={250}
-                              className="mb-4 h-[220px] w-full rounded-[18px] object-cover"
-                            />
-                          </CardItem>
+                isVideoEditShowcase ? (
+                  <div key={`${activeBox}-${animateTab ? "in" : "out"}`} className="space-y-6">
+                    {videoProjectGroups.map((group, groupIndex) => {
+                      const activeIndex = getVideoCarouselIndex(group.key, group.clips.length);
+                      const activeClip = group.clips[activeIndex];
+                      const activeProject = activeClip.project;
+                      const groupMotion = videoCarouselMotion[group.key] ?? {
+                        token: 0,
+                        direction: 1 as const,
+                      };
+                      const stageMotionClass =
+                        groupMotion.token > 0
+                          ? groupMotion.direction > 0
+                            ? groupMotion.token % 2 === 0
+                              ? "video-carousel-track-shift--to-left-a"
+                              : "video-carousel-track-shift--to-left-b"
+                            : groupMotion.token % 2 === 0
+                              ? "video-carousel-track-shift--to-right-a"
+                              : "video-carousel-track-shift--to-right-b"
+                          : "";
+                      const canSwitchClips = group.clips.length > 1;
+                      const hasProjectLink =
+                        activeProject.designLink.trim().length > 0 &&
+                        activeProject.designLink.trim() !== "#";
+                      const parentProjectLabel = getVideoProjectParentLabel(
+                        activeProject,
+                        group.name
+                      );
 
-                          <CardItem translateZ={55} className="w-full">
-                            <h3 className="project-heading mb-1 text-m tracking-wider text-white line-clamp-1">
-                              {project.title}
-                            </h3>
-                          </CardItem>
-                          <CardItem translateZ={45} className="w-full flex-1">
-                            <p className="mt-2 mb-4 text-xs text-white/80 line-clamp-3">
-                              {project.description}
-                            </p>
-                          </CardItem>
-
-                          <div className="relative z-20 mt-4 flex w-full items-center justify-between gap-3 pointer-events-auto">
-                            <a
-                              href={project.designLink}
-                              data-no-tilt="true"
-                              className="flex items-center gap-2 text-xs font-semibold text-[#0099ff] hover:underline"
-                            >
-                              Link to design
-                              <ExternalLink className="h-3 w-3 -mt-[0px] -ml-1" />
-                            </a>
-
-                            <InteractiveHoverButton
-                              onClick={() => {
-                                setSelectedProject(project);
-                                setShowModal(true);
-                              }}
-                              data-no-tilt="true"
-                              defaultLabel="Details"
-                              hoverLabel="Open"
-                              className="cursor-pointer"
-                            />
+                      return (
+                        <section
+                          key={`${activeBox}-${group.key}-${groupIndex}`}
+                          className="relative -mt-4 opacity-0 translate-y-6 animate-fadeIn"
+                          style={{ animationDelay: `${0.18 + groupIndex * 0.12}s` }}
+                        >
+                          <div className="pointer-events-none absolute inset-0">
+                            <div className="absolute left-[10%] top-0 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
                           </div>
-                        </CardBody>
-                      </CardContainer>
-                    </div>
-                  ))}
-                </div>
+
+                          <div className="relative z-10">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                              <div>
+                                <p className="text-[10px] uppercase tracking-[0.28em] text-[#8fdcff]">
+                                  Project Title
+                                </p>
+                                <h3 className="mt-2 text-2xl font-semibold text-white sm:text-[1.9rem]">
+                                  {group.name}
+                                </h3>
+                              </div>
+                              <div className="flex items-center gap-2 self-start sm:self-end">
+                                <span className="rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/62">
+                                  {group.clips.length} {group.clips.length === 1 ? "clip" : "clips"}
+                                </span>
+                                <span className="rounded-full border border-[#8fdcff]/20 bg-[#07131d] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#aeeaff]">
+                                  Carousel
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="relative mt-5 overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(4,10,18,0.95),rgba(2,7,12,0.98))] px-3 py-5 shadow-[0_22px_70px_rgba(0,0,0,0.3)] sm:px-5 lg:px-6">
+                              <div
+                                className={`relative mx-auto h-[210px] w-full max-w-[920px] sm:h-[270px] lg:h-[320px] ${stageMotionClass}`}
+                              >
+                                {group.clips.map((clip, index) => {
+                                  const clipProject = clip.project;
+                                  const clipIsReady = clip.videoUrl.trim().length > 0;
+                                  const clipOffset = getVideoCarouselClipOffset(
+                                    index,
+                                    activeIndex,
+                                    group.clips.length
+                                  );
+                                  const isActiveCard = clipOffset === 0;
+                                  const isVisibleCard = Math.abs(clipOffset) <= 1;
+                                  const cardPositionClass =
+                                    clipOffset === 0
+                                      ? "z-30 opacity-100 translate-x-[-50%] scale-100 rotate-0 blur-0"
+                                      : clipOffset < 0
+                                        ? "z-20 opacity-55 translate-x-[-78%] scale-[0.8] -rotate-[5deg] blur-[1px] sm:translate-x-[-84%] lg:translate-x-[-88%]"
+                                        : clipOffset === 1
+                                          ? "z-10 opacity-55 translate-x-[-22%] scale-[0.8] rotate-[5deg] blur-[1px] sm:translate-x-[-16%] lg:translate-x-[-12%]"
+                                          : clipOffset < 0
+                                            ? "z-0 opacity-0 translate-x-[-100%] scale-[0.68] -rotate-[8deg]"
+                                            : "z-0 opacity-0 translate-x-[0%] scale-[0.68] rotate-[8deg]";
+
+                                  return (
+                                    <div
+                                      key={clip.key}
+                                      className={`absolute left-1/2 top-1/2 h-[82%] w-[82%] -translate-y-1/2 transition-[transform,opacity,filter] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:h-[86%] sm:w-[66%] lg:w-[54%] ${cardPositionClass} ${
+                                        isVisibleCard ? "" : "pointer-events-none"
+                                      }`}
+                                    >
+                                      <div
+                                        className={`relative h-full overflow-hidden rounded-[24px] border backdrop-blur-xl ${
+                                          isActiveCard
+                                            ? "border-[#8fdcff]/28 bg-black/30 shadow-[0_24px_60px_rgba(0,0,0,0.38)]"
+                                            : "border-white/10 bg-black/25 shadow-[0_16px_40px_rgba(0,0,0,0.24)]"
+                                        }`}
+                                      >
+                                        {isActiveCard ? (
+                                          <div className="pointer-events-none absolute inset-0 z-10 rounded-[24px] ring-1 ring-[#8fdcff]/8 shadow-[inset_0_0_34px_rgba(125,225,255,0.14)]" />
+                                        ) : null}
+                                        {clipIsReady ? (
+                                          <CarouselClipVideo
+                                            playbackKey={clip.key}
+                                            videoUrl={clip.videoUrl}
+                                            posterUrl={clip.posterUrl || clipProject.image || undefined}
+                                            isActive={isActiveCard}
+                                            isVisible={isVisibleCard}
+                                          />
+                                        ) : (
+                                          <div
+                                            className="flex h-full w-full items-center justify-center px-6 text-center"
+                                            style={{
+                                              background: clip.posterUrl || clipProject.image
+                                                ? `linear-gradient(135deg, rgba(2, 6, 10, 0.76), rgba(2, 6, 10, 0.94)), url(${clip.posterUrl || clipProject.image}) center/cover`
+                                                : "linear-gradient(135deg, rgba(4,10,18,0.98), rgba(6,18,28,0.92))",
+                                            }}
+                                          >
+                                            <div className="max-w-xs">
+                                              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/12 bg-white/8 text-[#9ae9ff]">
+                                                <Play className="ml-0.5 h-5 w-5" />
+                                              </span>
+                                              <p className="mt-3 text-sm font-semibold text-white">
+                                                No direct video file added yet
+                                              </p>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {!isActiveCard && isVisibleCard ? (
+                                          <div className="pointer-events-none absolute inset-0 bg-black/22" />
+                                        ) : null}
+
+                                        {!isActiveCard && isVisibleCard ? (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setVideoCarouselIndex(
+                                                group.key,
+                                                index,
+                                                group.clips.length
+                                              )
+                                            }
+                                            className="absolute inset-0 z-20 cursor-pointer"
+                                            aria-label={`Show clip ${clip.clipIndex + 1} in ${group.name}`}
+                                          />
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+
+                                {canSwitchClips ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        shiftVideoCarousel(group.key, -1, group.clips.length)
+                                      }
+                                      className="absolute left-0 top-1/2 z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/14 bg-black/55 text-white/88 backdrop-blur-md transition-colors hover:bg-black/75 sm:left-3"
+                                      aria-label={`Show previous video in ${group.name}`}
+                                    >
+                                      <ChevronLeft className="h-5 w-5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        shiftVideoCarousel(group.key, 1, group.clips.length)
+                                      }
+                                      className="absolute right-0 top-1/2 z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/14 bg-black/55 text-white/88 backdrop-blur-md transition-colors hover:bg-black/75 sm:right-3"
+                                      aria-label={`Show next video in ${group.name}`}
+                                    >
+                                      <ChevronRight className="h-5 w-5" />
+                                    </button>
+                                  </>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <div className="mt-5 rounded-[22px] border border-white/10 bg-black/20 px-5 py-5 sm:px-6 sm:py-6">
+                              <div className="flex flex-col gap-5">
+                                <div>
+                                <p className="text-[10px] uppercase tracking-[0.22em] text-white/40">
+                                  Project
+                                </p>
+                                <div className="mt-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                                  <h4 className="text-lg font-semibold text-white sm:text-[1.15rem]">
+                                    {activeProject.title}
+                                  </h4>
+                                  {parentProjectLabel ? (
+                                    <span className="text-xs font-medium text-white/56 whitespace-nowrap">
+                                      under {parentProjectLabel}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/68">
+                                  {activeProject.description}
+                                </p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3 border-t border-white/8 pt-4">
+                                  {hasProjectLink ? (
+                                    <a
+                                      href={activeProject.designLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-[#8fdcff]/22 bg-[#07141f] px-4 py-2 text-sm font-semibold text-[#b6efff] transition-colors hover:bg-[#0a1b29]"
+                                    >
+                                      Open project link
+                                      <ExternalLink className="h-4 w-4" />
+                                    </a>
+                                  ) : null}
+                                  <span className="inline-flex w-fit rounded-full border border-white/12 bg-black/30 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-white/56">
+                                    Clip {activeIndex + 1} / {group.clips.length}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div
+                    key={`${activeBox}-${animateTab ? "in" : "out"}`}
+                    className="grid grid-cols-1 auto-rows-fr gap-6 md:grid-cols-2 xl:grid-cols-3"
+                  >
+                    {activeProjects.map((project, index) => (
+                      <div
+                        key={`${activeBox}-${project.title}-${index}`}
+                        className="-mt-4 h-full opacity-0 translate-y-6 animate-fadeIn"
+                        style={{ animationDelay: `${0.18 + index * 0.12}s` }}
+                      >
+                        <CardContainer
+                          className="h-full w-full !items-start !justify-start"
+                          containerClassName="h-full !items-start !justify-start"
+                        >
+                          <CardBody className="relative flex h-full w-full flex-col overflow-hidden rounded-[22px] border border-white/10 bg-white/10 p-4 shadow-lg backdrop-blur-xl transition-all duration-700 hover:scale-[1.02] hover:bg-white/20 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)]">
+                            <CardItem translateZ={90} className="w-full">
+                              <Image
+                                src={project.image}
+                                alt={project.title}
+                                width={400}
+                                height={250}
+                                className="mb-4 h-[220px] w-full rounded-[18px] object-cover"
+                              />
+                            </CardItem>
+
+                            <CardItem translateZ={55} className="w-full">
+                              <h3 className="project-heading mb-1 text-m tracking-wider text-white line-clamp-1">
+                                {project.title}
+                              </h3>
+                            </CardItem>
+                            <CardItem translateZ={45} className="w-full flex-1">
+                              <p className="mt-2 mb-4 text-xs text-white/80 line-clamp-3">
+                                {project.description}
+                              </p>
+                            </CardItem>
+
+                            <div className="relative z-20 mt-4 flex w-full items-center justify-between gap-3 pointer-events-auto">
+                              <a
+                                href={project.designLink}
+                                data-no-tilt="true"
+                                className="flex items-center gap-2 text-xs font-semibold text-[#0099ff] hover:underline"
+                              >
+                                Link to design
+                                <ExternalLink className="h-3 w-3 -mt-[0px] -ml-1" />
+                              </a>
+
+                              <InteractiveHoverButton
+                                onClick={() => {
+                                  setSelectedProject(project);
+                                  setShowModal(true);
+                                }}
+                                data-no-tilt="true"
+                                defaultLabel="Details"
+                                hoverLabel="Open"
+                                className="cursor-pointer"
+                              />
+                            </div>
+                          </CardBody>
+                        </CardContainer>
+                      </div>
+                    ))}
+                  </div>
+                )
               ) : (
                 <div
                   key={`${activeBox}-${animateTab ? "in" : "out"}-empty`}
                   className="mt-5 rounded-[20px] border border-dashed border-white/12 bg-black/20 px-5 py-10 text-center"
                 >
                   <p className="text-sm text-white/72 sm:text-base">
-                    No projects in {activeBox} yet.
+                    {isVideoEditShowcase
+                      ? "No video edits in this showcase yet."
+                      : `No projects in ${activeBox} yet.`}
                   </p>
                   <p className="mt-2 text-xs text-white/45">
-                    Add work to this category and it will appear here automatically.
+                    {isVideoEditShowcase
+                      ? "Add a video edit in Studio, assign it to a category, and include a direct video file so the carousel can play it here."
+                      : "Add work to this category and it will appear here automatically."}
                   </p>
                 </div>
               ))}
@@ -3127,7 +3754,8 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           Add Project to {activeBox}
         </h2>
         <p className="relative z-10 text-xs md:text-sm text-white/75 mt-2">
-          Fill in the fields below. You can add as many gallery images as you want.
+          Fill in the fields below. Video edits can use a custom carousel heading or fall back to
+          the project title, plus one or more direct playable files.
         </p>
 
         <form onSubmit={handleAddProjectSubmit} className="relative z-10 mt-6 space-y-5">
@@ -3151,20 +3779,26 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               type="text"
               value={newProjectForm.designLink}
               onChange={(e) => setNewProjectForm((prev) => ({ ...prev, designLink: e.target.value }))}
-              placeholder="Design link (e.g. https://...)"
+              placeholder={
+                activeBox === "Video Edit"
+                  ? "Project link (optional)"
+                  : "Design link (e.g. https://...)"
+              }
               className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
             />
-            <label className="flex items-center gap-2 text-sm text-white/90">
-              <input
-                type="checkbox"
-                checked={newProjectForm.showDetailsModal}
-                onChange={(e) =>
-                  setNewProjectForm((prev) => ({ ...prev, showDetailsModal: e.target.checked }))
-                }
-                className="accent-[#0099ff]"
-              />
-              Enable details modal for this project
-            </label>
+            {activeBox !== "Video Edit" ? (
+              <label className="flex items-center gap-2 text-sm text-white/90">
+                <input
+                  type="checkbox"
+                  checked={newProjectForm.showDetailsModal}
+                  onChange={(e) =>
+                    setNewProjectForm((prev) => ({ ...prev, showDetailsModal: e.target.checked }))
+                  }
+                  className="accent-[#0099ff]"
+                />
+                Enable details modal for this project
+              </label>
+            ) : null}
           </div>
 
           <textarea
@@ -3175,7 +3809,88 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             required
           />
 
-          {newProjectForm.showDetailsModal && (
+          {activeBox === "Video Edit" && (
+            <div className="rounded-xl border border-[#8fdcff]/18 bg-[#06111a]/72 p-4 space-y-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">
+                  Video Carousel Setup
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-white/60">
+                  Each Video Edit project becomes one carousel. Leave the heading blank to use the
+                  project title, then add one or more video clips below.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  value={newProjectForm.videoCategory}
+                  onChange={(e) =>
+                    setNewProjectForm((prev) => ({ ...prev, videoCategory: e.target.value }))
+                  }
+                  placeholder="Carousel heading for this project (leave blank to use project title)"
+                  className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+                />
+                <input
+                  type="text"
+                  value={newProjectForm.videoParentLabel}
+                  onChange={(e) =>
+                    setNewProjectForm((prev) => ({ ...prev, videoParentLabel: e.target.value }))
+                  }
+                  placeholder="Small label under the title (e.g. Vast Professionals)"
+                  className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+                />
+                <div className="space-y-3">
+                  {newProjectForm.videoUrls.map((videoUrl, index) => (
+                    <div key={`new-project-video-${index}`} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={videoUrl}
+                        onChange={(e) =>
+                          setNewProjectForm((prev) => {
+                            const nextVideoUrls = [...prev.videoUrls];
+                            nextVideoUrls[index] = e.target.value;
+                            return { ...prev, videoUrls: nextVideoUrls };
+                          })
+                        }
+                        placeholder={`Direct video file path for clip ${index + 1} (e.g. /vide1.mp4)`}
+                        className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
+                      />
+                      {newProjectForm.videoUrls.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewProjectForm((prev) => ({
+                              ...prev,
+                              videoUrls: prev.videoUrls.filter((_, itemIndex) => itemIndex !== index),
+                            }))
+                          }
+                          className="rounded-lg border border-white/20 px-3 text-xs text-white/75 hover:bg-white/10 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setNewProjectForm((prev) => ({
+                        ...prev,
+                        videoUrls: [...prev.videoUrls, ""],
+                      }))
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg border border-[#0099ff]/60 px-3 py-2 text-xs text-[#8fd3ff] hover:bg-[#0099ff]/15 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add another clip
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeBox !== "Video Edit" && newProjectForm.showDetailsModal && (
             <div className="rounded-xl border border-white/15 bg-black/25 p-4 space-y-4">
               <h3 className="text-sm md:text-base font-semibold text-white">Details Modal Content</h3>
 
@@ -3338,6 +4053,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
       <div ref={reviewsRef} className="relative mt-16 flex flex-col items-center overflow-visible transition-all duration-700 ease-out lg:mt-20">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute left-1/2 top-[12%] h-64 w-[72%] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,rgba(0,153,255,0.03)_44%,transparent_72%)] blur-3xl" />
+          <div className="absolute left-1/2 bottom-[-8%] h-40 w-[78%] -translate-x-1/2 bg-[radial-gradient(circle,rgba(96,214,255,0.16)_0%,rgba(96,214,255,0.06)_34%,transparent_74%)] blur-3xl opacity-80" />
         </div>
         <div className={`${glassSectionClass} z-10`}>
           <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
@@ -3394,8 +4110,17 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
       </div>
       <div ref={contactRef} className="relative mt-16 flex flex-col items-center overflow-visible pb-20 transition-all duration-700 ease-out lg:mt-20">
         <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-1/2 top-[4%] h-[30rem] w-[86%] -translate-x-1/2 bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,rgba(0,153,255,0.05)_38%,transparent_76%)] blur-3xl" />
           <div className="absolute right-[8%] top-[16%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
           <div className="absolute left-[10%] bottom-[12%] h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,transparent_74%)] blur-3xl" />
+          <div className="absolute left-[8%] top-[22%] h-40 w-40 rounded-[32px] border border-white/6 opacity-55 rotate-[10deg]" />
+          <div className="absolute right-[14%] top-[34%] h-28 w-28 rounded-full border border-[#8fdcff]/12 opacity-75" />
+          <div className="absolute right-[18%] bottom-[10%] h-36 w-36 rounded-[30px] border border-[#00d4ff]/10 opacity-60 rotate-[16deg]" />
+          <div className="absolute left-[16%] bottom-[18%] h-24 w-56 bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,transparent_72%)] blur-2xl" />
+          <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(rgba(255,255,255,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(143,220,255,0.12)_1px,transparent_1px)] [background-size:34px_34px] [mask-image:radial-gradient(circle_at_center,black,transparent_78%)]" />
+          <div className="absolute inset-y-[18%] left-[7%] w-px bg-gradient-to-b from-transparent via-white/14 to-transparent" />
+          <div className="absolute inset-y-[24%] right-[9%] w-px bg-gradient-to-b from-transparent via-[#8fdcff]/16 to-transparent" />
+          <div className="absolute left-1/2 bottom-[-6%] h-44 w-[82%] -translate-x-1/2 bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,rgba(0,153,255,0.05)_34%,transparent_74%)] blur-3xl opacity-90" />
         </div>
         <div className={`${glassSectionClass} z-10`}>
           <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
@@ -3974,6 +4699,216 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         }
         .animate-pulse-slow {
           animation: pulseSlow 2s infinite;
+        }
+        .video-carousel-stage-sweep {
+          position: absolute;
+          inset: -12% -10%;
+          pointer-events: none;
+          opacity: 0;
+          background:
+            linear-gradient(
+              115deg,
+              transparent 0%,
+              rgba(132, 223, 255, 0.04) 26%,
+              rgba(214, 248, 255, 0.42) 48%,
+              rgba(0, 153, 255, 0.22) 58%,
+              transparent 80%
+            );
+          mix-blend-mode: screen;
+          filter: blur(1px);
+        }
+        .video-carousel-stage-sweep--from-right,
+        .video-carousel-stage-sweep--from-right-a,
+        .video-carousel-stage-sweep--from-right-b {
+          animation: videoCarouselSweepFromRight 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .video-carousel-stage-sweep--from-left,
+        .video-carousel-stage-sweep--from-left-a,
+        .video-carousel-stage-sweep--from-left-b {
+          animation: videoCarouselSweepFromLeft 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .video-carousel-track-shift--to-left-a,
+        .video-carousel-track-shift--to-left-b {
+          will-change: transform, filter;
+        }
+        .video-carousel-track-shift--to-right-a,
+        .video-carousel-track-shift--to-right-b {
+          will-change: transform, filter;
+        }
+        .video-carousel-track-shift--to-left-a {
+          animation: videoCarouselTrackToLeft 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .video-carousel-track-shift--to-left-b {
+          animation: videoCarouselTrackToLeft 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .video-carousel-track-shift--to-right-a {
+          animation: videoCarouselTrackToRight 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .video-carousel-track-shift--to-right-b {
+          animation: videoCarouselTrackToRight 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .video-carousel-card-active {
+          will-change: transform, filter;
+        }
+        .video-carousel-card-active--from-right {
+          animation: videoCarouselCardFromRight 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .video-carousel-card-active--from-left {
+          animation: videoCarouselCardFromLeft 680ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .video-carousel-card-glow {
+          opacity: 0.34;
+          animation: videoCarouselCardGlow 760ms ease-out both;
+        }
+        .video-carousel-meta-switch {
+          will-change: transform, opacity;
+        }
+        .video-carousel-meta-switch--from-right,
+        .video-carousel-meta-switch--from-right-a,
+        .video-carousel-meta-switch--from-right-b {
+          animation: videoCarouselMetaFromRight 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .video-carousel-meta-switch--from-left,
+        .video-carousel-meta-switch--from-left-a,
+        .video-carousel-meta-switch--from-left-b {
+          animation: videoCarouselMetaFromLeft 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes videoCarouselSweepFromRight {
+          0% {
+            opacity: 0;
+            transform: translate3d(42%, 0, 0) skewX(-18deg) scaleX(0.94);
+          }
+          18% {
+            opacity: 0.92;
+          }
+          100% {
+            opacity: 0;
+            transform: translate3d(-42%, 0, 0) skewX(-18deg) scaleX(1.04);
+          }
+        }
+        @keyframes videoCarouselSweepFromLeft {
+          0% {
+            opacity: 0;
+            transform: translate3d(-42%, 0, 0) skewX(18deg) scaleX(0.94);
+          }
+          18% {
+            opacity: 0.92;
+          }
+          100% {
+            opacity: 0;
+            transform: translate3d(42%, 0, 0) skewX(18deg) scaleX(1.04);
+          }
+        }
+        @keyframes videoCarouselTrackToLeft {
+          0% {
+            transform: translate3d(30px, 0, 0) scale(0.985);
+            filter: blur(2px);
+          }
+          55% {
+            transform: translate3d(-8px, 0, 0) scale(1.008);
+            filter: blur(0);
+          }
+          100% {
+            transform: translate3d(0, 0, 0) scale(1);
+            filter: blur(0);
+          }
+        }
+        @keyframes videoCarouselTrackToRight {
+          0% {
+            transform: translate3d(-30px, 0, 0) scale(0.985);
+            filter: blur(2px);
+          }
+          55% {
+            transform: translate3d(8px, 0, 0) scale(1.008);
+            filter: blur(0);
+          }
+          100% {
+            transform: translate3d(0, 0, 0) scale(1);
+            filter: blur(0);
+          }
+        }
+        @keyframes videoCarouselCardFromRight {
+          0% {
+            transform: translate3d(18px, 0, 0) scale(0.84) rotate(6deg);
+            filter: blur(6px);
+          }
+          58% {
+            transform: translate3d(0, 0, 0) scale(1.035) rotate(-1.2deg);
+            filter: blur(0);
+          }
+          100% {
+            transform: translate3d(0, 0, 0) scale(1) rotate(0);
+            filter: blur(0);
+          }
+        }
+        @keyframes videoCarouselCardFromLeft {
+          0% {
+            transform: translate3d(-18px, 0, 0) scale(0.84) rotate(-6deg);
+            filter: blur(6px);
+          }
+          58% {
+            transform: translate3d(0, 0, 0) scale(1.035) rotate(1.2deg);
+            filter: blur(0);
+          }
+          100% {
+            transform: translate3d(0, 0, 0) scale(1) rotate(0);
+            filter: blur(0);
+          }
+        }
+        @keyframes videoCarouselCardGlow {
+          0% {
+            opacity: 0;
+            transform: scale(0.92);
+          }
+          40% {
+            opacity: 0.56;
+          }
+          100% {
+            opacity: 0.34;
+            transform: scale(1);
+          }
+        }
+        @keyframes videoCarouselMetaFromRight {
+          0% {
+            opacity: 0;
+            transform: translate3d(28px, 0, 0);
+          }
+          100% {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+          }
+        }
+        @keyframes videoCarouselMetaFromLeft {
+          0% {
+            opacity: 0;
+            transform: translate3d(-28px, 0, 0);
+          }
+          100% {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .video-carousel-stage-sweep,
+          .video-carousel-stage-sweep--from-right-a,
+          .video-carousel-stage-sweep--from-right-b,
+          .video-carousel-stage-sweep--from-left-a,
+          .video-carousel-stage-sweep--from-left-b,
+          .video-carousel-track-shift--to-left-a,
+          .video-carousel-track-shift--to-left-b,
+          .video-carousel-track-shift--to-right-a,
+          .video-carousel-track-shift--to-right-b,
+          .video-carousel-card-active--from-right,
+          .video-carousel-card-active--from-left,
+          .video-carousel-card-glow,
+          .video-carousel-meta-switch--from-right-a,
+          .video-carousel-meta-switch--from-right-b,
+          .video-carousel-meta-switch--from-left-a,
+          .video-carousel-meta-switch--from-left-b,
+          .video-carousel-meta-switch--from-right,
+          .video-carousel-meta-switch--from-left {
+            animation: none !important;
+          }
         }
       `}</style>
 

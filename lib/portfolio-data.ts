@@ -5,6 +5,11 @@ export type PortfolioProject = {
   description: string;
   image: string;
   designLink: string;
+  videoCategory?: string;
+  videoParentLabel?: string;
+  videoUrl?: string;
+  videoUrls?: string[];
+  videoPosterUrls?: string[];
   showDetailsModal?: boolean;
   details?: {
     title: string;
@@ -120,7 +125,10 @@ type PublicSupabaseConfig = {
   supabaseUrl: string;
   supabaseAnonKey: string;
   supabaseContentRowId: string;
+  supabaseAssetBucket: string;
 };
+
+const DEFAULT_SUPABASE_ASSET_BUCKET = "portfolio-assets";
 
 let supabaseClient: SupabaseClient | null | undefined;
 let supabaseConfig: PublicSupabaseConfig | null | undefined;
@@ -140,6 +148,8 @@ const readSupabaseConfigFromEnv = (): PublicSupabaseConfig | null => {
     supabaseContentRowId:
       process.env.NEXT_PUBLIC_SUPABASE_CONTENT_ROW_ID ||
       DEFAULT_SUPABASE_CONTENT_ROW_ID,
+    supabaseAssetBucket:
+      process.env.NEXT_PUBLIC_SUPABASE_ASSET_BUCKET || DEFAULT_SUPABASE_ASSET_BUCKET,
   };
 };
 
@@ -167,6 +177,8 @@ const readSupabaseConfigFromRuntime = async (): Promise<PublicSupabaseConfig | n
       supabaseAnonKey: payload.supabaseAnonKey,
       supabaseContentRowId:
         payload.supabaseContentRowId || DEFAULT_SUPABASE_CONTENT_ROW_ID,
+      supabaseAssetBucket:
+        payload.supabaseAssetBucket || DEFAULT_SUPABASE_ASSET_BUCKET,
     };
   } catch {
     return null;
@@ -337,4 +349,206 @@ export const savePortfolioContentToSupabase = async (
   }
 
   return true;
+};
+
+export type PortfolioAssetKind = "images" | "videos";
+
+export type PortfolioAssetUploadProgress = {
+  bytesUploaded: number;
+  bytesTotal: number;
+  percentage: number;
+};
+
+type PortfolioAssetUploadOptions = {
+  onProgress?: (progress: PortfolioAssetUploadProgress) => void;
+};
+
+const SUPABASE_RESUMABLE_CHUNK_SIZE = 6 * 1024 * 1024;
+const SUPABASE_RESUMABLE_RETRY_DELAYS = [0, 3000, 5000, 10000, 20000];
+
+const sanitizeAssetName = (value: string) => {
+  const normalized = value
+    .trim()
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  return normalized || "asset";
+};
+
+const getAssetExtension = (file: File, fallbackExtension: string) => {
+  const fileName = file.name.trim();
+  const match = fileName.match(/(\.[a-z0-9]+)$/i);
+  return match?.[1]?.toLowerCase() || fallbackExtension;
+};
+
+const generateAssetId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
+const getReadableAssetUploadError = (message: string, bucket: string) => {
+  const normalizedMessage = message.trim();
+
+  if (/row-level security policy/i.test(normalizedMessage)) {
+    return `Supabase blocked this upload because the Storage policies for "${bucket}" are not active yet. Run the SQL in supabase/schema.sql in your Supabase SQL Editor, then try again.`;
+  }
+
+  if (/bucket/i.test(normalizedMessage) && /not found|does not exist/i.test(normalizedMessage)) {
+    return `The "${bucket}" Storage bucket does not exist yet in Supabase. Run the SQL in supabase/schema.sql first, then try again.`;
+  }
+
+  if (/maximum size exceeded|payload too large|request entity too large/i.test(normalizedMessage)) {
+    return `Supabase rejected this file because it is larger than the active Storage upload limit. Raise the global file size limit in Supabase Storage Settings, make sure the "${bucket}" bucket limit is high enough too, or upload a smaller file. Free Supabase projects cannot go above 50 MB.`;
+  }
+
+  return normalizedMessage || "Asset upload failed.";
+};
+
+const getDirectStorageUploadEndpoint = (supabaseUrl: string) => {
+  const parsedUrl = new URL(supabaseUrl);
+
+  if (parsedUrl.hostname.endsWith(".supabase.co")) {
+    parsedUrl.hostname = parsedUrl.hostname.replace(
+      /\.supabase\.co$/i,
+      ".storage.supabase.co"
+    );
+  }
+
+  parsedUrl.pathname = "/storage/v1/upload/resumable";
+  parsedUrl.search = "";
+  parsedUrl.hash = "";
+
+  return parsedUrl.toString();
+};
+
+const uploadPortfolioVideoToSupabaseResumable = async (
+  client: SupabaseClient,
+  config: PublicSupabaseConfig,
+  bucket: string,
+  filePath: string,
+  file: File,
+  options?: PortfolioAssetUploadOptions
+): Promise<{ path: string; url: string; bucket: string }> => {
+  const tus = await import("tus-js-client");
+
+  if (!tus.isSupported) {
+    throw new Error("This browser does not support resumable uploads.");
+  }
+
+  const endpoint = getDirectStorageUploadEndpoint(config.supabaseUrl);
+
+  await new Promise<void>((resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      endpoint,
+      retryDelays: SUPABASE_RESUMABLE_RETRY_DELAYS,
+      headers: {
+        authorization: `Bearer ${config.supabaseAnonKey}`,
+      },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      metadata: {
+        bucketName: bucket,
+        objectName: filePath,
+        contentType: file.type || "video/mp4",
+        cacheControl: "3600",
+      },
+      chunkSize: SUPABASE_RESUMABLE_CHUNK_SIZE,
+      onProgress: (bytesUploaded, bytesTotal) => {
+        options?.onProgress?.({
+          bytesUploaded,
+          bytesTotal,
+          percentage: bytesTotal > 0 ? (bytesUploaded / bytesTotal) * 100 : 0,
+        });
+      },
+      onError: (error) => {
+        reject(error);
+      },
+      onSuccess: () => {
+        resolve();
+      },
+    });
+
+    void upload.findPreviousUploads().then(
+      (previousUploads) => {
+        if (previousUploads.length > 0) {
+          upload.resumeFromPreviousUpload(previousUploads[0]);
+        }
+
+        upload.start();
+      },
+      (error) => {
+        reject(error);
+      }
+    );
+  });
+
+  const { data } = client.storage.from(bucket).getPublicUrl(filePath);
+
+  if (!data.publicUrl) {
+    throw new Error("Asset uploaded, but a public URL could not be created.");
+  }
+
+  return {
+    path: filePath,
+    url: data.publicUrl,
+    bucket,
+  };
+};
+
+export const uploadPortfolioAssetToSupabase = async (
+  file: File,
+  kind: PortfolioAssetKind,
+  options?: PortfolioAssetUploadOptions
+): Promise<{ path: string; url: string; bucket: string }> => {
+  const client = await getSupabaseClient();
+  const config = await getSupabaseConfig();
+
+  if (!client || !config) {
+    throw new Error("Supabase is not configured for asset uploads.");
+  }
+
+  const bucket = config.supabaseAssetBucket || DEFAULT_SUPABASE_ASSET_BUCKET;
+  const extension =
+    kind === "videos" ? getAssetExtension(file, ".mp4") : getAssetExtension(file, ".png");
+  const filePath = `${kind}/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${generateAssetId()}-${sanitizeAssetName(file.name)}${extension}`;
+
+  if (kind === "videos") {
+    return uploadPortfolioVideoToSupabaseResumable(
+      client,
+      config,
+      bucket,
+      filePath,
+      file,
+      options
+    );
+  }
+
+  const { error: uploadError } = await client.storage.from(bucket).upload(filePath, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type || undefined,
+  });
+
+  if (uploadError) {
+    throw new Error(
+      getReadableAssetUploadError(uploadError.message || "Asset upload failed.", bucket)
+    );
+  }
+
+  const { data } = client.storage.from(bucket).getPublicUrl(filePath);
+
+  if (!data.publicUrl) {
+    throw new Error("Asset uploaded, but a public URL could not be created.");
+  }
+
+  return {
+    path: filePath,
+    url: data.publicUrl,
+    bucket,
+  };
 };
