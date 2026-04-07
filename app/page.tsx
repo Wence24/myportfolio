@@ -72,6 +72,7 @@ const [videoCarouselIndexes, setVideoCarouselIndexes] = useState<Record<string, 
 const [videoCarouselMotion, setVideoCarouselMotion] = useState<
   Record<string, VideoCarouselMotionState>
 >({});
+const [activeCarouselPlaybackKey, setActiveCarouselPlaybackKey] = useState<string | null>(null);
 
 const portfolioCategories = [
   {
@@ -136,10 +137,41 @@ type CarouselClipVideoProps = {
   posterUrl?: string;
   isActive: boolean;
   isVisible: boolean;
+  activePlaybackKey: string | null;
+  onPlaybackStart: (playbackKey: string) => void;
 };
 
 const DEFAULT_VIDEO_EDIT_GROUP = "Featured Edits";
 const carouselClipPlaybackTimes = new Map<string, number>();
+let activeCarouselVideoElement: HTMLVideoElement | null = null;
+
+const pauseOtherCarouselVideos = (
+  currentVideo: HTMLVideoElement,
+  playbackKey: string
+) => {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document
+    .querySelectorAll<HTMLVideoElement>('video[data-carousel-video="true"]')
+    .forEach((videoElement) => {
+      if (videoElement === currentVideo) {
+        return;
+      }
+
+      const otherPlaybackKey = videoElement.dataset.playbackKey?.trim();
+      if (otherPlaybackKey) {
+        carouselClipPlaybackTimes.set(otherPlaybackKey, videoElement.currentTime || 0);
+      }
+
+      videoElement.pause();
+      videoElement.currentTime = videoElement.currentTime;
+    });
+
+  activeCarouselVideoElement = currentVideo;
+  carouselClipPlaybackTimes.set(playbackKey, currentVideo.currentTime || 0);
+};
 
 function CarouselClipVideo({
   playbackKey,
@@ -147,9 +179,12 @@ function CarouselClipVideo({
   posterUrl,
   isActive,
   isVisible,
+  activePlaybackKey,
+  onPlaybackStart,
 }: CarouselClipVideoProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastPlaybackTimeRef = useRef(0);
+  const shouldKeepPlaying = isActive && isVisible && activePlaybackKey === playbackKey;
 
   const savePlaybackTime = useCallback((time: number) => {
     if (!Number.isFinite(time) || time < 0) {
@@ -201,7 +236,7 @@ function CarouselClipVideo({
       return;
     }
 
-    if (isActive) {
+    if (shouldKeepPlaying) {
       if (video.readyState >= 1) {
         resumePlayback();
         return;
@@ -221,7 +256,7 @@ function CarouselClipVideo({
 
     savePlaybackTime(video.currentTime || lastPlaybackTimeRef.current);
     video.pause();
-  }, [isActive, playbackKey, resumePlayback, savePlaybackTime, videoUrl]);
+  }, [resumePlayback, savePlaybackTime, shouldKeepPlaying, videoUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -237,17 +272,47 @@ function CarouselClipVideo({
     lastPlaybackTimeRef.current = carouselClipPlaybackTimes.get(playbackKey) ?? 0;
   }, [playbackKey, videoUrl]);
 
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || shouldKeepPlaying) {
+      return;
+    }
+
+    savePlaybackTime(video.currentTime || lastPlaybackTimeRef.current);
+    video.pause();
+  }, [savePlaybackTime, shouldKeepPlaying]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    return () => {
+      if (activeCarouselVideoElement === video) {
+        activeCarouselVideoElement = null;
+      }
+    };
+  }, []);
+
   return (
     <video
       ref={videoRef}
       src={videoUrl}
       poster={posterUrl || undefined}
+      data-carousel-video="true"
+      data-playback-key={playbackKey}
       className="h-full w-full object-cover"
       controls={isActive}
       playsInline
-      muted
       loop
       preload="metadata"
+      onPlay={(event) => {
+        const currentVideo = event.currentTarget;
+
+        pauseOtherCarouselVideos(currentVideo, playbackKey);
+        onPlaybackStart(playbackKey);
+
+        window.setTimeout(() => {
+          pauseOtherCarouselVideos(currentVideo, playbackKey);
+        }, 0);
+      }}
       onTimeUpdate={(event) => {
         savePlaybackTime(event.currentTarget.currentTime);
       }}
@@ -256,9 +321,15 @@ function CarouselClipVideo({
       }}
       onPause={(event) => {
         savePlaybackTime(event.currentTarget.currentTime);
+        if (activeCarouselVideoElement === event.currentTarget) {
+          activeCarouselVideoElement = null;
+        }
       }}
       onEnded={(event) => {
         savePlaybackTime(event.currentTarget.currentTime);
+        if (activeCarouselVideoElement === event.currentTarget) {
+          activeCarouselVideoElement = null;
+        }
       }}
     />
   );
@@ -1236,6 +1307,37 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const handleCarouselVideoPlay = (event: Event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLVideoElement)) {
+      return;
+    }
+
+    if (target.dataset.carouselVideo !== "true") {
+      return;
+    }
+
+    const playbackKey = target.dataset.playbackKey?.trim() || "";
+    pauseOtherCarouselVideos(target, playbackKey);
+    if (playbackKey) {
+      setActiveCarouselPlaybackKey(playbackKey);
+    }
+  };
+
+  document.addEventListener("play", handleCarouselVideoPlay, true);
+  document.addEventListener("playing", handleCarouselVideoPlay, true);
+
+  return () => {
+    document.removeEventListener("play", handleCarouselVideoPlay, true);
+    document.removeEventListener("playing", handleCarouselVideoPlay, true);
+  };
+}, []);
+
+useEffect(() => {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(
@@ -2176,7 +2278,7 @@ const creativeTools = [
     description:
       "My main workspace for pacing, story cuts, transitions, audio cleanup, and polished final exports.",
     accent: "#a78bfa",
-    glow: "rgba(126, 34, 206, 0.32)",
+    glow: "rgba(126, 34, 206, 0.18)",
     badgeBackground:
       "linear-gradient(135deg, rgba(32, 10, 58, 0.98), rgba(95, 38, 181, 0.96))",
     badgeBorder: "rgba(201, 168, 255, 0.34)",
@@ -2191,7 +2293,7 @@ const creativeTools = [
     description:
       "Used for retouching, poster visuals, thumbnails, compositing, and sharpening the final look of a frame.",
     accent: "#6ee7ff",
-    glow: "rgba(14, 165, 233, 0.25)",
+    glow: "rgba(14, 165, 233, 0.14)",
     badgeBackground:
       "linear-gradient(135deg, rgba(3, 31, 54, 0.98), rgba(14, 116, 144, 0.96))",
     badgeBorder: "rgba(125, 233, 255, 0.3)",
@@ -2206,7 +2308,7 @@ const creativeTools = [
     description:
       "For motion graphics, transitions, layered animation, and adding cinematic movement that elevates an edit.",
     accent: "#d8b4fe",
-    glow: "rgba(168, 85, 247, 0.24)",
+    glow: "rgba(168, 85, 247, 0.14)",
     badgeBackground:
       "linear-gradient(135deg, rgba(28, 14, 56, 0.98), rgba(107, 55, 176, 0.96))",
     badgeBorder: "rgba(227, 197, 255, 0.28)",
@@ -2221,7 +2323,7 @@ const creativeTools = [
     description:
       "Great for rapid social graphics, clean layouts, client-ready mockups, and quick-turn visual concepts.",
     accent: "#7df9ff",
-    glow: "rgba(34, 211, 238, 0.22)",
+    glow: "rgba(34, 211, 238, 0.13)",
     badgeBackground:
       "linear-gradient(135deg, rgba(8, 58, 72, 0.98), rgba(9, 118, 138, 0.96))",
     badgeBorder: "rgba(154, 246, 255, 0.28)",
@@ -2236,7 +2338,7 @@ const creativeTools = [
     description:
       "Used when a project needs crisp vector marks, icon work, title treatments, or scalable layout details.",
     accent: "#fdba74",
-    glow: "rgba(249, 115, 22, 0.22)",
+    glow: "rgba(249, 115, 22, 0.13)",
     badgeBackground:
       "linear-gradient(135deg, rgba(72, 29, 8, 0.98), rgba(154, 73, 12, 0.96))",
     badgeBorder: "rgba(255, 191, 116, 0.28)",
@@ -2997,8 +3099,8 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
 <div className="relative mt-16 flex flex-col items-center overflow-visible transition-all duration-700 ease-out lg:mt-20">
   <div className="pointer-events-none absolute inset-0">
-    <div className="absolute left-[6%] top-[8%] h-52 w-52 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
-    <div className="absolute right-[7%] bottom-[12%] h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(255,145,72,0.12)_0%,transparent_74%)] blur-3xl" />
+    <div className="absolute left-[6%] top-[8%] h-52 w-52 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.1)_0%,transparent_72%)] blur-3xl" />
+    <div className="absolute right-[7%] bottom-[12%] h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(255,145,72,0.07)_0%,transparent_74%)] blur-3xl" />
     <div className="absolute inset-x-[14%] top-1/2 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
   </div>
 
@@ -3012,7 +3114,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
     <div className={glassSectionPanelClass}>
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        <div className="absolute right-[10%] top-[14%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,transparent_74%)] blur-3xl" />
+        <div className="absolute right-[10%] top-[14%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,transparent_74%)] blur-3xl" />
       </div>
 
       <div className={`${glassSectionInnerClass} grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start`}>
@@ -3023,7 +3125,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           style={{
             fontFamily: "'CreatoDisplay', sans-serif",
             letterSpacing: "0.03em",
-            textShadow: "0 0 16px rgba(0,153,255,0.18)",
+            textShadow: "0 0 10px rgba(0,153,255,0.11)",
           }}
         >
           The tools I trust to keep every edit sharp, cinematic, and intentional.
@@ -3094,7 +3196,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             }`}
             style={{
               background: tool.panelBackground,
-              boxShadow: `0 22px 60px ${tool.glow}`,
+              boxShadow: `0 16px 38px ${tool.glow}`,
             }}
           >
             <div
@@ -3112,7 +3214,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                   background: tool.badgeBackground,
                   borderColor: tool.badgeBorder,
                   color: tool.accent,
-                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 30px ${tool.glow}`,
+                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 18px ${tool.glow}`,
                 }}
               >
                 {tool.short}
@@ -3329,14 +3431,14 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                       return (
                         <section
                           key={`${activeBox}-${group.key}-${groupIndex}`}
-                          className="relative -mt-4 opacity-0 translate-y-6 animate-fadeIn"
+                          className="relative px-1 pb-4 pt-3 opacity-0 translate-y-6 animate-fadeIn sm:px-1.5 sm:pb-5 sm:pt-4"
                           style={{ animationDelay: `${0.18 + groupIndex * 0.12}s` }}
                         >
                           <div className="pointer-events-none absolute inset-0">
                             <div className="absolute left-[10%] top-0 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
                           </div>
 
-                          <div className="relative z-10">
+                          <div className="relative z-10 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] px-4 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-md sm:px-5 sm:py-5 lg:px-6 lg:py-6">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                               <div>
                                 <p className="text-[10px] uppercase tracking-[0.28em] text-[#8fdcff]">
@@ -3356,7 +3458,17 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                               </div>
                             </div>
 
-                            <div className="relative mt-5 overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(4,10,18,0.95),rgba(2,7,12,0.98))] px-3 py-5 shadow-[0_22px_70px_rgba(0,0,0,0.3)] sm:px-5 lg:px-6">
+                            <div className="relative mt-5 overflow-hidden rounded-[28px] border border-white/12 bg-[radial-gradient(circle_at_top_left,rgba(143,220,255,0.14),transparent_34%),radial-gradient(circle_at_82%_16%,rgba(89,136,255,0.11),transparent_30%),linear-gradient(180deg,rgba(4,10,18,0.96),rgba(2,7,12,0.985))] px-3 py-5 shadow-[0_22px_70px_rgba(0,0,0,0.3)] sm:px-5 lg:px-6">
+                              <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                                <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)] [background-size:120px_120px]" />
+                                <div className="absolute left-[-6%] top-[10%] h-40 w-40 rounded-full border border-[#8fdcff]/10 bg-[#8fdcff]/[0.05] blur-3xl sm:h-56 sm:w-56" />
+                                <div className="absolute right-[-4%] top-[-8%] h-48 w-48 rounded-full border border-white/8 bg-[#153149]/25 blur-3xl sm:h-64 sm:w-64" />
+                                <div className="absolute bottom-[-18%] left-1/2 h-40 w-[68%] -translate-x-1/2 rounded-full bg-[#8fdcff]/[0.05] blur-3xl" />
+                                <div className="absolute left-[8%] top-[18%] h-24 w-24 rounded-[30px] border border-white/8 rotate-12" />
+                                <div className="absolute right-[12%] bottom-[20%] h-20 w-20 rounded-full border border-[#8fdcff]/12" />
+                                <div className="absolute inset-x-12 top-7 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+                                <div className="absolute inset-x-10 bottom-9 h-px bg-gradient-to-r from-transparent via-[#8fdcff]/12 to-transparent" />
+                              </div>
                               <div
                                 className={`relative mx-auto h-[210px] w-full max-w-[920px] sm:h-[270px] lg:h-[320px] ${stageMotionClass}`}
                               >
@@ -3405,6 +3517,8 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                             posterUrl={clip.posterUrl || clipProject.image || undefined}
                                             isActive={isActiveCard}
                                             isVisible={isVisibleCard}
+                                            activePlaybackKey={activeCarouselPlaybackKey}
+                                            onPlaybackStart={setActiveCarouselPlaybackKey}
                                           />
                                         ) : (
                                           <div
@@ -3476,7 +3590,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                               </div>
                             </div>
 
-                            <div className="mt-5 rounded-[22px] border border-white/10 bg-black/20 px-5 py-5 sm:px-6 sm:py-6">
+                            <div className="mt-6 rounded-[22px] border border-white/10 bg-black/20 px-5 py-5 sm:px-6 sm:py-6">
                               <div className="flex flex-col gap-5">
                                 <div>
                                 <p className="text-[10px] uppercase tracking-[0.22em] text-white/40">
