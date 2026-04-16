@@ -22,6 +22,7 @@ type PortfolioProject = {
   designLink: string;
   videoCategory?: string;
   videoParentLabel?: string;
+  videoAspectRatio?: "landscape" | "portrait";
   videoUrl?: string;
   videoUrls?: string[];
   videoPosterUrls?: string[];
@@ -44,6 +45,7 @@ type ProjectForm = {
   designLink: string;
   videoCategory: string;
   videoParentLabel: string;
+  videoAspectRatio: "landscape" | "portrait";
   videoUrls: string[];
   videoPosterUrls: string[];
   showDetailsModal: boolean;
@@ -67,6 +69,8 @@ type TestimonialForm = {
   src: string;
 };
 
+type VideoProjectAspectRatio = "landscape" | "portrait";
+
 const categories: PortfolioCategory[] = [
   "Graphic Design",
   "Video Edit",
@@ -81,6 +85,7 @@ const DEFAULT_STUDIO_PASSWORD = "Wence_dante24";
 const MAX_IMAGE_UPLOAD_SIZE = 2 * 1024 * 1024;
 const MAX_VIDEO_UPLOAD_SIZE = 256 * 1024 * 1024;
 const MAX_VIDEO_UPLOAD_SIZE_MB = Math.floor(MAX_VIDEO_UPLOAD_SIZE / (1024 * 1024));
+const VIDEO_METADATA_TIMEOUT_MS = 12000;
 
 type StudioCredentials = {
   email: string;
@@ -88,6 +93,22 @@ type StudioCredentials = {
 };
 
 const DEFAULT_VIDEO_EDIT_GROUP = "Featured Edits";
+const VIDEO_ASPECT_RATIO_OPTIONS: Array<{
+  value: VideoProjectAspectRatio;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "landscape",
+    label: "1920 x 1080",
+    description: "Standard horizontal video for long-form content.",
+  },
+  {
+    value: "portrait",
+    label: "1080 x 1920",
+    description: "Vertical short-form video for reels, shorts, and TikToks.",
+  },
+];
 
 const getVideoProjectCategory = (project: PortfolioProject) =>
   project.videoCategory?.trim() || project.title?.trim() || DEFAULT_VIDEO_EDIT_GROUP;
@@ -113,6 +134,127 @@ const getVideoProjectParentLabel = (project: PortfolioProject) => {
   }
 
   return "";
+};
+
+const getVideoProjectAspectRatio = (
+  project: Pick<PortfolioProject, "videoAspectRatio">
+): VideoProjectAspectRatio => {
+  const normalizedValue = project.videoAspectRatio?.trim().toLowerCase();
+  if (
+    normalizedValue === "portrait" ||
+    normalizedValue === "1080x1920" ||
+    normalizedValue === "9:16" ||
+    normalizedValue === "vertical"
+  ) {
+    return "portrait";
+  }
+
+  return "landscape";
+};
+
+const getVideoAspectRatioLabel = (aspectRatio: VideoProjectAspectRatio) =>
+  aspectRatio === "portrait" ? "1080x1920" : "1920x1080";
+
+const detectAspectRatioFromDimensions = (
+  width: number,
+  height: number
+): VideoProjectAspectRatio | null => {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return height > width ? "portrait" : "landscape";
+};
+
+const loadVideoMetadata = (src: string) =>
+  new Promise<{ width: number; height: number }>((resolve, reject) => {
+    if (typeof document === "undefined") {
+      reject(new Error("Video metadata can only be checked in the browser."));
+      return;
+    }
+
+    const video = document.createElement("video");
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      video.load();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out while checking the video ratio."));
+    }, VIDEO_METADATA_TIMEOUT_MS);
+
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadedmetadata = () => {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      cleanup();
+      resolve({ width, height });
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error("The video could not be loaded to verify its ratio."));
+    };
+    video.src = src;
+  });
+
+const verifyVideoSourceMatchesAspectRatio = async (
+  source: string,
+  expectedAspectRatio: VideoProjectAspectRatio
+) => {
+  const { width, height } = await loadVideoMetadata(source);
+  const detectedAspectRatio = detectAspectRatioFromDimensions(width, height);
+
+  if (!detectedAspectRatio) {
+    throw new Error("The video ratio could not be detected.");
+  }
+
+  if (detectedAspectRatio !== expectedAspectRatio) {
+    throw new Error(
+      `This clip is ${getVideoAspectRatioLabel(detectedAspectRatio)}, but this project is set to ${getVideoAspectRatioLabel(expectedAspectRatio)}. One Video Edit project can only use one ratio.`
+    );
+  }
+};
+
+const verifyVideoFileMatchesAspectRatio = async (
+  file: File,
+  expectedAspectRatio: VideoProjectAspectRatio
+) => {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    await verifyVideoSourceMatchesAspectRatio(objectUrl, expectedAspectRatio);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
+const validateVideoSourcesForProject = async (
+  videoSources: string[],
+  expectedAspectRatio: VideoProjectAspectRatio
+) => {
+  for (const [index, source] of videoSources.entries()) {
+    try {
+      await verifyVideoSourceMatchesAspectRatio(source, expectedAspectRatio);
+    } catch (error) {
+      const prefix = videoSources.length > 1 ? `Clip ${index + 1}: ` : "";
+      throw new Error(
+        prefix +
+          (error instanceof Error
+            ? error.message
+            : "The video ratio could not be verified.")
+      );
+    }
+  }
 };
 
 const isMp4VideoSource = (value: string) =>
@@ -246,6 +388,7 @@ function createEmptyProjectForm(): ProjectForm {
     designLink: "",
     videoCategory: "",
     videoParentLabel: "",
+    videoAspectRatio: "landscape",
     videoUrls: [""],
     videoPosterUrls: [""],
     showDetailsModal: true,
@@ -328,6 +471,7 @@ function toForm(project: PortfolioProject): ProjectForm {
     designLink: project.designLink,
     videoCategory: project.videoCategory || "",
     videoParentLabel: getVideoProjectParentLabel(project),
+    videoAspectRatio: getVideoProjectAspectRatio(project),
     videoUrls: hasVideoUrls ? videoUrls : [""],
     videoPosterUrls: hasVideoUrls ? videoPosterUrls : [videoPosterUrls[0] || ""],
     showDetailsModal: project.showDetailsModal ?? false,
@@ -348,6 +492,8 @@ function toProject(form: ProjectForm, category: PortfolioCategory): PortfolioPro
   const trimmedLink = form.designLink.trim();
   const trimmedVideoCategory = form.videoCategory.trim();
   const trimmedVideoParentLabel = form.videoParentLabel.trim();
+  const trimmedVideoAspectRatio: VideoProjectAspectRatio =
+    form.videoAspectRatio === "portrait" ? "portrait" : "landscape";
   const shouldEnableDetailsModal = category !== "Video Edit" && form.showDetailsModal;
   const trimmedVideoEntries = form.videoUrls
     .map((item, index) => ({
@@ -372,6 +518,7 @@ function toProject(form: ProjectForm, category: PortfolioCategory): PortfolioPro
   if (category === "Video Edit") {
     project.videoCategory =
       trimmedVideoCategory || trimmedTitle || DEFAULT_VIDEO_EDIT_GROUP;
+    project.videoAspectRatio = trimmedVideoAspectRatio;
     if (trimmedVideoParentLabel) {
       project.videoParentLabel = trimmedVideoParentLabel;
     }
@@ -578,6 +725,7 @@ type VideoFieldProps = {
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
+  expectedAspectRatio?: VideoProjectAspectRatio;
   previewHeightClassName?: string;
 };
 
@@ -587,6 +735,7 @@ function VideoField({
   value,
   placeholder,
   onChange,
+  expectedAspectRatio = "landscape",
   previewHeightClassName = "h-40",
 }: VideoFieldProps) {
   const trimmedValue = value.trim();
@@ -611,6 +760,15 @@ function VideoField({
 
     if (file.size > MAX_VIDEO_UPLOAD_SIZE) {
       setUploadError(`Please keep MP4 uploads under ${MAX_VIDEO_UPLOAD_SIZE_MB} MB.`);
+      return;
+    }
+
+    try {
+      await verifyVideoFileMatchesAspectRatio(file, expectedAspectRatio);
+    } catch (error) {
+      setUploadError(
+        error instanceof Error ? error.message : "The video ratio could not be verified."
+      );
       return;
     }
 
@@ -663,7 +821,8 @@ function VideoField({
       />
 
       <p className="text-xs leading-relaxed text-white/55">
-        Use a direct `.mp4` path, a public URL, or upload one below.
+        Use a direct `.mp4` path, a public URL, or upload one below. This project is set to{" "}
+        {getVideoAspectRatioLabel(expectedAspectRatio)} only.
       </p>
 
       <label
@@ -800,6 +959,8 @@ export default function StudioPage() {
   const [bulkVideoUploadProgress, setBulkVideoUploadProgress] = useState<number | null>(null);
   const [bulkVideoUploadMessage, setBulkVideoUploadMessage] = useState("");
   const [bulkVideoUploadError, setBulkVideoUploadError] = useState("");
+  const [projectFormError, setProjectFormError] = useState("");
+  const [isProjectSubmitting, setIsProjectSubmitting] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [testimonials, setTestimonials] = useState<Testimonial[]>(() => {
     if (typeof window === "undefined") return fallbackTestimonials;
@@ -912,6 +1073,11 @@ export default function StudioPage() {
   const projectPreviewVideoUrl = getProjectVideoUrl(projectPreview);
   const projectPreviewVideoCategory = getVideoProjectCategory(projectPreview);
   const projectPreviewVideoParentLabel = getVideoProjectParentLabel(projectPreview);
+  const projectPreviewVideoAspectRatio = getVideoProjectAspectRatio(projectPreview);
+  const projectPreviewVideoFrameClass =
+    projectPreviewVideoAspectRatio === "portrait"
+      ? "mx-auto aspect-[9/16] max-w-[260px] sm:max-w-[320px]"
+      : "aspect-[16/9]";
 
   const persistStudioCredentials = (nextCredentials: StudioCredentials) => {
     setStudioCredentials(nextCredentials);
@@ -1096,6 +1262,8 @@ export default function StudioPage() {
     setBulkVideoUploadProgress(null);
     setBulkVideoUploadMessage("");
     setBulkVideoUploadError("");
+    setProjectFormError("");
+    setIsProjectSubmitting(false);
     setEditingIndex(null);
   };
 
@@ -1149,6 +1317,17 @@ export default function StudioPage() {
     if (oversizedFile) {
       setBulkVideoUploadError(
         `"${oversizedFile.name}" is over ${MAX_VIDEO_UPLOAD_SIZE_MB} MB.`
+      );
+      return;
+    }
+
+    try {
+      for (const file of nextFiles) {
+        await verifyVideoFileMatchesAspectRatio(file, form.videoAspectRatio);
+      }
+    } catch (error) {
+      setBulkVideoUploadError(
+        error instanceof Error ? error.message : "One of the MP4 files does not match the selected ratio."
       );
       return;
     }
@@ -1211,19 +1390,48 @@ export default function StudioPage() {
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const updatedProjects = { ...projects };
-    const categoryProjects = [...updatedProjects[activeCategory]];
-    const nextProject = toProject(form, activeCategory);
+    void (async () => {
+      setProjectFormError("");
 
-    if (editingIndex === null) {
-      categoryProjects.push(nextProject);
-    } else {
-      categoryProjects[editingIndex] = nextProject;
-    }
+      if (activeCategory === "Video Edit") {
+        const trimmedVideoSources = form.videoUrls
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0 && isMp4VideoSource(item));
 
-    updatedProjects[activeCategory] = categoryProjects;
-    persistProjects(updatedProjects);
-    resetForm();
+        if (trimmedVideoSources.length > 0) {
+          setIsProjectSubmitting(true);
+
+          try {
+            await validateVideoSourcesForProject(
+              trimmedVideoSources,
+              form.videoAspectRatio
+            );
+          } catch (error) {
+            setProjectFormError(
+              error instanceof Error
+                ? error.message
+                : "All clips in this project must match the selected ratio."
+            );
+            setIsProjectSubmitting(false);
+            return;
+          }
+        }
+      }
+
+      const updatedProjects = { ...projects };
+      const categoryProjects = [...updatedProjects[activeCategory]];
+      const nextProject = toProject(form, activeCategory);
+
+      if (editingIndex === null) {
+        categoryProjects.push(nextProject);
+      } else {
+        categoryProjects[editingIndex] = nextProject;
+      }
+
+      updatedProjects[activeCategory] = categoryProjects;
+      persistProjects(updatedProjects);
+      resetForm();
+    })();
   };
 
   const handleEdit = (index: number) => {
@@ -1231,6 +1439,8 @@ export default function StudioPage() {
     setBulkVideoUploadProgress(null);
     setBulkVideoUploadMessage("");
     setBulkVideoUploadError("");
+    setProjectFormError("");
+    setIsProjectSubmitting(false);
     setIsBulkVideoDragging(false);
     setIsBulkVideoUploading(false);
     setForm(toForm(activeProjects[index]));
@@ -1607,6 +1817,7 @@ export default function StudioPage() {
                           id={`project-video-file-${index}`}
                           label={form.videoUrls.length === 1 ? "MP4 file" : `MP4 clip ${index + 1}`}
                           value={videoUrl}
+                          expectedAspectRatio={form.videoAspectRatio}
                           onChange={(value) =>
                             setForm((prev) => {
                               const nextVideoUrls = [...prev.videoUrls];
@@ -1723,6 +1934,48 @@ export default function StudioPage() {
                       placeholder="Small label under the title (e.g. Vast Professionals)"
                       className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-white/85">Video ratio</p>
+                      <p className="mt-1 text-xs leading-relaxed text-white/55">
+                        Choose the format for this carousel project so the website can size the
+                        player correctly for long-form or short-form videos. All clips in this
+                        project must match the same ratio.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {VIDEO_ASPECT_RATIO_OPTIONS.map((option) => {
+                        const isSelected = form.videoAspectRatio === option.value;
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() =>
+                              {
+                                setProjectFormError("");
+                                setBulkVideoUploadError("");
+                                setForm((prev) => ({
+                                  ...prev,
+                                  videoAspectRatio: option.value,
+                                }));
+                              }
+                            }
+                            className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                              isSelected
+                                ? "border-[#36d1ff]/55 bg-[#081927] text-white"
+                                : "border-white/15 bg-black/20 text-white/78 hover:border-[#36d1ff]/30 hover:bg-[#07131d]"
+                            }`}
+                          >
+                            <p className="text-sm font-semibold">{option.label}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-white/55">
+                              {option.description}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div>
                     <ImageField
@@ -1844,12 +2097,22 @@ export default function StudioPage() {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                {projectFormError ? (
+                  <p className="flex-1 text-sm text-amber-200">{projectFormError}</p>
+                ) : (
+                  <div className="flex-1" />
+                )}
                 <button
                   type="submit"
-                  className="rounded-lg bg-[#0099ff] px-4 py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors"
+                  className="rounded-lg bg-[#0099ff] px-4 py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={isProjectSubmitting}
                 >
-                  {editingIndex === null ? "Add Project" : "Save Changes"}
+                  {isProjectSubmitting
+                    ? "Checking ratio..."
+                    : editingIndex === null
+                      ? "Add Project"
+                      : "Save Changes"}
                 </button>
                 {editingIndex !== null && (
                   <button
@@ -1882,7 +2145,7 @@ export default function StudioPage() {
                 <div className="overflow-hidden rounded-[22px] border border-white/15 bg-black/30">
                   {isVideoEditCategory ? (
                     <>
-                      <div className="relative aspect-[16/9] bg-black">
+                      <div className={`relative bg-black ${projectPreviewVideoFrameClass}`}>
                         {projectPreviewVideoUrl ? (
                           <video
                             key={`${projectPreview.title}-${projectPreviewVideoUrl}`}
@@ -1995,6 +2258,16 @@ export default function StudioPage() {
                           </p>
                           <p className="mt-1 text-sm font-semibold text-white">
                             {projectPreviewVideoCategory}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
+                            Video Ratio
+                          </p>
+                          <p className="mt-1 text-sm leading-relaxed text-white/68">
+                            {projectPreviewVideoAspectRatio === "portrait"
+                              ? "1080 x 1920 (portrait / short-form)"
+                              : "1920 x 1080 (landscape / standard)"}
                           </p>
                         </div>
                         <div>

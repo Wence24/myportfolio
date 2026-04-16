@@ -41,6 +41,7 @@ const MODAL_TRANSITION_MS = 520;
 const MODAL_OPEN_DELAY_MS = 10;
 const CONTACT_PANEL_TRANSITION_MS = 220;
 const CONTACT_PANEL_OPEN_DELAY_MS = 8;
+const VIDEO_METADATA_TIMEOUT_MS = 12000;
 
 export default function Home() {
   const router = useRouter();
@@ -65,6 +66,8 @@ const [addProjectModalVisible, setAddProjectModalVisible] = useState(false);
 const [isDetailsModalMounted, setIsDetailsModalMounted] = useState(false);
 const [isAddProjectModalMounted, setIsAddProjectModalMounted] = useState(false);
 const [newProjectForm, setNewProjectForm] = useState<NewProjectForm>(createEmptyProjectForm());
+const [addProjectError, setAddProjectError] = useState("");
+const [isAddingProject, setIsAddingProject] = useState(false);
 
 
 const [animateTab, setAnimateTab] = useState(false);
@@ -99,6 +102,7 @@ type PortfolioProject = {
   designLink: string;
   videoCategory?: string;
   videoParentLabel?: string;
+  videoAspectRatio?: "landscape" | "portrait";
   videoUrl?: string;
   videoUrls?: string[];
   videoPosterUrls?: string[];
@@ -118,6 +122,7 @@ type NewProjectForm = {
   designLink: string;
   videoCategory: string;
   videoParentLabel: string;
+  videoAspectRatio: "landscape" | "portrait";
   videoUrls: string[];
   showDetailsModal: boolean;
   detailsTitle: string;
@@ -131,6 +136,8 @@ type VideoCarouselMotionState = {
   direction: -1 | 1;
 };
 
+type VideoProjectAspectRatio = "landscape" | "portrait";
+
 type CarouselClipVideoProps = {
   playbackKey: string;
   videoUrl: string;
@@ -142,6 +149,22 @@ type CarouselClipVideoProps = {
 };
 
 const DEFAULT_VIDEO_EDIT_GROUP = "Featured Edits";
+const VIDEO_ASPECT_RATIO_OPTIONS: Array<{
+  value: VideoProjectAspectRatio;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "landscape",
+    label: "1920 x 1080",
+    description: "Standard horizontal video for long-form content.",
+  },
+  {
+    value: "portrait",
+    label: "1080 x 1920",
+    description: "Vertical short-form video for reels, shorts, and TikToks.",
+  },
+];
 const carouselClipPlaybackTimes = new Map<string, number>();
 let activeCarouselVideoElement: HTMLVideoElement | null = null;
 
@@ -369,6 +392,110 @@ const getVideoProjectParentLabel = (
   return "";
 };
 
+const getVideoProjectAspectRatio = (
+  project: Pick<PortfolioProject, "videoAspectRatio">
+): VideoProjectAspectRatio => {
+  const normalizedValue = project.videoAspectRatio?.trim().toLowerCase();
+  if (
+    normalizedValue === "portrait" ||
+    normalizedValue === "1080x1920" ||
+    normalizedValue === "9:16" ||
+    normalizedValue === "vertical"
+  ) {
+    return "portrait";
+  }
+
+  return "landscape";
+};
+
+const getVideoAspectRatioLabel = (aspectRatio: VideoProjectAspectRatio) =>
+  aspectRatio === "portrait" ? "1080x1920" : "1920x1080";
+
+const isMp4VideoSource = (value: string) =>
+  /^data:video\/mp4/i.test(value) || /\.mp4(?:[?#].*)?$/i.test(value);
+
+const detectAspectRatioFromDimensions = (
+  width: number,
+  height: number
+): VideoProjectAspectRatio | null => {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return height > width ? "portrait" : "landscape";
+};
+
+const loadVideoMetadata = (src: string) =>
+  new Promise<{ width: number; height: number }>((resolve, reject) => {
+    if (typeof document === "undefined") {
+      reject(new Error("Video metadata can only be checked in the browser."));
+      return;
+    }
+
+    const video = document.createElement("video");
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      video.load();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out while checking the video ratio."));
+    }, VIDEO_METADATA_TIMEOUT_MS);
+
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadedmetadata = () => {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      cleanup();
+      resolve({ width, height });
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error("The video could not be loaded to verify its ratio."));
+    };
+    video.src = src;
+  });
+
+const validateVideoSourcesForProject = async (
+  videoSources: string[],
+  expectedAspectRatio: VideoProjectAspectRatio
+) => {
+  for (const [index, source] of videoSources.entries()) {
+    try {
+      const { width, height } = await loadVideoMetadata(source);
+      const detectedAspectRatio = detectAspectRatioFromDimensions(width, height);
+
+      if (!detectedAspectRatio) {
+        throw new Error("The video ratio could not be detected.");
+      }
+
+      if (detectedAspectRatio !== expectedAspectRatio) {
+        throw new Error(
+          `This clip is ${getVideoAspectRatioLabel(detectedAspectRatio)}, but this project is set to ${getVideoAspectRatioLabel(expectedAspectRatio)}. One Video Edit project can only use one ratio.`
+        );
+      }
+    } catch (error) {
+      const prefix = videoSources.length > 1 ? `Clip ${index + 1}: ` : "";
+      throw new Error(
+        prefix +
+          (error instanceof Error
+            ? error.message
+            : "The video ratio could not be verified.")
+      );
+    }
+  }
+};
+
 const getProjectVideoUrls = (project: PortfolioProject) => {
   const uploadedVideoUrls = Array.isArray(project.videoUrls)
     ? project.videoUrls
@@ -422,11 +549,13 @@ const groupVideoProjects = (projects: PortfolioProject[]) => {
     const projectVideoUrls = getProjectVideoUrls(project);
     const clipsToAdd = projectVideoUrls.length > 0 ? projectVideoUrls : [""];
     const projectVideoPosterUrls = getProjectVideoPosterUrls(project, clipsToAdd.length);
+    const projectVideoAspectRatio = getVideoProjectAspectRatio(project);
 
     return {
       key: projectKey,
       name: categoryName,
       project,
+      aspectRatio: projectVideoAspectRatio,
       clips: clipsToAdd.map((videoUrl, index) => ({
         key: `${projectKey}-${index}-${videoUrl || "empty"}`,
         project,
@@ -1067,6 +1196,7 @@ function createEmptyProjectForm(): NewProjectForm {
     designLink: "",
     videoCategory: "",
     videoParentLabel: "",
+    videoAspectRatio: "landscape",
     videoUrls: [""],
     showDetailsModal: true,
     detailsTitle: "",
@@ -1823,10 +1953,14 @@ const closeDetailsModal = () => {
 
 const openAddProjectModal = () => {
   setNewProjectForm(createEmptyProjectForm());
+  setAddProjectError("");
+  setIsAddingProject(false);
   setShowAddProjectModal(true);
 };
 
 const closeAddProjectModal = () => {
+  setAddProjectError("");
+  setIsAddingProject(false);
   setShowAddProjectModal(false);
 };
 
@@ -1964,62 +2098,89 @@ const getVideoCarouselClipOffset = (
 const handleAddProjectSubmit = (event: React.FormEvent<HTMLFormElement>) => {
   event.preventDefault();
 
-  const fallbackImage = "/comradz.png";
-  const fallbackHeroImage = "/comradz2.png";
-  const trimmedTitle = newProjectForm.title.trim();
-  const trimmedDescription = newProjectForm.description.trim();
-  const trimmedCardImage = newProjectForm.image.trim();
-  const trimmedDesignLink = newProjectForm.designLink.trim();
-  const trimmedVideoCategory = newProjectForm.videoCategory.trim();
-  const trimmedVideoParentLabel = newProjectForm.videoParentLabel.trim();
-  const trimmedVideoUrls = newProjectForm.videoUrls
-    .map((videoUrl) => videoUrl.trim())
-    .filter((videoUrl) => videoUrl.length > 0);
-  const galleryImages = newProjectForm.galleryImages
-    .map((img) => img.trim())
-    .filter((img) => img.length > 0);
+  void (async () => {
+    setAddProjectError("");
 
-  const projectToAdd: PortfolioProject = {
-    title: trimmedTitle || "Untitled Project",
-    description: trimmedDescription || "Project description will be added soon.",
-    image: trimmedCardImage || fallbackImage,
-    designLink: trimmedDesignLink || "#",
-    showDetailsModal: activeBox !== "Video Edit" && newProjectForm.showDetailsModal,
-  };
+    const fallbackImage = "/comradz.png";
+    const fallbackHeroImage = "/comradz2.png";
+    const trimmedTitle = newProjectForm.title.trim();
+    const trimmedDescription = newProjectForm.description.trim();
+    const trimmedCardImage = newProjectForm.image.trim();
+    const trimmedDesignLink = newProjectForm.designLink.trim();
+    const trimmedVideoCategory = newProjectForm.videoCategory.trim();
+    const trimmedVideoParentLabel = newProjectForm.videoParentLabel.trim();
+    const trimmedVideoAspectRatio: VideoProjectAspectRatio =
+      newProjectForm.videoAspectRatio === "portrait" ? "portrait" : "landscape";
+    const trimmedVideoUrls = newProjectForm.videoUrls
+      .map((videoUrl) => videoUrl.trim())
+      .filter((videoUrl) => videoUrl.length > 0);
+    const galleryImages = newProjectForm.galleryImages
+      .map((img) => img.trim())
+      .filter((img) => img.length > 0);
 
-  if (activeBox === "Video Edit") {
-    projectToAdd.videoCategory =
-      trimmedVideoCategory || trimmedTitle || DEFAULT_VIDEO_EDIT_GROUP;
-    if (trimmedVideoParentLabel) {
-      projectToAdd.videoParentLabel = trimmedVideoParentLabel;
+    if (activeBox === "Video Edit") {
+      const validVideoSources = trimmedVideoUrls.filter((videoUrl) => isMp4VideoSource(videoUrl));
+
+      if (validVideoSources.length > 0) {
+        setIsAddingProject(true);
+
+        try {
+          await validateVideoSourcesForProject(validVideoSources, trimmedVideoAspectRatio);
+        } catch (error) {
+          setAddProjectError(
+            error instanceof Error
+              ? error.message
+              : "All clips in this project must match the selected ratio."
+          );
+          setIsAddingProject(false);
+          return;
+        }
+      }
     }
-    if (trimmedVideoUrls.length > 0) {
-      projectToAdd.videoUrls = trimmedVideoUrls;
-      projectToAdd.videoUrl = trimmedVideoUrls[0];
-    }
-  }
 
-  if (activeBox !== "Video Edit" && newProjectForm.showDetailsModal) {
-    projectToAdd.details = {
-      title: newProjectForm.detailsTitle.trim() || trimmedTitle || "Project Details",
-      description:
-        newProjectForm.detailsDescription.trim() ||
-        trimmedDescription ||
-        "Additional project details will be added soon.",
-      heroImage: newProjectForm.detailsHeroImage.trim() || trimmedCardImage || fallbackHeroImage,
-      galleryImages:
-        galleryImages.length > 0 ? galleryImages : [trimmedCardImage || fallbackImage],
+    const projectToAdd: PortfolioProject = {
+      title: trimmedTitle || "Untitled Project",
+      description: trimmedDescription || "Project description will be added soon.",
+      image: trimmedCardImage || fallbackImage,
+      designLink: trimmedDesignLink || "#",
+      showDetailsModal: activeBox !== "Video Edit" && newProjectForm.showDetailsModal,
     };
-  }
 
-  setPortfolioProjects((prev) => ({
-    ...prev,
-    [activeBox]: [...(prev[activeBox] || []), projectToAdd],
-  }));
+    if (activeBox === "Video Edit") {
+      projectToAdd.videoCategory =
+        trimmedVideoCategory || trimmedTitle || DEFAULT_VIDEO_EDIT_GROUP;
+      projectToAdd.videoAspectRatio = trimmedVideoAspectRatio;
+      if (trimmedVideoParentLabel) {
+        projectToAdd.videoParentLabel = trimmedVideoParentLabel;
+      }
+      if (trimmedVideoUrls.length > 0) {
+        projectToAdd.videoUrls = trimmedVideoUrls;
+        projectToAdd.videoUrl = trimmedVideoUrls[0];
+      }
+    }
 
-  closeAddProjectModal();
-  setAnimateTab(false);
-  setTimeout(() => setAnimateTab(true), 50);
+    if (activeBox !== "Video Edit" && newProjectForm.showDetailsModal) {
+      projectToAdd.details = {
+        title: newProjectForm.detailsTitle.trim() || trimmedTitle || "Project Details",
+        description:
+          newProjectForm.detailsDescription.trim() ||
+          trimmedDescription ||
+          "Additional project details will be added soon.",
+        heroImage: newProjectForm.detailsHeroImage.trim() || trimmedCardImage || fallbackHeroImage,
+        galleryImages:
+          galleryImages.length > 0 ? galleryImages : [trimmedCardImage || fallbackImage],
+      };
+    }
+
+    setPortfolioProjects((prev) => ({
+      ...prev,
+      [activeBox]: [...(prev[activeBox] || []), projectToAdd],
+    }));
+
+    closeAddProjectModal();
+    setAnimateTab(false);
+    setTimeout(() => setAnimateTab(true), 50);
+  })();
 };
 
 const updateContactField = (field: keyof ContactFormState, value: string) => {
@@ -2231,19 +2392,19 @@ const activeRateSections =
           title: "Core Pricing",
           subtitle: "YouTube videos, podcasts, reels, TikToks, and Shorts.",
           rows: videoEditingRateRows,
-          wrapperClass: "min-w-[360px] flex-[1.35]",
+          wrapperClass: "min-w-[280px] flex-[1.2] sm:min-w-[360px] sm:flex-[1.35]",
           animationDelayMs: 60,
         },
         {
           title: "Bundle Offers",
           rows: bundleRateRows,
-          wrapperClass: "min-w-[280px] flex-1",
+          wrapperClass: "min-w-[240px] flex-1 sm:min-w-[280px]",
           animationDelayMs: 120,
         },
         {
           title: "Add-Ons",
           rows: addOnRateRows,
-          wrapperClass: "min-w-[280px] flex-1",
+          wrapperClass: "min-w-[240px] flex-1 sm:min-w-[280px]",
           animationDelayMs: 180,
         },
       ]
@@ -2252,21 +2413,21 @@ const activeRateSections =
           title: "Social & Content",
           subtitle: "Poster systems, social graphics, and carousel content.",
           rows: graphicDesignPosterRows,
-          wrapperClass: "min-w-[330px] flex-[1.2]",
+          wrapperClass: "min-w-[260px] flex-[1.05] sm:min-w-[330px] sm:flex-[1.2]",
           animationDelayMs: 60,
         },
         {
           title: "Branding",
           subtitle: "Thumbnail work, logos, and fuller brand identity support.",
           rows: graphicDesignBrandRows,
-          wrapperClass: "min-w-[290px] flex-1",
+          wrapperClass: "min-w-[240px] flex-1 sm:min-w-[290px]",
           animationDelayMs: 120,
         },
         {
           title: "Marketing Materials",
           subtitle: "Support assets for promos, banners, and presentations.",
           rows: graphicDesignMarketingRows,
-          wrapperClass: "min-w-[290px] flex-1",
+          wrapperClass: "min-w-[240px] flex-1 sm:min-w-[290px]",
           animationDelayMs: 180,
         },
       ];
@@ -2427,7 +2588,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 });
 
   return (
-    <div className="relative min-h-screen overflow-y-auto bg-transparent">
+    <div className="relative min-h-screen overflow-x-hidden overflow-y-auto bg-transparent">
       {/* INTRO BUILD-UP + LOGO REVEAL */}
       {!introDone && (
         <div
@@ -2471,9 +2632,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(180deg, rgba(1,4,8,0.56) 0%, rgba(1,3,6,0.82) 58%, rgba(1,2,5,0.94) 100%), linear-gradient(122deg, rgba(255,255,255,0.02) 0%, transparent 30%, transparent 72%, rgba(255,255,255,0.01) 100%), radial-gradient(circle at 50% 0%, rgba(255,255,255,0.018) 0%, transparent 34%), radial-gradient(circle at 50% 40%, rgba(0,153,255,0.06) 0%, transparent 24%)",
+              "linear-gradient(180deg, rgba(1,4,8,0.56) 0%, rgba(1,3,6,0.82) 58%, rgba(1,2,5,0.95) 100%), linear-gradient(122deg, rgba(255,255,255,0.02) 0%, transparent 30%, transparent 72%, rgba(255,255,255,0.01) 100%), radial-gradient(circle at 50% 0%, rgba(255,255,255,0.018) 0%, transparent 34%), radial-gradient(circle at 50% 40%, rgba(0,153,255,0.06) 0%, transparent 24%), radial-gradient(circle at 18% 56%, rgba(0,153,255,0.05) 0%, transparent 22%), radial-gradient(circle at 82% 72%, rgba(255,255,255,0.04) 0%, transparent 18%), radial-gradient(circle at 38% 92%, rgba(0,153,255,0.045) 0%, transparent 24%)",
           }}
         />
+        <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(143,220,255,0.08)_1px,transparent_1px)] [background-size:40px_40px] [mask-image:linear-gradient(180deg,transparent_0%,black_12%,black_92%,transparent_100%)]" />
         <div
           className="absolute left-[-12%] top-[12%] hidden h-[30rem] w-[30rem] opacity-60 lg:block"
           style={{
@@ -2488,6 +2650,14 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         />
         <div className="absolute left-1/2 top-[7%] h-px w-[58vw] -translate-x-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-70" />
         <div className="absolute left-1/2 top-[9%] h-24 w-[50vw] -translate-x-1/2 bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,rgba(0,153,255,0.045)_44%,transparent_74%)] blur-3xl opacity-40" />
+        <div className="absolute left-[8%] top-[34%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,transparent_72%)] blur-3xl sm:h-52 sm:w-52" />
+        <div className="absolute right-[10%] top-[46%] h-28 w-28 rounded-[28px] border border-white/6 opacity-45 rotate-[10deg] sm:h-36 sm:w-36" />
+        <div className="absolute left-[14%] top-[63%] h-20 w-[36%] bg-[radial-gradient(circle,rgba(255,255,255,0.07)_0%,transparent_72%)] blur-3xl sm:h-24" />
+        <div className="absolute right-[12%] top-[78%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.07)_0%,transparent_74%)] blur-3xl sm:h-52 sm:w-52" />
+        <div className="absolute left-[9%] top-[88%] h-24 w-24 rounded-full border border-[#8fdcff]/10 opacity-50 sm:h-32 sm:w-32" />
+        <div className="absolute inset-y-[18%] left-[6%] w-px bg-gradient-to-b from-transparent via-white/12 to-transparent opacity-60" />
+        <div className="absolute inset-y-[28%] right-[7%] w-px bg-gradient-to-b from-transparent via-[#8fdcff]/14 to-transparent opacity-60" />
+        <div className="absolute left-1/2 bottom-[7%] h-40 w-[84%] -translate-x-1/2 bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,rgba(0,153,255,0.025)_36%,transparent_74%)] blur-3xl opacity-80" />
       </div>
 
       {/* NAVBAR */}
@@ -2560,8 +2730,9 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
      {/* SIDE NAV */}
 <div
   className={`
-    fixed right-5 top-1/2 -translate-y-1/2 z-50
+    fixed bottom-4 right-4 z-50
     transition-[opacity,transform] duration-220 ease-out
+    md:bottom-auto md:right-5 md:top-1/2 md:-translate-y-1/2
     ${showSideNav 
       ? "translate-x-0 opacity-100"    // slide in from right
       : "translate-x-full opacity-0"}  // slide out to right
@@ -2573,7 +2744,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 </div>
 
       {/* HERO STACK */}
-      <div ref={heroRef} className="relative flex flex-col items-center justify-center z-10 pt-[40vh]">
+      <div ref={heroRef} className="relative z-10 flex flex-col items-center justify-center pt-[30vh] sm:pt-[34vh] lg:pt-[40vh]">
         <div
           className="absolute"
           style={{
@@ -2582,7 +2753,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           }}
         >
           <span
-            className="absolute top-0 left-0 text-gray-400 text-sm sm:text-base select-none pointer-events-none"
+            className="pointer-events-none absolute left-0 top-0 select-none text-[11px] text-gray-400 sm:text-base"
             style={{
               transform: "translate(8%, -8%)",
               fontFamily: "Calibri, sans-serif",
@@ -2597,7 +2768,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           </span>
 
           <span
-            className="absolute top-0 right-0 text-gray-400 text-sm sm:text-base select-none pointer-events-none"
+            className="pointer-events-none absolute right-0 top-0 select-none text-[11px] text-gray-400 sm:text-base"
             style={{
               transform: "translate(-8%, -22%)",
               fontFamily: "Calibri, sans-serif",
@@ -2614,7 +2785,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           <div className="relative inline-block align-top">
             <h1
               className={`
-                text-[16rem] sm:text-[22rem] md:text-[30rem] lg:text-[40rem]
+                text-[8.25rem] sm:text-[13rem] md:text-[22rem] lg:text-[32rem] xl:text-[40rem]
                 portfolio-heading portfolio-main-text select-none pointer-events-none leading-none
                 text-white/38
               `}
@@ -2661,7 +2832,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             width={810}
             height={810}
             priority
-            className="object-contain grayscale brightness-[1.1] contrast-[1.12] drop-shadow-[0_30px_80px_rgba(0,0,0,0.56)]"
+            className="h-auto w-[22rem] max-w-[84vw] object-contain grayscale brightness-[1.1] contrast-[1.12] drop-shadow-[0_30px_80px_rgba(0,0,0,0.56)] sm:w-[28rem] md:w-[38rem] lg:w-[50rem]"
           />
         </div>
 
@@ -2826,7 +2997,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             <div className="relative flex w-full flex-col items-start justify-between gap-6 lg:flex-row lg:gap-8 lg:pb-16 xl:pb-20">
               <div className="order-1 w-full lg:basis-[58%] lg:max-w-[58%] lg:pr-8">
                 <h3
-                  className={`mt-5 text-5xl font-bold leading-[0.95] transition-[opacity,transform] duration-420 ease-out sm:text-[4.3rem] ${
+                  className={`mt-5 text-4xl font-bold leading-[0.95] transition-[opacity,transform] duration-420 ease-out sm:text-[4.3rem] ${
                     helloVisible ? "translate-x-0 opacity-100" : "-translate-x-64 opacity-0"
                   }`}
                   style={{
@@ -2840,7 +3011,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                 </h3>
 
                 <h4
-                  className="relative mt-2 block text-5xl font-bold leading-[0.98] tracking-[-0.02em] text-white transition-[opacity,transform] duration-420 sm:text-[4.4rem] sm:whitespace-nowrap xl:text-[5.2rem]"
+                  className="relative mt-2 block text-4xl font-bold leading-[0.98] tracking-[-0.02em] text-white transition-[opacity,transform] duration-420 sm:text-[4.4rem] sm:whitespace-nowrap xl:text-[5.2rem]"
                   aria-label={aboutFullName}
                   style={{
                     opacity: helloVisible ? 1 : 0,
@@ -3409,6 +3580,13 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                         token: 0,
                         direction: 1 as const,
                       };
+                      const isPortraitCarousel = group.aspectRatio === "portrait";
+                      const carouselStageClass = isPortraitCarousel
+                        ? "h-[250px] sm:h-[360px] lg:h-[420px]"
+                        : "h-[210px] sm:h-[270px] lg:h-[320px]";
+                      const carouselCardSizeClass = isPortraitCarousel
+                        ? "w-[42%] aspect-[9/16] sm:w-[32%] lg:w-[25%]"
+                        : "w-[82%] aspect-[16/9] sm:w-[66%] lg:w-[54%]";
                       const stageMotionClass =
                         groupMotion.token > 0
                           ? groupMotion.direction > 0
@@ -3470,7 +3648,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                 <div className="absolute inset-x-10 bottom-9 h-px bg-gradient-to-r from-transparent via-[#8fdcff]/12 to-transparent" />
                               </div>
                               <div
-                                className={`relative mx-auto h-[210px] w-full max-w-[920px] sm:h-[270px] lg:h-[320px] ${stageMotionClass}`}
+                                className={`relative mx-auto w-full max-w-[920px] ${carouselStageClass} ${stageMotionClass}`}
                               >
                                 {group.clips.map((clip, index) => {
                                   const clipProject = clip.project;
@@ -3496,7 +3674,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                   return (
                                     <div
                                       key={clip.key}
-                                      className={`absolute left-1/2 top-1/2 h-[82%] w-[82%] -translate-y-1/2 transition-[transform,opacity,filter] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:h-[86%] sm:w-[66%] lg:w-[54%] ${cardPositionClass} ${
+                                      className={`absolute left-1/2 top-1/2 -translate-y-1/2 transition-[transform,opacity,filter] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${carouselCardSizeClass} ${cardPositionClass} ${
                                         isVisibleCard ? "" : "pointer-events-none"
                                       }`}
                                     >
@@ -3601,7 +3779,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                     {activeProject.title}
                                   </h4>
                                   {parentProjectLabel ? (
-                                    <span className="text-xs font-medium text-white/56 whitespace-nowrap">
+                                    <span className="text-xs font-medium text-white/56">
                                       under {parentProjectLabel}
                                     </span>
                                   ) : null}
@@ -3954,6 +4132,47 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                   placeholder="Small label under the title (e.g. Vast Professionals)"
                   className="w-full rounded-lg border border-white/20 bg-black/30 text-white text-sm px-3 py-2 outline-none focus:border-[#0099ff]"
                 />
+                <div className="space-y-2 md:col-span-2">
+                  <div>
+                    <p className="text-sm text-white/85">Video ratio</p>
+                    <p className="mt-1 text-xs leading-relaxed text-white/55">
+                      Choose the format for this carousel project so the website can size the
+                      player correctly for long-form or short-form videos. All clips in this
+                      project must match the same ratio.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {VIDEO_ASPECT_RATIO_OPTIONS.map((option) => {
+                      const isSelected = newProjectForm.videoAspectRatio === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            {
+                              setAddProjectError("");
+                              setNewProjectForm((prev) => ({
+                                ...prev,
+                                videoAspectRatio: option.value,
+                              }));
+                            }
+                          }
+                          className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                            isSelected
+                              ? "border-[#36d1ff]/55 bg-[#081927] text-white"
+                              : "border-white/15 bg-black/20 text-white/78 hover:border-[#36d1ff]/30 hover:bg-[#07131d]"
+                          }`}
+                        >
+                          <p className="text-sm font-semibold">{option.label}</p>
+                          <p className="mt-1 text-xs leading-relaxed text-white/55">
+                            {option.description}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="space-y-3">
                   {newProjectForm.videoUrls.map((videoUrl, index) => (
                     <div key={`new-project-video-${index}`} className="flex gap-2">
@@ -4068,7 +4287,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-1">
+          <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-end">
+            {addProjectError ? (
+              <p className="sm:mr-auto text-sm text-amber-200">{addProjectError}</p>
+            ) : null}
             <button
               type="button"
               onClick={closeAddProjectModal}
@@ -4078,9 +4300,10 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-[#0099ff] text-white text-sm font-semibold hover:bg-[#00a6ff] transition-colors"
+              disabled={isAddingProject}
+              className="px-4 py-2 rounded-lg bg-[#0099ff] text-white text-sm font-semibold hover:bg-[#00a6ff] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Add Project
+              {isAddingProject ? "Checking ratio..." : "Add Project"}
             </button>
           </div>
         </form>
@@ -4214,7 +4437,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                   : "pointer-events-none opacity-0 translate-y-8 blur-sm"
               }`}
             >
-              <div className="w-full scale-[1.02] transform-gpu sm:scale-[1.03]">
+              <div className="w-full scale-100 transform-gpu sm:scale-[1.03]">
                 <AnimatedTestimonialsDemo />
               </div>
             </div>
@@ -4343,7 +4566,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                           </div>
                         ))}
                         <div
-                          className={`w-[160px] min-w-[160px] max-w-[160px] shrink-0 rounded-[20px] border border-white/10 bg-white/[0.03] px-3 py-3 transition-[opacity,transform] duration-260 ease-out ${
+                          className={`w-[144px] min-w-[144px] max-w-[144px] shrink-0 rounded-[20px] border border-white/10 bg-white/[0.03] px-3 py-3 transition-[opacity,transform] duration-260 ease-out sm:w-[160px] sm:min-w-[160px] sm:max-w-[160px] ${
                             isRatesPanelVisible
                               ? "translate-y-0 scale-100 opacity-100"
                               : "translate-y-3 scale-[0.98] opacity-0"

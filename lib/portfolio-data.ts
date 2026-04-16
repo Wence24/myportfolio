@@ -7,6 +7,7 @@ export type PortfolioProject = {
   designLink: string;
   videoCategory?: string;
   videoParentLabel?: string;
+  videoAspectRatio?: "landscape" | "portrait";
   videoUrl?: string;
   videoUrls?: string[];
   videoPosterUrls?: string[];
