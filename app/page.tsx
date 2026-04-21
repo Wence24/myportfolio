@@ -5,6 +5,13 @@ import Image from "next/image";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Listbox, Transition } from "@headlessui/react";
+import {
+  SiAdobeaftereffects,
+  SiAdobeillustrator,
+  SiAdobephotoshop,
+  SiAdobepremierepro,
+  SiCanva,
+} from "react-icons/si";
 import { FloatingDock, type FloatingDockItem } from "@/components/ui/floating-dock";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import { CardBody, CardContainer, CardItem } from "@/components/ui/3d-card";
@@ -22,7 +29,6 @@ import {
   Video,
   MessageSquareQuote,
   Mail,
-  Code,
   Medal,
   Globe,
   ArrowUpRight,
@@ -1263,8 +1269,6 @@ const normalizeStoredProjects = (value: unknown): Record<string, PortfolioProjec
 const [helloVisible, setHelloVisible] = useState(false); // slide in from left
 const [nameText, setNameText] = useState("");
 const [nameDone, setNameDone] = useState(false); // new
-const [buttonsVisible, setButtonsVisible] = useState([false, false, false]);
-const buttonsRef = useRef<HTMLDivElement>(null);
 const [modalVisible, setModalVisible] = useState(false);
 const [showReviewsIntro, setShowReviewsIntro] = useState(false);
 const [showReviewsTestimonials, setShowReviewsTestimonials] = useState(false);
@@ -1541,34 +1545,6 @@ useEffect(() => {
       if (graphicInterval) clearInterval(graphicInterval);
     };
   }, []);
-
-  useEffect(() => {
-  if (!buttonsRef.current) return;
-
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const index = parseInt((entry.target as HTMLElement).dataset.index || "0");
-          setButtonsVisible((prev) => {
-            const newState = [...prev];
-            newState[index] = true;
-            return newState;
-          });
-        }
-      });
-    },
-    { threshold: 0.1 } // triggers when 30% visible
-  );
-
-  const btns = buttonsRef.current.querySelectorAll("button");
-  btns.forEach((btn, i) => {
-    btn.dataset.index = i.toString();
-    observer.observe(btn);
-  });
-
-  return () => observer.disconnect();
-}, []);
 
 useEffect(() => {
   if (activeHeroMarker === null) return;
@@ -2434,8 +2410,7 @@ const activeRateSections =
 const creativeTools = [
   {
     name: "Adobe Premiere Pro",
-    short: "Pr",
-    category: "Primary editor",
+    icon: SiAdobepremierepro,
     description:
       "My main workspace for pacing, story cuts, transitions, audio cleanup, and polished final exports.",
     accent: "#a78bfa",
@@ -2445,12 +2420,10 @@ const creativeTools = [
     badgeBorder: "rgba(201, 168, 255, 0.34)",
     panelBackground:
       "linear-gradient(135deg, rgba(72, 31, 128, 0.26), rgba(8, 11, 20, 0.88) 64%)",
-    tags: ["Cuts", "Rhythm", "Audio"],
   },
   {
     name: "Adobe Photoshop",
-    short: "Ps",
-    category: "Image polish",
+    icon: SiAdobephotoshop,
     description:
       "Used for retouching, poster visuals, thumbnails, compositing, and sharpening the final look of a frame.",
     accent: "#6ee7ff",
@@ -2460,12 +2433,10 @@ const creativeTools = [
     badgeBorder: "rgba(125, 233, 255, 0.3)",
     panelBackground:
       "linear-gradient(135deg, rgba(10, 72, 108, 0.24), rgba(8, 11, 20, 0.88) 66%)",
-    tags: ["Retouch", "Posters", "Thumbnails"],
   },
   {
     name: "Adobe After Effects",
-    short: "Ae",
-    category: "Motion details",
+    icon: SiAdobeaftereffects,
     description:
       "For motion graphics, transitions, layered animation, and adding cinematic movement that elevates an edit.",
     accent: "#d8b4fe",
@@ -2475,12 +2446,10 @@ const creativeTools = [
     badgeBorder: "rgba(227, 197, 255, 0.28)",
     panelBackground:
       "linear-gradient(135deg, rgba(73, 35, 123, 0.24), rgba(8, 11, 20, 0.88) 66%)",
-    tags: ["Motion", "Titles", "Transitions"],
   },
   {
     name: "Canva",
-    short: "C",
-    category: "Fast layouts",
+    icon: SiCanva,
     description:
       "Great for rapid social graphics, clean layouts, client-ready mockups, and quick-turn visual concepts.",
     accent: "#7df9ff",
@@ -2490,12 +2459,10 @@ const creativeTools = [
     badgeBorder: "rgba(154, 246, 255, 0.28)",
     panelBackground:
       "linear-gradient(135deg, rgba(12, 88, 104, 0.22), rgba(8, 11, 20, 0.88) 68%)",
-    tags: ["Socials", "Layouts", "Mockups"],
   },
   {
     name: "Adobe Illustrator",
-    short: "Ai",
-    category: "Vector finish",
+    icon: SiAdobeillustrator,
     description:
       "Used when a project needs crisp vector marks, icon work, title treatments, or scalable layout details.",
     accent: "#fdba74",
@@ -2505,7 +2472,38 @@ const creativeTools = [
     badgeBorder: "rgba(255, 191, 116, 0.28)",
     panelBackground:
       "linear-gradient(135deg, rgba(107, 51, 16, 0.22), rgba(8, 11, 20, 0.88) 68%)",
-    tags: ["Vector", "Icons", "Type"],
+  },
+] as const;
+const creativeExperienceEntries = [
+  {
+    role: "Short-Form Video Editing",
+    client: "Kayla",
+    period: "2024",
+    points: [
+      "Edited short-form video content for B2B and business platforms, tailored to support and empower women facing professional and personal challenges.",
+      "Enhanced storytelling through precise cuts, captions, and pacing to deliver clear, engaging, and value-driven messages.",
+      "Applied motion graphics, subtitles, and audio optimization to improve clarity, accessibility, and audience engagement.",
+    ],
+  },
+  {
+    role: "Short-Form and Long-Form Video Editing",
+    client: "Vast Professionals",
+    period: "2025-2026",
+    points: [
+      "Edited and optimized short-form and long-form video content, ensuring strong storytelling, pacing, and platform-ready delivery.",
+      "Created motion graphics, visual effects, and performed color correction and grading to maintain visual quality and brand consistency.",
+      "Designed and mixed audio, including music, sound effects, and voiceovers, to enhance overall viewer engagement.",
+    ],
+  },
+  {
+    role: "Long-Form Video Editor",
+    client: "Henry Sims",
+    period: "2026-Present",
+    points: [
+      "Edited long-form videos with fast-paced storytelling, strong hooks, and a focus on viewer retention.",
+      "Incorporated motion graphics, dynamic subtitles, and visual elements to simplify complex information and maintain engagement.",
+      "Produced polished, informative content with smooth transitions, sound design, and attention to detail.",
+    ],
   },
 ] as const;
 const contactPlatforms = [
@@ -2990,279 +2988,264 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               }`}
             >
               <span className="inline-flex rounded-full border border-[#0099ff]/25 bg-[#0099ff]/10 px-4 py-1 text-[11px] uppercase tracking-[0.26em] text-[#8fdcff]">
-                Video Editor • Graphic Designer
+                About Me + Experience
               </span>
             </div>
 
-            <div className="relative flex w-full flex-col items-start justify-between gap-6 lg:flex-row lg:gap-8 lg:pb-16 xl:pb-20">
-              <div className="order-1 w-full lg:basis-[58%] lg:max-w-[58%] lg:pr-8">
-                <h3
-                  className={`mt-5 text-4xl font-bold leading-[0.95] transition-[opacity,transform] duration-420 ease-out sm:text-[4.3rem] ${
-                    helloVisible ? "translate-x-0 opacity-100" : "-translate-x-64 opacity-0"
-                  }`}
-                  style={{
-                    background: "linear-gradient(135deg, #f6fbff 0%, #88d4ff 48%, #0099ff 100%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    fontFamily: "'Condenso', sans-serif",
-                  }}
-                >
-                  Hello, I&apos;m
-                </h3>
+            <div className="relative mt-4 grid w-full gap-4 xl:grid-cols-[minmax(280px,0.58fr)_minmax(0,1.42fr)] xl:items-start">
+              <div
+                className={`relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,23,31,0.94),rgba(10,15,22,0.92))] p-5 transition-[opacity,transform] duration-500 ease-out ${
+                  helloVisible ? "translate-x-0 opacity-100" : "-translate-x-10 opacity-0"
+                }`}
+              >
+                <div className="pointer-events-none absolute inset-0">
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/16 to-transparent" />
+                  <div className="absolute left-1/2 top-[28%] h-44 w-44 -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.13)_0%,transparent_74%)] blur-3xl" />
+                </div>
 
-                <h4
-                  className="relative mt-2 block text-4xl font-bold leading-[0.98] tracking-[-0.02em] text-white transition-[opacity,transform] duration-420 sm:text-[4.4rem] sm:whitespace-nowrap xl:text-[5.2rem]"
-                  aria-label={aboutFullName}
-                  style={{
-                    opacity: helloVisible ? 1 : 0,
-                    transform: helloVisible ? "translateX(0)" : "translateX(-64px)",
-                    transition: "opacity 0.42s ease-out 0.12s, transform 0.42s ease-out 0.12s",
-                  }}
-                >
-                  <span aria-hidden="true" className="invisible block">
-                    {aboutFullName}
-                  </span>
-                  <span aria-hidden="true" className="absolute inset-0">
-                    <span>{nameText}</span>
-                    {!nameDone && (
-                      <span className="ml-1 inline-block h-[1em] w-[2px] bg-white animate-blink align-baseline" />
-                    )}
-                  </span>
-                </h4>
+                <div className="relative z-10">
+                  <div className="relative aspect-[0.83] overflow-hidden rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_50%_18%,rgba(255,255,255,0.12),rgba(255,255,255,0.02)_42%,rgba(0,0,0,0.18)_100%)]">
+                    <Image
+                      src="/wenshe.png"
+                      alt="Wence portrait"
+                      fill
+                      priority
+                      className="object-contain object-bottom grayscale"
+                    />
+                  </div>
 
-                <p
-                  className={`mt-5 max-w-2xl text-sm text-justify text-white transition-[opacity,transform] duration-420 ease-out sm:text-base ${
-                    helloVisible ? "translate-y-0 opacity-80" : "-translate-y-3 opacity-0"
-                  }`}
-                  style={{
-                    opacity: helloVisible ? 0.74 : 0,
-                    lineHeight: 1.55,
-                    transitionDelay: "0.14s",
-                  }}
-                >
-                  I am a 4th-year BSIT student and a skilled video editor with 2 years of
-                  hands-on experience. I have a keen eye for detail and a passion for
-                  storytelling through visual media. Whether crafting cinematic sequences or
-                  enhancing the impact of a message, I bring creativity and technical expertise
-                  to every project. I am proficient in Adobe Premiere, moderately skilled in
-                  After Effects, and experienced in sound design.
-                </p>
-
-                <div className="mt-8 flex flex-wrap items-center gap-4">
-                  <a
-                    href="/Wence-De-Vera-CV.pdf"
-                    download
-                    className="inline-flex items-center justify-center rounded-xl px-8 py-3 text-sm font-bold transition-[transform,box-shadow,opacity] duration-160 ease-out hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(0,153,255,0.22)] sm:text-base"
-                    style={{
-                      fontFamily: "'Condenso', sans-serif",
-                      background: "linear-gradient(135deg, #0099ff, #18c8ff)",
-                      color: "white",
-                      opacity: helloVisible ? 1 : 0,
-                      transform: helloVisible ? "translateY(0)" : "translateY(12px)",
-                      transitionDelay: "0.14s",
-                    }}
-                  >
-                    Download CV
-                  </a>
-
-                  <a
-                    href="#projects"
-                    className="inline-flex items-center justify-center rounded-xl border border-[#0099ff]/65 bg-[#07131d] px-8 py-3 text-sm font-bold text-[#19b7ff] transition-[transform,border-color,box-shadow,opacity] duration-160 ease-out hover:-translate-y-0.5 hover:border-[#20c4ff] hover:shadow-[0_14px_30px_rgba(0,153,255,0.14)] sm:text-base"
-                    style={{
-                      fontFamily: "'Condenso', sans-serif",
-                      opacity: helloVisible ? 1 : 0,
-                      transform: helloVisible ? "translateY(0)" : "translateY(12px)",
-                      transitionDelay: "0.18s",
-                    }}
-                  >
-                    <span className="mr-2">{'<>'}</span> View Projects
-                  </a>
-
-                  <div className="ml-0 flex items-center gap-3 sm:ml-4">
-                    <a
-                      href="https://your-link-1.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group relative flex h-10 w-10 items-center justify-center"
+                  <div className="mt-5">
+                    <p
+                      className={`text-[11px] uppercase tracking-[0.28em] text-[#8fdcff] transition-[opacity,transform] duration-420 ease-out ${
+                        helloVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+                      }`}
                     >
-                      <div
-                        className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
-                        style={{
-                          backgroundColor: "#0099ff",
-                          WebkitMaskImage: "url('/linkedin.png')",
-                          WebkitMaskRepeat: "no-repeat",
-                          WebkitMaskSize: "contain",
-                          WebkitMaskPosition: "center",
-                          maskImage: "url('/linkedin.png')",
-                          maskRepeat: "no-repeat",
-                          maskSize: "contain",
-                          maskPosition: "center",
-                        }}
-                      />
-                      <img
-                        src="/linkedin.png"
-                        alt="LinkedIn"
-                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
-                      />
-                    </a>
+                      Hello! I am
+                    </p>
 
-                    <a
-                      href="https://your-link-2.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group relative flex h-10 w-10 items-center justify-center"
+                    <h3
+                      className="relative mt-2 block text-3xl font-bold leading-[0.96] tracking-[-0.02em] text-white transition-[opacity,transform] duration-420 sm:text-[2.6rem]"
+                      aria-label={aboutFullName}
+                      style={{
+                        opacity: helloVisible ? 1 : 0,
+                        transform: helloVisible ? "translateX(0)" : "translateX(-40px)",
+                        transition: "opacity 0.42s ease-out 0.12s, transform 0.42s ease-out 0.12s",
+                      }}
                     >
-                      <div
-                        className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
-                        style={{
-                          backgroundColor: "#0099ff",
-                          WebkitMaskImage: "url('/behance.png')",
-                          WebkitMaskRepeat: "no-repeat",
-                          WebkitMaskSize: "contain",
-                          WebkitMaskPosition: "center",
-                          maskImage: "url('/behance.png')",
-                          maskRepeat: "no-repeat",
-                          maskSize: "contain",
-                          maskPosition: "center",
-                        }}
-                      />
-                      <img
-                        src="/behance.png"
-                        alt="Behance"
-                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
-                      />
-                    </a>
+                      <span aria-hidden="true" className="invisible block">
+                        {aboutFullName}
+                      </span>
+                      <span aria-hidden="true" className="absolute inset-0">
+                        <span>{nameText}</span>
+                        {!nameDone && (
+                          <span className="ml-1 inline-block h-[1em] w-[2px] animate-blink bg-white align-baseline" />
+                        )}
+                      </span>
+                    </h3>
 
-                    <a
-                      href="https://your-link-3.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group relative flex h-10 w-10 items-center justify-center"
+                    <p
+                      className={`mt-3 text-sm leading-relaxed text-white/68 transition-[opacity,transform] duration-420 ease-out ${
+                        helloVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+                      }`}
+                      style={{ transitionDelay: "0.12s" }}
                     >
-                      <div
-                        className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
-                        style={{
-                          backgroundColor: "#0099ff",
-                          WebkitMaskImage: "url('/upwork.png')",
-                          WebkitMaskRepeat: "no-repeat",
-                          WebkitMaskSize: "contain",
-                          WebkitMaskPosition: "center",
-                          maskImage: "url('/upwork.png')",
-                          maskRepeat: "no-repeat",
-                          maskSize: "contain",
-                          maskPosition: "center",
-                        }}
-                      />
-                      <img
-                        src="/upwork.png"
-                        alt="Upwork"
-                        className="h-full w-full object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
-                      />
-                    </a>
+                      4th-year BSIT student, video editor, and graphic designer focused on
+                      clear storytelling, clean execution, and platform-ready creative work.
+                    </p>
+
+                    <p className="mt-4 text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]/78">
+                      Video Editor • Graphic Designer
+                    </p>
+                  </div>
+
+                  <div className="mt-6 space-y-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <a
+                          href="https://your-link-1.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]"
+                        >
+                          <div
+                            className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
+                            style={{
+                              backgroundColor: "#0099ff",
+                              WebkitMaskImage: "url('/linkedin.png')",
+                              WebkitMaskRepeat: "no-repeat",
+                              WebkitMaskSize: "18px",
+                              WebkitMaskPosition: "center",
+                              maskImage: "url('/linkedin.png')",
+                              maskRepeat: "no-repeat",
+                              maskSize: "18px",
+                              maskPosition: "center",
+                            }}
+                          />
+                          <img
+                            src="/linkedin.png"
+                            alt="LinkedIn"
+                            className="h-[18px] w-[18px] object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
+                          />
+                        </a>
+
+                        <a
+                          href="https://your-link-2.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]"
+                        >
+                          <div
+                            className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
+                            style={{
+                              backgroundColor: "#0099ff",
+                              WebkitMaskImage: "url('/behance.png')",
+                              WebkitMaskRepeat: "no-repeat",
+                              WebkitMaskSize: "18px",
+                              WebkitMaskPosition: "center",
+                              maskImage: "url('/behance.png')",
+                              maskRepeat: "no-repeat",
+                              maskSize: "18px",
+                              maskPosition: "center",
+                            }}
+                          />
+                          <img
+                            src="/behance.png"
+                            alt="Behance"
+                            className="h-[18px] w-[18px] object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
+                          />
+                        </a>
+
+                        <a
+                          href="https://your-link-3.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]"
+                        >
+                          <div
+                            className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
+                            style={{
+                              backgroundColor: "#0099ff",
+                              WebkitMaskImage: "url('/upwork.png')",
+                              WebkitMaskRepeat: "no-repeat",
+                              WebkitMaskSize: "18px",
+                              WebkitMaskPosition: "center",
+                              maskImage: "url('/upwork.png')",
+                              maskRepeat: "no-repeat",
+                              maskSize: "18px",
+                              maskPosition: "center",
+                            }}
+                          />
+                          <img
+                            src="/upwork.png"
+                            alt="Upwork"
+                            className="h-[18px] w-[18px] object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
+                          />
+                        </a>
+                      </div>
+
+                      <div className="min-w-0 flex-1 self-center">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#8fdcff]/78">
+                          Response Time
+                        </p>
+                        <div className="mt-2 flex items-center gap-2 text-sm text-white/68">
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-[#8fdcff] shadow-[0_0_10px_rgba(143,220,255,0.6)]" />
+                          <span>Replies within 24 hours</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid w-full max-w-[420px] grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+                      <a
+                        href="/Wence-De-Vera-CV.pdf"
+                        download
+                        className="inline-flex h-11 w-full items-center justify-center rounded-full border border-[#8fdcff]/25 bg-[#8fdcff]/10 px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#b9eeff] transition-[transform,border-color,background-color] duration-160 ease-out hover:-translate-y-0.5 hover:border-[#8fdcff]/40"
+                      >
+                        Download CV
+                      </a>
+
+                      <a
+                        href="#projects"
+                        className="inline-flex h-11 w-full items-center justify-center rounded-full border border-white/12 bg-white/[0.04] px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/72 transition-[transform,border-color,background-color] duration-160 ease-out hover:-translate-y-0.5 hover:border-white/20"
+                      >
+                        View Projects
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div
-                className={`relative order-2 w-full self-start overflow-visible lg:-mt-10 lg:basis-[42%] lg:max-w-[42%] lg:ml-auto ${
-                  helloVisible ? "translate-x-0 opacity-100" : "translate-x-24 opacity-0"
-                } transition-all duration-700 ease-out`}
-                style={{ transitionDelay: "0.2s" }}
+                className={`relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(12,18,26,0.96),rgba(8,13,20,0.94))] p-5 transition-[opacity,transform] duration-500 ease-out ${
+                  helloVisible ? "translate-x-0 opacity-100" : "translate-x-10 opacity-0"
+                }`}
+                style={{ transitionDelay: "0.08s" }}
               >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
-                <div className="relative flex justify-end lg:pr-2">
-                  <Image
-                    src="/wenshe.png"
-                    alt="Wence portrait"
-                    width={560}
-                    height={560}
-                    priority
-                    className="relative z-10 h-auto w-full max-w-[34rem] object-contain grayscale drop-shadow-[0_26px_45px_rgba(0,0,0,0.42)]"
-                  />
+                <div className="pointer-events-none absolute inset-0">
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/14 to-transparent" />
+                  <div className="absolute right-[8%] top-[10%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,transparent_74%)] blur-3xl" />
+                </div>
+
+                <div className="relative z-10">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-[#8fdcff]">
+                    Profile Overview
+                  </p>
+                  <h4 className="mt-3 max-w-xl text-xl font-semibold text-white sm:text-2xl">
+                    A detail-first editor blending technical perspective with polished,
+                    platform-ready storytelling.
+                  </h4>
+                  <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 sm:text-base">
+                    I am a 4th-year BSIT student with 2 years of hands-on editing
+                    experience. I focus on cinematic pacing, strong viewer retention,
+                    clean motion work, and thoughtful sound design so every output feels
+                    intentional from first cut to final export.
+                  </p>
+
+                  <div className="mt-8 rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
+                    <div className="grid gap-2 text-[10px] uppercase tracking-[0.22em] text-white/44 sm:grid-cols-[1.45fr_0.85fr_0.5fr] sm:items-center">
+                      <span>What I Did</span>
+                      <span>Client</span>
+                      <span>Period</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-6">
+                    {creativeExperienceEntries.map((experience) => (
+                      <div
+                        key={`${experience.client}-${experience.role}`}
+                        className="rounded-[22px] border border-white/8 bg-black/16 px-4 py-4 sm:px-5 sm:py-5"
+                      >
+                        <div className="grid gap-3 sm:grid-cols-[1.45fr_0.85fr_0.5fr] sm:items-start">
+                          <div className="min-w-0">
+                            <h4 className="text-lg font-semibold text-white">
+                              {experience.role}
+                            </h4>
+                          </div>
+                          <p className="text-sm font-medium text-[#b9eeff]">
+                            {experience.client}
+                          </p>
+                          <span className="self-start rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/58">
+                            {experience.period}
+                          </span>
+                        </div>
+
+                        <ul className="mt-4 space-y-3">
+                          {experience.points.map((point, pointIndex) => (
+                            <li
+                              key={`${experience.client}-${pointIndex}`}
+                              className="flex items-start gap-3"
+                            >
+                              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#8fdcff]" />
+                              <p className="text-sm leading-relaxed text-white/68">{point}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div
-              ref={buttonsRef}
-              className="relative z-20 mt-6 grid grid-cols-1 gap-3 sm:mt-7 sm:grid-cols-3 lg:-mt-16 xl:-mt-24"
-            >
-              <button
-                className={`relative flex h-[160px] w-full transform-gpu flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-[opacity,transform,box-shadow] duration-180 ease-out will-change-transform hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
-                  buttonsVisible[0] ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
-                }`}
-                style={{ fontFamily: "Arial, sans-serif" }}
-              >
-                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-                <div className="flex items-start justify-between">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0b9dff] shadow-[0_10px_30px_rgba(0,153,255,0.24)]">
-                    <Code className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="text-[2.2rem] font-bold leading-none text-white">
-                    {totalCreativeProjects}
-                  </div>
-                </div>
-                <div className="mt-5 flex flex-col gap-1">
-                  <span className="text-left text-[11px] uppercase tracking-[0.08em] text-white/76">
-                    Total Projects
-                  </span>
-                  <span className="text-left text-sm text-white/58">
-                    Creative graphics and storytelling
-                  </span>
-                </div>
-                <ArrowUpRight className="absolute bottom-5 right-5 h-4 w-4 text-white" />
-              </button>
-
-              <button
-                className={`relative flex h-[160px] w-full transform-gpu flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-[opacity,transform,box-shadow] duration-180 ease-out will-change-transform hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
-                  buttonsVisible[1] ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
-                }`}
-                style={{ fontFamily: "Arial, sans-serif" }}
-              >
-                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-                <div className="flex items-start justify-between">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0b9dff] shadow-[0_10px_30px_rgba(0,153,255,0.24)]">
-                    <Medal className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="text-[2.2rem] font-bold leading-none text-white">
-                    {totalCertificates}
-                  </div>
-                </div>
-                <div className="mt-5 flex flex-col gap-1">
-                  <span className="text-left text-[11px] uppercase tracking-[0.08em] text-white/76">
-                    Certificates
-                  </span>
-                  <span className="text-left text-sm text-white/58">
-                    Professional skills validated
-                  </span>
-                </div>
-                <ArrowUpRight className="absolute bottom-5 right-5 h-4 w-4 text-white" />
-              </button>
-
-              <button
-                className={`relative flex h-[160px] w-full transform-gpu flex-col justify-start overflow-hidden rounded-[18px] border border-white/14 bg-[linear-gradient(180deg,rgba(18,24,32,0.86),rgba(11,16,24,0.66))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.2)] backdrop-blur-xl transition-[opacity,transform,box-shadow] duration-180 ease-out will-change-transform hover:-translate-y-1 hover:shadow-[0_22px_50px_rgba(0,0,0,0.26)] ${
-                  buttonsVisible[2] ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
-                }`}
-                style={{ fontFamily: "Arial, sans-serif" }}
-              >
-                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-                <div className="flex items-start justify-between">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0b9dff] shadow-[0_10px_30px_rgba(0,153,255,0.24)]">
-                    <Globe className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="text-[2.2rem] font-bold leading-none text-white">2</div>
-                </div>
-                <div className="mt-5 flex flex-col gap-1">
-                  <span className="text-left text-[11px] uppercase tracking-[0.08em] text-white/76">
-                    Years of Experience
-                  </span>
-                  <span className="text-left text-sm text-white/58">
-                    Continuous learning journey
-                  </span>
-                </div>
-                <ArrowUpRight className="absolute bottom-5 right-5 h-4 w-4 text-white" />
-              </button>
-            </div>
             </div>
           </div>
         </div>
@@ -3288,146 +3271,93 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         <div className="absolute right-[10%] top-[14%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,transparent_74%)] blur-3xl" />
       </div>
 
-      <div className={`${glassSectionInnerClass} grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start`}>
-      <div className="max-w-xl">
-        <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Creative Stack</p>
-        <h2
-          className="mt-4 text-3xl font-bold text-white sm:text-4xl"
-          style={{
-            fontFamily: "'CreatoDisplay', sans-serif",
-            letterSpacing: "0.03em",
-            textShadow: "0 0 10px rgba(0,153,255,0.11)",
-          }}
-        >
-          The tools I trust to keep every edit sharp, cinematic, and intentional.
-        </h2>
-        <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/72 sm:text-base">
-          My workflow stays simple on the surface but refined in execution. I mainly
-          build with Premiere Pro, Photoshop, After Effects, Canva, and Illustrator,
-          switching between them depending on whether a project needs pacing, motion,
-          layout, or stronger visual polish.
-        </p>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/12 bg-white/[0.04] p-4 backdrop-blur-md">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">Main Focus</p>
-            <p className="mt-2 text-sm font-semibold text-white">Video editing with design support</p>
-          </div>
-          <div className="rounded-2xl border border-white/12 bg-white/[0.04] p-4 backdrop-blur-md">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">Core Tools</p>
-            <p className="mt-2 text-sm font-semibold text-white">5 daily-use apps</p>
-          </div>
-          <div className="rounded-2xl border border-white/12 bg-white/[0.04] p-4 backdrop-blur-md">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">Style</p>
-            <p className="mt-2 text-sm font-semibold text-white">Clean, fast, and cinematic</p>
-          </div>
-        </div>
-
-        <div className="relative mt-6 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-5">
+      <div className={glassSectionInnerClass}>
+        <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-5 sm:p-6 lg:p-7">
           <div className="pointer-events-none absolute inset-0">
-            <div className="absolute -right-8 top-4 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.1)_0%,transparent_72%)] blur-2xl" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/16 to-transparent" />
+            <div className="absolute left-[12%] top-[14%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,transparent_72%)] blur-3xl" />
+            <div className="absolute right-[10%] bottom-[10%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(255,145,72,0.06)_0%,transparent_74%)] blur-3xl" />
           </div>
 
-          <div className="relative z-10 flex min-h-[215px] flex-col justify-between">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.22em] text-[#ffe97a]">Edit Flow</p>
-              <h3 className="mt-3 max-w-sm text-xl font-semibold text-white">
-                I keep the process clear so the final output feels effortless.
-              </h3>
-            </div>
+          <div className="relative z-10">
+            <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Creative Stack</p>
+            <h2
+              className="mt-4 text-3xl font-bold text-white sm:text-4xl"
+              style={{
+                fontFamily: "'CreatoDisplay', sans-serif",
+                letterSpacing: "0.03em",
+                textShadow: "0 0 10px rgba(0,153,255,0.11)",
+              }}
+            >
+              Creative tools I use.
+            </h2>
+            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/70 sm:text-base">
+              A small creative stack, but each tool has a clear role in how I cut, design,
+              animate, and finish a project.
+            </p>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-3 backdrop-blur-md">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">01</p>
-                <p className="mt-2 text-sm font-medium text-white/88">Rough cut and pacing first</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-3 backdrop-blur-md">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">02</p>
-                <p className="mt-2 text-sm font-medium text-white/88">Design polish and clean framing</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-3 backdrop-blur-md">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">03</p>
-                <p className="mt-2 text-sm font-medium text-white/88">Motion where it adds real impact</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-3 backdrop-blur-md">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/38">04</p>
-                <p className="mt-2 text-sm font-medium text-white/88">Export tuned for a strong finish</p>
-              </div>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              {creativeTools.map((tool) => {
+                const ToolIcon = tool.icon;
+
+                return (
+                  <div
+                    key={tool.name}
+                    className="group relative min-h-[280px] overflow-hidden rounded-[28px] border border-white/12 p-5 backdrop-blur-xl transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:border-white/22"
+                    style={{
+                      background: tool.panelBackground,
+                      boxShadow: `0 18px 42px ${tool.glow}`,
+                    }}
+                  >
+                    <div className="pointer-events-none absolute inset-0">
+                      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/16 to-transparent" />
+                      <div
+                        className="absolute left-1/2 top-4 h-24 w-24 -translate-x-1/2 rounded-full blur-3xl opacity-90"
+                        style={{
+                          background: `radial-gradient(circle, ${tool.glow} 0%, transparent 72%)`,
+                        }}
+                      />
+                      <div
+                        className="absolute bottom-[-8%] right-[-6%] h-24 w-24 rounded-full border border-white/8"
+                        style={{ opacity: 0.5 }}
+                      />
+                      <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(rgba(255,255,255,0.14)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:20px_20px]" />
+                    </div>
+
+                    <div className="relative z-10 flex h-full flex-col items-center text-center">
+                      <div
+                        className="flex h-16 w-16 items-center justify-center rounded-[20px] border sm:h-[72px] sm:w-[72px]"
+                        style={{
+                          background: tool.badgeBackground,
+                          borderColor: tool.badgeBorder,
+                          color: tool.accent,
+                          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 22px ${tool.glow}`,
+                        }}
+                      >
+                        <ToolIcon className="h-8 w-8 sm:h-9 sm:w-9" />
+                      </div>
+
+                      <div className="mt-6 min-w-0">
+                        <h3 className="text-lg font-semibold text-white sm:text-xl">{tool.name}</h3>
+                        <p className="mt-3 text-sm leading-relaxed text-white/72">
+                          {tool.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-auto pt-8">
+                        <ToolIcon
+                          className="h-14 w-14 opacity-[0.12]"
+                          style={{ color: tool.accent }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        {creativeTools.map((tool, index) => (
-          <div
-            key={tool.name}
-            className={`group relative overflow-hidden rounded-[28px] border border-white/12 p-4 backdrop-blur-xl transition-[transform,border-color,box-shadow,background-color,opacity] duration-180 ease-out hover:-translate-y-1 hover:border-white/22 ${
-              index === 0 ? "sm:col-span-2" : ""
-            }`}
-            style={{
-              background: tool.panelBackground,
-              boxShadow: `0 16px 38px ${tool.glow}`,
-            }}
-          >
-            <div
-              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(255,255,255,0.12), transparent 38%, transparent 100%)",
-              }}
-            />
-
-            <div className="relative z-10 flex items-start justify-between gap-4">
-              <div
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border text-xl font-bold tracking-[0.02em]"
-                style={{
-                  background: tool.badgeBackground,
-                  borderColor: tool.badgeBorder,
-                  color: tool.accent,
-                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 18px ${tool.glow}`,
-                }}
-              >
-                {tool.short}
-              </div>
-
-              <span
-                className="rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.22em]"
-                style={{
-                  borderColor: tool.badgeBorder,
-                  color: tool.accent,
-                  background: "rgba(255,255,255,0.04)",
-                }}
-              >
-                {tool.category}
-              </span>
-            </div>
-
-            <div className="relative z-10 mt-5">
-              <h3 className="text-lg font-semibold text-white">{tool.name}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-white/72">
-                {tool.description}
-              </p>
-            </div>
-
-            <div className="relative z-10 mt-5 flex flex-wrap gap-2">
-              {tool.tags.map((tag) => (
-                <span
-                  key={`${tool.name}-${tag}`}
-                  className="rounded-full border px-3 py-1 text-[11px] font-medium text-white/78"
-                  style={{
-                    borderColor: "rgba(255,255,255,0.14)",
-                    background: "rgba(255,255,255,0.05)",
-                  }}
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
   </div>
 </div>
 </div>
