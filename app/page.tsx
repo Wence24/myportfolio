@@ -62,7 +62,7 @@ export default function Home() {
   const [graphicText, setGraphicText] = useState("");
 const [videoDone, setVideoDone] = useState(false);
 const [graphicDone, setGraphicDone] = useState(false);
-const [activeBox, setActiveBox] = useState("Graphic Design"); // default Projects
+const [activeBox, setActiveBox] = useState("Video Edit"); // default Projects
 const [showPortfolio, setShowPortfolio] = useState(false);
 const portfolioShown = useRef(false);
 const [showModal, setShowModal] = useState(false);
@@ -85,14 +85,14 @@ const [activeCarouselPlaybackKey, setActiveCarouselPlaybackKey] = useState<strin
 
 const portfolioCategories = [
   {
-    name: "Graphic Design",
-    icon: Palette,
-    description: "Poster systems, visual branding, and polished design work.",
-  },
-  {
     name: "Video Edit",
     icon: Film,
     description: "Story-driven edits, pacing, transitions, and cinematic cuts.",
+  },
+  {
+    name: "Graphic Design",
+    icon: Palette,
+    description: "Poster systems, visual branding, and polished design work.",
   },
   {
     name: "Certificates",
