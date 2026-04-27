@@ -213,6 +213,7 @@ function CarouselClipVideo({
 }: CarouselClipVideoProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastPlaybackTimeRef = useRef(0);
+  const hasCustomPoster = typeof posterUrl === "string" && posterUrl.trim().length > 0;
   const shouldKeepPlaying = isActive && isVisible && activePlaybackKey === playbackKey;
 
   const savePlaybackTime = useCallback((time: number) => {
@@ -324,14 +325,34 @@ function CarouselClipVideo({
     <video
       ref={videoRef}
       src={videoUrl}
-      poster={posterUrl || undefined}
+      poster={hasCustomPoster ? posterUrl : undefined}
       data-carousel-video="true"
       data-playback-key={playbackKey}
       className="h-full w-full object-cover"
       controls={isActive}
       playsInline
       loop
-      preload="metadata"
+      preload={hasCustomPoster || !isVisible ? "metadata" : "auto"}
+      onLoadedData={(event) => {
+        if (hasCustomPoster || shouldKeepPlaying || !isVisible) {
+          return;
+        }
+
+        const video = event.currentTarget;
+        const savedPlaybackTime =
+          carouselClipPlaybackTimes.get(playbackKey) ?? lastPlaybackTimeRef.current;
+        const previewTime = savedPlaybackTime > 0.15 ? savedPlaybackTime : 0.01;
+
+        if (!Number.isFinite(video.duration) || video.duration <= 0) {
+          return;
+        }
+
+        try {
+          video.currentTime = Math.min(previewTime, Math.max(video.duration - 0.05, 0));
+        } catch {
+          // ignore currentTime assignment errors while previewing the first frame
+        }
+      }}
       onPlay={(event) => {
         const currentVideo = event.currentTarget;
 
@@ -3581,7 +3602,6 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                 className={`relative mx-auto w-full max-w-[920px] ${carouselStageClass} ${stageMotionClass}`}
                               >
                                 {group.clips.map((clip, index) => {
-                                  const clipProject = clip.project;
                                   const clipIsReady = clip.videoUrl.trim().length > 0;
                                   const clipOffset = getVideoCarouselClipOffset(
                                     index,
@@ -3622,7 +3642,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                           <CarouselClipVideo
                                             playbackKey={clip.key}
                                             videoUrl={clip.videoUrl}
-                                            posterUrl={clip.posterUrl || clipProject.image || undefined}
+                                            posterUrl={clip.posterUrl || undefined}
                                             isActive={isActiveCard}
                                             isVisible={isVisibleCard}
                                             activePlaybackKey={activeCarouselPlaybackKey}

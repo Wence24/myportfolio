@@ -1065,8 +1065,7 @@ export default function StudioPage() {
     projectPreview,
     projectPreviewVideoUrls.length || 1
   );
-  const projectPreviewPosterImage =
-    projectPreviewVideoPosterUrls[0] || projectPreview.image || "";
+  const projectPreviewPosterImage = projectPreviewVideoPosterUrls[0] || "";
   const projectPreviewVideoPosterCount = projectPreviewVideoPosterUrls.filter(
     (item) => item.length > 0
   ).length;
@@ -2317,7 +2316,7 @@ export default function StudioPage() {
                           ) : (
                             <p className="mt-1 text-sm leading-relaxed text-white/68">
                               Upload an optional image for each clip to override the default
-                              project image poster.
+                              live frame preview from the video itself.
                             </p>
                           )}
                         </div>
