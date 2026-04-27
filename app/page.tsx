@@ -330,9 +330,14 @@ function CarouselClipVideo({
       data-playback-key={playbackKey}
       className="h-full w-full object-cover"
       controls={isActive}
+      controlsList="nodownload"
+      disablePictureInPicture
       playsInline
       loop
       preload={hasCustomPoster || !isVisible ? "metadata" : "auto"}
+      onContextMenu={(event) => {
+        event.preventDefault();
+      }}
       onLoadedData={(event) => {
         if (hasCustomPoster || shouldKeepPlaying || !isVisible) {
           return;
@@ -1489,6 +1494,49 @@ useEffect(() => {
   return () => {
     document.removeEventListener("play", handleCarouselVideoPlay, true);
     document.removeEventListener("playing", handleCarouselVideoPlay, true);
+  };
+}, []);
+
+useEffect(() => {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+
+  const handleContextMenu = (event: MouseEvent) => {
+    event.preventDefault();
+  };
+
+  const handleDragStart = (event: DragEvent) => {
+    const target = event.target;
+    if (target instanceof HTMLImageElement || target instanceof HTMLVideoElement) {
+      event.preventDefault();
+    }
+  };
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    const key = event.key.toLowerCase();
+    const hasModifier = event.ctrlKey || event.metaKey;
+    const isInspectShortcut =
+      key === "f12" ||
+      (hasModifier && event.shiftKey && ["i", "j", "c"].includes(key)) ||
+      (hasModifier && ["u", "s"].includes(key));
+
+    if (!isInspectShortcut) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  document.addEventListener("contextmenu", handleContextMenu);
+  document.addEventListener("dragstart", handleDragStart);
+  window.addEventListener("keydown", handleKeyDown);
+
+  return () => {
+    document.removeEventListener("contextmenu", handleContextMenu);
+    document.removeEventListener("dragstart", handleDragStart);
+    window.removeEventListener("keydown", handleKeyDown);
   };
 }, []);
 
@@ -3196,7 +3244,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               </div>
 
               <div
-                className={`relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(12,18,26,0.96),rgba(8,13,20,0.94))] p-5 transition-[opacity,transform] duration-500 ease-out ${
+                className={`relative overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(34,40,49,0.97),rgba(19,24,32,0.95))] p-5 transition-[opacity,transform] duration-500 ease-out ${
                   helloVisible ? "translate-x-0 opacity-100" : "translate-x-10 opacity-0"
                 }`}
                 style={{ transitionDelay: "0.08s" }}
@@ -3221,7 +3269,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                     intentional from first cut to final export.
                   </p>
 
-                  <div className="mt-8 rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
+                  <div className="mt-8 rounded-[22px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.035))] px-4 py-3 sm:px-5">
                     <div className="grid gap-2 text-[10px] uppercase tracking-[0.22em] text-white/44 sm:grid-cols-[1.45fr_0.85fr_0.5fr] sm:items-center">
                       <span>What I Did</span>
                       <span>Client</span>
@@ -3233,7 +3281,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                     {creativeExperienceEntries.map((experience) => (
                       <div
                         key={`${experience.client}-${experience.role}`}
-                        className="rounded-[22px] border border-white/8 bg-black/16 px-4 py-4 sm:px-5 sm:py-5"
+                        className="rounded-[22px] border border-white/12 bg-[linear-gradient(180deg,rgba(68,74,86,0.4),rgba(24,29,37,0.84))] px-4 py-4 sm:px-5 sm:py-5"
                       >
                         <div className="grid gap-3 sm:grid-cols-[1.45fr_0.85fr_0.5fr] sm:items-start">
                           <div className="min-w-0">
