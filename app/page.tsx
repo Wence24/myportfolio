@@ -3700,8 +3700,8 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                           <div
                                             className="flex h-full w-full items-center justify-center px-6 text-center"
                                             style={{
-                                              background: clip.posterUrl || clipProject.image
-                                                ? `linear-gradient(135deg, rgba(2, 6, 10, 0.76), rgba(2, 6, 10, 0.94)), url(${clip.posterUrl || clipProject.image}) center/cover`
+                                              background: clip.posterUrl || clip.project.image
+                                                ? `linear-gradient(135deg, rgba(2, 6, 10, 0.76), rgba(2, 6, 10, 0.94)), url(${clip.posterUrl || clip.project.image}) center/cover`
                                                 : "linear-gradient(135deg, rgba(4,10,18,0.98), rgba(6,18,28,0.92))",
                                             }}
                                           >
