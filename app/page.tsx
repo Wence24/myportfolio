@@ -1765,6 +1765,24 @@ const scrollToSection = (ref: React.RefObject<HTMLDivElement | null> | null) => 
   window.scrollTo({ top: targetTop, behavior: "smooth" });
 };
 
+const openPortfolioCategory = (
+  categoryName: "Graphic Design" | "Video Edit" | "Certificates",
+  shouldScroll = false
+) => {
+  setActiveBox(categoryName);
+  setAnimateTab(false);
+
+  window.setTimeout(() => {
+    setAnimateTab(true);
+  }, 50);
+
+  if (shouldScroll) {
+    window.setTimeout(() => {
+      scrollToSection(portfolioRef);
+    }, 80);
+  }
+};
+
 const handleSecretLogoTap = () => {
   setLogoTapCount((previousTapCount) => {
     const nextTapCount = previousTapCount + 1;
@@ -2693,6 +2711,15 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         </div>
       )}
 
+      {/* PAGE AMBIENCE */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute left-1/2 top-[8%] h-[24rem] w-[72rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(118,208,255,0.16)_0%,rgba(118,208,255,0.07)_34%,transparent_74%)] blur-3xl opacity-75" />
+        <div className="absolute left-[-8%] top-[38%] h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.14)_0%,rgba(0,153,255,0.05)_38%,transparent_74%)] blur-3xl opacity-70" />
+        <div className="absolute right-[-10%] top-[54%] h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.09)_0%,rgba(255,255,255,0.03)_32%,transparent_72%)] blur-3xl opacity-65" />
+        <div className="absolute left-[14%] bottom-[18%] h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(circle,rgba(124,220,255,0.11)_0%,rgba(124,220,255,0.04)_36%,transparent_74%)] blur-3xl opacity-70" />
+        <div className="absolute left-1/2 bottom-[-8%] h-[24rem] w-[84vw] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(102,214,255,0.14)_0%,rgba(102,214,255,0.05)_34%,transparent_74%)] blur-3xl opacity-85" />
+      </div>
+
       {/* HERO ATMOSPHERE */}
       <div className="absolute inset-0 z-0">
         <div
@@ -3234,10 +3261,20 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
                       <a
                         href="#projects"
-                        className="inline-flex h-11 w-full items-center justify-center rounded-full border border-white/12 bg-white/[0.04] px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/72 transition-[transform,border-color,background-color] duration-160 ease-out hover:-translate-y-0.5 hover:border-white/20"
+                        className="inline-flex h-11 w-full items-center justify-center rounded-full border border-[#8fdcff]/25 bg-[#8fdcff]/10 px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#b9eeff] transition-[transform,border-color,background-color] duration-160 ease-out hover:-translate-y-0.5 hover:border-[#8fdcff]/40"
                       >
                         View Projects
                       </a>
+                    </div>
+
+                    <div className="w-full max-w-[420px] rounded-[22px] border border-white/12 bg-white/[0.03] p-3 backdrop-blur-md">
+                      <button
+                        type="button"
+                        onClick={() => openPortfolioCategory("Video Edit", true)}
+                        className="inline-flex h-11 w-full items-center justify-center rounded-full border border-[#8fdcff]/25 bg-[#8fdcff]/10 px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#b9eeff] transition-[transform,border-color,background-color] duration-160 ease-out hover:-translate-y-0.5 hover:border-[#8fdcff]/40"
+                      >
+                        Go to Client Edits
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -3527,11 +3564,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                   type="button"
                   aria-pressed={isActive}
                   onClick={() => {
-                    setActiveBox(item.name);
-                    setAnimateTab(false);
-                    setTimeout(() => {
-                      setAnimateTab(true);
-                    }, 50);
+                    openPortfolioCategory(item.name);
                   }}
                   className={`group rounded-[22px] border p-4 text-left transition-[transform,border-color,background-color,box-shadow] duration-180 ease-out ${
                     isActive
