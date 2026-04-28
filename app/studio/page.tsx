@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   ensureSupabaseConfigured,
   PORTFOLIO_STORAGE_KEY,
@@ -1445,6 +1445,43 @@ export default function StudioPage() {
     setForm(toForm(activeProjects[index]));
   };
 
+  const handleMoveProject = (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    const categoryProjects = projects[activeCategory] || [];
+
+    if (nextIndex < 0 || nextIndex >= categoryProjects.length) {
+      return;
+    }
+
+    const updatedProjects = { ...projects };
+    const reorderedProjects = [...categoryProjects];
+    const [movedProject] = reorderedProjects.splice(index, 1);
+
+    if (!movedProject) {
+      return;
+    }
+
+    reorderedProjects.splice(nextIndex, 0, movedProject);
+    updatedProjects[activeCategory] = reorderedProjects;
+    persistProjects(updatedProjects);
+
+    setEditingIndex((previousIndex) => {
+      if (previousIndex === null) {
+        return previousIndex;
+      }
+
+      if (previousIndex === index) {
+        return nextIndex;
+      }
+
+      if (previousIndex === nextIndex) {
+        return index;
+      }
+
+      return previousIndex;
+    });
+  };
+
   const handleDelete = (index: number) => {
     const updatedProjects = { ...projects };
     updatedProjects[activeCategory] = updatedProjects[activeCategory].filter(
@@ -1454,6 +1491,8 @@ export default function StudioPage() {
 
     if (editingIndex === index) {
       resetForm();
+    } else if (editingIndex !== null && editingIndex > index) {
+      setEditingIndex(editingIndex - 1);
     }
   };
 
@@ -2418,6 +2457,12 @@ export default function StudioPage() {
             <h2 className="text-lg font-semibold">
               {activeCategory} Projects ({activeProjects.length})
             </h2>
+            {activeCategory === "Video Edit" && activeProjects.length > 1 && (
+              <p className="text-xs leading-relaxed text-white/58">
+                Use the up and down buttons to control the order shown in the main
+                portfolio showcase.
+              </p>
+            )}
 
             <div className="max-h-[62vh] overflow-y-auto space-y-3 pr-1">
               {activeProjects.map((project, index) => (
@@ -2425,7 +2470,14 @@ export default function StudioPage() {
                   key={`${activeCategory}-${project.title}-${index}`}
                   className="rounded-xl border border-white/15 bg-black/25 p-3"
                 >
-                  <h3 className="font-semibold text-sm">{project.title}</h3>
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-semibold text-sm">{project.title}</h3>
+                    {activeCategory === "Video Edit" && (
+                      <span className="rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-white/75 mt-1 line-clamp-3">
                     {project.description}
                   </p>
@@ -2448,7 +2500,29 @@ export default function StudioPage() {
                     </div>
                   )}
 
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {activeCategory === "Video Edit" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveProject(index, -1)}
+                          disabled={index === 0}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <ArrowUp size={12} />
+                          Up
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveProject(index, 1)}
+                          disabled={index === activeProjects.length - 1}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <ArrowDown size={12} />
+                          Down
+                        </button>
+                      </>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleEdit(index)}
