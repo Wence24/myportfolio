@@ -1,10 +1,19 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowLeft, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 import {
+  type CreativeExperienceEntry,
+  defaultExperienceEntries,
+  EXPERIENCE_CONTENT_UPDATED_AT_KEY,
+  EXPERIENCE_STORAGE_KEY,
+  EXPERIENCE_UPDATED_EVENT,
+  normalizeExperienceEntries,
+  parseExperienceEntries,
   ensureSupabaseConfigured,
+  PORTFOLIO_CONTENT_UPDATED_AT_KEY,
+  PORTFOLIO_SYNC_CHANNEL_NAME,
   PORTFOLIO_STORAGE_KEY,
   PORTFOLIO_UPDATED_EVENT,
   TESTIMONIALS_STORAGE_KEY,
@@ -406,6 +415,27 @@ function createEmptyTestimonialForm(): TestimonialForm {
     designation: "",
     src: "",
   };
+}
+
+function getInitialExperienceEntries(): CreativeExperienceEntry[] {
+  if (typeof window === "undefined") return defaultExperienceEntries;
+  try {
+    const raw = window.localStorage.getItem(EXPERIENCE_STORAGE_KEY);
+    if (!raw) return defaultExperienceEntries;
+    return normalizeExperienceEntries(JSON.parse(raw));
+  } catch {
+    return defaultExperienceEntries;
+  }
+}
+
+function getStoredExperienceUpdatedAt() {
+  if (typeof window === "undefined") return "";
+
+  return (
+    window.localStorage.getItem(EXPERIENCE_CONTENT_UPDATED_AT_KEY) ||
+    window.localStorage.getItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY) ||
+    ""
+  );
 }
 
 function normalizeProjects(value: unknown): PortfolioProjects {
@@ -972,6 +1002,17 @@ export default function StudioPage() {
       return fallbackTestimonials;
     }
   });
+  const [experienceEntries, setExperienceEntries] = useState<CreativeExperienceEntry[]>(
+    getInitialExperienceEntries
+  );
+  const [savedExperienceEntries, setSavedExperienceEntries] = useState<
+    CreativeExperienceEntry[]
+  >(getInitialExperienceEntries);
+  const [isSavingExperience, setIsSavingExperience] = useState(false);
+  const [experienceSaveNotice, setExperienceSaveNotice] = useState<{
+    tone: "success" | "warning";
+    message: string;
+  } | null>(null);
   const [testimonialForm, setTestimonialForm] = useState<TestimonialForm>(
     createEmptyTestimonialForm()
   );
@@ -983,6 +1024,16 @@ export default function StudioPage() {
     () => toTestimonial(testimonialForm),
     [testimonialForm]
   );
+  const experienceEntriesRef = useRef(experienceEntries);
+  const hasUnsavedExperienceChanges = useMemo(
+    () =>
+      JSON.stringify(experienceEntries) !== JSON.stringify(savedExperienceEntries),
+    [experienceEntries, savedExperienceEntries]
+  );
+
+  useEffect(() => {
+    experienceEntriesRef.current = experienceEntries;
+  }, [experienceEntries]);
 
   useEffect(() => {
     const storedCredentials = getStoredStudioCredentials();
@@ -1010,6 +1061,16 @@ export default function StudioPage() {
   }, [projects]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!window.localStorage.getItem(EXPERIENCE_STORAGE_KEY)) {
+      window.localStorage.setItem(
+        EXPERIENCE_STORAGE_KEY,
+        JSON.stringify(experienceEntries)
+      );
+    }
+  }, [experienceEntries]);
+
+  useEffect(() => {
     let cancelled = false;
     const syncFromSupabase = async () => {
       const configured = await ensureSupabaseConfigured();
@@ -1021,20 +1082,82 @@ export default function StudioPage() {
       const remoteContent = await fetchPortfolioContentFromSupabase();
       if (!remoteContent || cancelled) return;
 
-      setProjects(normalizeProjects(remoteContent.projects));
-      setTestimonials(normalizeTestimonials(remoteContent.testimonials));
+      const localPortfolioUpdatedAtValue =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY)
+          : null;
+      const localExperienceUpdatedAtValue = getStoredExperienceUpdatedAt();
+      const localPortfolioUpdatedAt = localPortfolioUpdatedAtValue
+        ? Date.parse(localPortfolioUpdatedAtValue)
+        : Number.NaN;
+      const localExperienceUpdatedAt = localExperienceUpdatedAtValue
+        ? Date.parse(localExperienceUpdatedAtValue)
+        : Number.NaN;
+      const remoteUpdatedAt = remoteContent.updatedAt
+        ? Date.parse(remoteContent.updatedAt)
+        : Number.NaN;
+      const hasLocalPortfolioUpdatedAt = Number.isFinite(localPortfolioUpdatedAt);
+      const hasLocalExperienceUpdatedAt = Number.isFinite(localExperienceUpdatedAt);
+      const hasRemoteUpdatedAt = Number.isFinite(remoteUpdatedAt);
+      const shouldApplyRemoteProjectsAndTestimonials = hasRemoteUpdatedAt
+        ? !hasLocalPortfolioUpdatedAt || remoteUpdatedAt >= localPortfolioUpdatedAt
+        : !hasLocalPortfolioUpdatedAt;
+      const remoteExperienceEntries =
+        remoteContent.experienceEntriesSyncSupported !== false
+          ? parseExperienceEntries(remoteContent.experienceEntries)
+          : null;
+      const shouldApplyRemoteExperience =
+        remoteExperienceEntries !== null &&
+        (hasRemoteUpdatedAt
+          ? !hasLocalExperienceUpdatedAt || remoteUpdatedAt >= localExperienceUpdatedAt
+          : !hasLocalExperienceUpdatedAt);
 
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(
-          PORTFOLIO_STORAGE_KEY,
-          JSON.stringify(remoteContent.projects)
-        );
-        window.localStorage.setItem(
-          TESTIMONIALS_STORAGE_KEY,
-          JSON.stringify(remoteContent.testimonials)
-        );
-        window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
-        window.dispatchEvent(new Event(TESTIMONIALS_UPDATED_EVENT));
+      if (!shouldApplyRemoteProjectsAndTestimonials && !shouldApplyRemoteExperience) {
+        return;
+      }
+
+      if (shouldApplyRemoteProjectsAndTestimonials) {
+        const normalizedProjects = normalizeProjects(remoteContent.projects);
+        const normalizedTestimonials = normalizeTestimonials(remoteContent.testimonials);
+
+        setProjects(normalizedProjects);
+        setTestimonials(normalizedTestimonials);
+
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            PORTFOLIO_STORAGE_KEY,
+            JSON.stringify(normalizedProjects)
+          );
+          window.localStorage.setItem(
+            TESTIMONIALS_STORAGE_KEY,
+            JSON.stringify(normalizedTestimonials)
+          );
+          if (remoteContent.updatedAt) {
+            persistPortfolioUpdatedAt(remoteContent.updatedAt);
+          }
+          window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
+          window.dispatchEvent(new Event(TESTIMONIALS_UPDATED_EVENT));
+        }
+      }
+
+      if (shouldApplyRemoteExperience && remoteExperienceEntries) {
+        setExperienceEntries(remoteExperienceEntries);
+        setSavedExperienceEntries(remoteExperienceEntries);
+        experienceEntriesRef.current = remoteExperienceEntries;
+
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            EXPERIENCE_STORAGE_KEY,
+            JSON.stringify(remoteExperienceEntries)
+          );
+          if (remoteContent.updatedAt) {
+            window.localStorage.setItem(
+              EXPERIENCE_CONTENT_UPDATED_AT_KEY,
+              remoteContent.updatedAt
+            );
+          }
+          window.dispatchEvent(new Event(EXPERIENCE_UPDATED_EVENT));
+        }
       }
     };
 
@@ -1073,6 +1196,7 @@ export default function StudioPage() {
   const projectPreviewVideoCategory = getVideoProjectCategory(projectPreview);
   const projectPreviewVideoParentLabel = getVideoProjectParentLabel(projectPreview);
   const projectPreviewVideoAspectRatio = getVideoProjectAspectRatio(projectPreview);
+  const projectPreviewCardImage = projectPreview.image.trim() || projectPreviewPosterImage;
   const projectPreviewVideoFrameClass =
     projectPreviewVideoAspectRatio === "portrait"
       ? "mx-auto aspect-[9/16] max-w-[260px] sm:max-w-[320px]"
@@ -1089,20 +1213,33 @@ export default function StudioPage() {
     );
   };
 
+  const persistPortfolioUpdatedAt = (nextUpdatedAt: string) => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY, nextUpdatedAt);
+  };
+
+  const persistExperienceUpdatedAt = (nextUpdatedAt: string) => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(EXPERIENCE_CONTENT_UPDATED_AT_KEY, nextUpdatedAt);
+  };
+
   const persistProjects = (nextProjects: PortfolioProjects) => {
     setProjects(nextProjects);
     if (typeof window === "undefined") return;
+    persistPortfolioUpdatedAt(new Date().toISOString());
     window.localStorage.setItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(nextProjects));
     window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
     void savePortfolioContentToSupabase({
       projects: nextProjects,
       testimonials,
+      experienceEntries: savedExperienceEntries,
     });
   };
 
   const persistTestimonials = (nextTestimonials: Testimonial[]) => {
     setTestimonials(nextTestimonials);
     if (typeof window === "undefined") return;
+    persistPortfolioUpdatedAt(new Date().toISOString());
     window.localStorage.setItem(
       TESTIMONIALS_STORAGE_KEY,
       JSON.stringify(nextTestimonials)
@@ -1111,8 +1248,208 @@ export default function StudioPage() {
     void savePortfolioContentToSupabase({
       projects,
       testimonials: nextTestimonials,
+      experienceEntries: savedExperienceEntries,
     });
   };
+
+  const persistExperienceEntries = async (
+    nextExperienceEntries: CreativeExperienceEntry[]
+  ) => {
+    setExperienceEntries(nextExperienceEntries);
+    setSavedExperienceEntries(nextExperienceEntries);
+    experienceEntriesRef.current = nextExperienceEntries;
+    if (typeof window === "undefined") return;
+    const updatedAt = new Date().toISOString();
+    persistPortfolioUpdatedAt(updatedAt);
+    persistExperienceUpdatedAt(updatedAt);
+    window.localStorage.setItem(
+      EXPERIENCE_STORAGE_KEY,
+      JSON.stringify(nextExperienceEntries)
+    );
+    window.dispatchEvent(new Event(EXPERIENCE_UPDATED_EVENT));
+    if (typeof BroadcastChannel !== "undefined") {
+      const channel = new BroadcastChannel(PORTFOLIO_SYNC_CHANNEL_NAME);
+      channel.postMessage({
+        type: "experience-updated",
+        experienceEntries: nextExperienceEntries,
+        updatedAt,
+      });
+      channel.close();
+    }
+    return savePortfolioContentToSupabase({
+      projects,
+      testimonials,
+      experienceEntries: nextExperienceEntries,
+    });
+  };
+
+  const handleExperienceImageChange = (index: number, value: string) => {
+    setExperienceEntries((currentEntries) =>
+      {
+        const nextEntries = currentEntries.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, image: value } : item
+        );
+        experienceEntriesRef.current = nextEntries;
+        return nextEntries;
+      }
+    );
+    setExperienceSaveNotice(null);
+  };
+
+  const handleSaveExperience = async () => {
+    setIsSavingExperience(true);
+    setExperienceSaveNotice(null);
+
+    const nextExperienceEntries = experienceEntriesRef.current;
+    const didSyncToSupabase = await persistExperienceEntries(nextExperienceEntries);
+    let didVerifyRemoteExperience = didSyncToSupabase;
+    let didVerifyLocalExperience = false;
+
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(EXPERIENCE_STORAGE_KEY);
+        didVerifyLocalExperience =
+          raw !== null &&
+          JSON.stringify(normalizeExperienceEntries(JSON.parse(raw))) ===
+            JSON.stringify(nextExperienceEntries);
+      } catch {
+        didVerifyLocalExperience = false;
+      }
+    }
+
+    if (didSyncToSupabase) {
+      const remoteContent = await fetchPortfolioContentFromSupabase();
+      const remoteExperienceEntries = parseExperienceEntries(
+        remoteContent?.experienceEntries
+      );
+      didVerifyRemoteExperience =
+        remoteContent?.experienceEntriesSyncSupported !== false &&
+        remoteExperienceEntries !== null &&
+        JSON.stringify(remoteExperienceEntries) === JSON.stringify(nextExperienceEntries);
+    }
+
+    setExperienceSaveNotice(
+      didVerifyLocalExperience && didVerifyRemoteExperience
+        ? {
+            tone: "success",
+            message: "Experience changes saved.",
+          }
+        : didVerifyLocalExperience
+          ? {
+              tone: "warning",
+              message:
+                "Experience changes saved locally, but Supabase is not saving experience entries yet. Run the latest SQL in supabase/schema.sql to add the experience_entries column.",
+            }
+        : {
+            tone: "warning",
+            message:
+              "Experience changes did not finish saving correctly. Try saving once more after the image preview appears.",
+          }
+    );
+    setIsSavingExperience(false);
+  };
+
+  const handleResetExperience = () => {
+    setExperienceEntries(savedExperienceEntries);
+    setExperienceSaveNotice(null);
+  };
+
+  const experienceSection = (
+    <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:p-5 space-y-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Experience</h2>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/65">
+            Update the image shown on each homepage experience card. Save when
+            you&apos;re done so the About section uses the latest thumbnails.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-start gap-3 lg:items-end">
+          <div className="flex flex-wrap gap-2">
+            {hasUnsavedExperienceChanges ? (
+              <button
+                type="button"
+                onClick={handleResetExperience}
+                className="rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
+              >
+                Reset
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleSaveExperience}
+              disabled={!hasUnsavedExperienceChanges || isSavingExperience}
+              className="rounded-lg bg-[#0099ff] px-4 py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSavingExperience ? "Saving Experience..." : "Save Experience"}
+            </button>
+          </div>
+
+          {hasUnsavedExperienceChanges ? (
+            <p className="text-xs text-amber-200">Unsaved changes in experience.</p>
+          ) : experienceSaveNotice ? (
+            <p
+              className={`text-xs ${
+                experienceSaveNotice.tone === "success"
+                  ? "text-emerald-300"
+                  : "text-amber-200"
+              }`}
+            >
+              {experienceSaveNotice.message}
+            </p>
+          ) : (
+            <p className="text-xs text-white/45">
+              Make your changes, then click save.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {experienceEntries.map((entry, index) => (
+          <div
+            key={`${entry.client}-${entry.role}`}
+            className="rounded-2xl border border-white/15 bg-black/25 p-4 space-y-4"
+          >
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">
+                Experience {index + 1}
+              </p>
+              <h3 className="mt-2 text-base font-semibold text-white">{entry.client}</h3>
+              <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#8cdfff]">
+                {entry.role}
+              </p>
+              <p className="mt-2 text-xs text-white/55">{entry.period}</p>
+            </div>
+
+            <ImageField
+              id={`experience-image-${index}`}
+              label="Card image"
+              value={entry.image}
+              onChange={(value) => handleExperienceImageChange(index, value)}
+              placeholder="Image path or URL for this experience card"
+              previewHeightClassName="h-40"
+            />
+
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-xs leading-relaxed text-white/68">{entry.summary}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {entry.tags.map((tag) => (
+                  <span
+                    key={`${entry.client}-${tag}`}
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1337,8 +1674,8 @@ export default function StudioPage() {
     setBulkVideoUploadError("");
     setBulkVideoUploadMessage(
       nextFiles.length === 1
-        ? "Uploading 1 clip to this carousel"
-        : `Uploading ${nextFiles.length} clips to this carousel`
+        ? "Uploading 1 clip to this project"
+        : `Uploading ${nextFiles.length} clips to this project`
     );
     setIsBulkVideoUploading(true);
     setBulkVideoUploadProgress(1);
@@ -1373,7 +1710,7 @@ export default function StudioPage() {
       }
 
       setBulkVideoUploadMessage(
-        nextFiles.length === 1 ? "1 clip uploaded to the carousel" : `${nextFiles.length} clips uploaded to the carousel`
+        nextFiles.length === 1 ? "1 clip uploaded to the project" : `${nextFiles.length} clips uploaded to the project`
       );
       setBulkVideoUploadProgress(100);
     } catch (error) {
@@ -1712,6 +2049,8 @@ export default function StudioPage() {
           </button>
         </div>
 
+        {experienceSection}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {categories.map((category) => (
             <button
@@ -1739,7 +2078,7 @@ export default function StudioPage() {
             </h2>
             <p className="text-xs leading-relaxed text-white/65">
               {isVideoEditCategory
-                ? "Each Video Edit project becomes one carousel. Add a custom heading or leave it blank to use the project title, then attach one or more direct .mp4 files."
+                ? "Each Video Edit entry becomes one project box in the homepage rail. Give it a dedicated thumbnail, then attach one or more direct .mp4 clips for the in-focus preview."
                 : "Update the project card, optional external link, and the case-study details shown in the portfolio."}
             </p>
 
@@ -1818,7 +2157,7 @@ export default function StudioPage() {
                         </span>
                         <span className="mt-1 text-xs text-white/55">
                           Uploaded videos are saved to Supabase Storage and appended to this
-                          carousel.
+                          project.
                         </span>
                       </label>
 
@@ -1943,13 +2282,12 @@ export default function StudioPage() {
                 <div className="rounded-xl border border-[#8fdcff]/18 bg-[#06111a]/70 p-4 space-y-3">
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">
-                      Video Carousel Setup
+                      Video Showcase Setup
                     </p>
                     <p className="mt-2 text-xs leading-relaxed text-white/60">
-                      This single project holds the clips for one carousel. Leave the heading blank
-                      to use the project title as the carousel heading. The playable media for this
-                      section should be one or more direct `.mp4`
-                      files.
+                      This single project becomes one homepage project box. Leave the heading blank
+                      to use the project title, keep a dedicated box thumbnail, and add one or more
+                      direct `.mp4` files for the in-focus preview.
                     </p>
                   </div>
 
@@ -1960,7 +2298,7 @@ export default function StudioPage() {
                       onChange={(event) =>
                         setForm((prev) => ({ ...prev, videoCategory: event.target.value }))
                       }
-                      placeholder="Carousel heading for this project (leave blank to use project title)"
+                      placeholder="Project heading for this box (leave blank to use project title)"
                       className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
                     />
                     <input
@@ -1977,7 +2315,7 @@ export default function StudioPage() {
                     <div>
                       <p className="text-sm text-white/85">Video ratio</p>
                       <p className="mt-1 text-xs leading-relaxed text-white/55">
-                        Choose the format for this carousel project so the website can size the
+                        Choose the format for this project so the website can size the
                         player correctly for long-form or short-form videos. All clips in this
                         project must match the same ratio.
                       </p>
@@ -2018,12 +2356,12 @@ export default function StudioPage() {
                   <div>
                     <ImageField
                       id="project-video-poster"
-                      label="Project poster fallback (optional)"
+                      label="Project box thumbnail"
                       value={form.image}
                       onChange={(value) =>
                         setForm((prev) => ({ ...prev, image: value }))
                       }
-                      placeholder="Fallback poster image path or URL"
+                      placeholder="Thumbnail image for the homepage project box"
                       previewHeightClassName="h-28"
                     />
                   </div>
@@ -2180,66 +2518,140 @@ export default function StudioPage() {
               </div>
 
               <div className="grid gap-4 lg:grid-cols-[1.15fr_0.95fr]">
-                <div className="overflow-hidden rounded-[22px] border border-white/15 bg-black/30">
+                <div className={isVideoEditCategory ? "space-y-4" : "overflow-hidden rounded-[22px] border border-white/15 bg-black/30"}>
                   {isVideoEditCategory ? (
                     <>
-                      <div className={`relative bg-black ${projectPreviewVideoFrameClass}`}>
-                        {projectPreviewVideoUrl ? (
-                          <video
-                            key={`${projectPreview.title}-${projectPreviewVideoUrl}`}
-                            src={projectPreviewVideoUrl}
-                            poster={projectPreviewPosterImage || undefined}
-                            className="h-full w-full object-cover"
-                            controls
-                            playsInline
-                            muted
-                            autoPlay
-                            loop
-                            preload="metadata"
-                          />
-                        ) : (
-                          <div
-                            className="flex h-full w-full items-center justify-center px-6 text-center"
-                            style={{
-                              background: projectPreviewPosterImage
-                                ? `linear-gradient(135deg, rgba(2, 6, 10, 0.7), rgba(2, 6, 10, 0.92)), url(${projectPreviewPosterImage}) center/cover`
-                                : "linear-gradient(135deg, rgba(4,10,18,0.98), rgba(6,18,28,0.92))",
-                            }}
-                          >
-                            <div className="max-w-sm">
-                              <p className="text-base font-semibold text-white">
-                                No direct MP4 clip added yet
-                              </p>
-                              <p className="mt-2 text-sm leading-relaxed text-white/62">
-                                Add one or more direct `.mp4` file paths or URLs and the Video
-                                Edit carousel will play those clips on the homepage.
-                              </p>
+                      <div className="rounded-[22px] border border-white/15 bg-black/30 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
+                              Homepage Project Box
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-white">
+                              This thumbnail is what shows in the rail before someone opens the project.
+                            </p>
+                          </div>
+                          <span className="rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
+                            Thumbnail
+                          </span>
+                        </div>
+
+                        <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
+                          <div className="group relative aspect-square overflow-hidden rounded-[24px] border border-white/12 bg-white/[0.05]">
+                            {projectPreviewCardImage ? (
+                              <img
+                                src={projectPreviewCardImage}
+                                alt={`${projectPreview.title} project box preview`}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full bg-[linear-gradient(135deg,rgba(8,16,24,0.98),rgba(5,9,15,0.94))]" />
+                            )}
+                            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,11,18,0.05),rgba(5,8,13,0.78)_100%)]" />
+                            <div className="relative z-10 flex h-full flex-col p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="rounded-full border border-white/12 bg-black/24 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/58">
+                                  {projectPreviewVideoUrls.length}{" "}
+                                  {projectPreviewVideoUrls.length === 1 ? "clip" : "clips"}
+                                </span>
+                              </div>
+                              <div className="mt-auto">
+                                <p className="text-lg font-semibold text-white">
+                                  {projectPreviewVideoCategory}
+                                </p>
+                                <p className="mt-2 text-sm text-white/62">
+                                  Click to view clips
+                                </p>
+                                <span className="mt-4 inline-flex rounded-full border border-[#8fdcff]/22 bg-[#091826]/78 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c8f5ff]">
+                                  Preview project
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        )}
 
-                        <div className="absolute left-4 top-4 rounded-full border border-[#8fdcff]/20 bg-[#06131d]/86 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#aeeaff] backdrop-blur-md">
-                          {projectPreviewVideoCategory}
-                        </div>
-                      </div>
-                      <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(0,153,255,0.08),rgba(8,10,18,0.14))] p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold text-white">
-                            {projectPreview.title}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                              MP4 Preview
-                            </span>
-                            <span className="rounded-full border border-white/12 bg-black/35 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/62">
-                              {projectPreviewVideoUrls.length}{" "}
-                              {projectPreviewVideoUrls.length === 1 ? "clip" : "clips"}
-                            </span>
+                          <div className="rounded-[24px] border border-white/12 bg-black/24 p-4">
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
+                              Box Setup
+                            </p>
+                            <p className="mt-2 text-xl font-semibold text-white">
+                              {projectPreview.title}
+                            </p>
+                            <p className="mt-3 text-sm leading-relaxed text-white/66 line-clamp-4">
+                              {projectPreview.description}
+                            </p>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <span className="rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
+                                {projectPreviewCardImage ? "Box thumbnail ready" : "Needs box thumbnail"}
+                              </span>
+                              <span className="rounded-full border border-[#8fdcff]/22 bg-[#091826]/78 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[#c8f5ff]">
+                                {projectPreviewVideoAspectRatio === "portrait" ? "Portrait" : "Landscape"}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                        <p className="mt-2 text-sm leading-relaxed text-white/70 line-clamp-4">
-                          {projectPreview.description}
-                        </p>
+                      </div>
+
+                      <div className="overflow-hidden rounded-[22px] border border-white/15 bg-black/30">
+                        <div className={`relative bg-black ${projectPreviewVideoFrameClass}`}>
+                          {projectPreviewVideoUrl ? (
+                            <video
+                              key={`${projectPreview.title}-${projectPreviewVideoUrl}`}
+                              src={projectPreviewVideoUrl}
+                              poster={projectPreviewPosterImage || undefined}
+                              className="h-full w-full object-cover"
+                              controls
+                              playsInline
+                              muted
+                              autoPlay
+                              loop
+                              preload="metadata"
+                            />
+                          ) : (
+                            <div
+                              className="flex h-full w-full items-center justify-center px-6 text-center"
+                              style={{
+                                background: projectPreviewPosterImage
+                                  ? `linear-gradient(135deg, rgba(2, 6, 10, 0.7), rgba(2, 6, 10, 0.92)), url(${projectPreviewPosterImage}) center/cover`
+                                  : projectPreviewCardImage
+                                    ? `linear-gradient(135deg, rgba(2, 6, 10, 0.7), rgba(2, 6, 10, 0.92)), url(${projectPreviewCardImage}) center/cover`
+                                    : "linear-gradient(135deg, rgba(4,10,18,0.98), rgba(6,18,28,0.92))",
+                              }}
+                            >
+                              <div className="max-w-sm">
+                                <p className="text-base font-semibold text-white">
+                                  No direct MP4 clip added yet
+                                </p>
+                                <p className="mt-2 text-sm leading-relaxed text-white/62">
+                                  Add one or more direct `.mp4` file paths or URLs and this
+                                  project will open inside the in-focus stage on the homepage.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="absolute left-4 top-4 rounded-full border border-[#8fdcff]/20 bg-[#06131d]/86 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#aeeaff] backdrop-blur-md">
+                            In Focus
+                          </div>
+                        </div>
+                        <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(0,153,255,0.08),rgba(8,10,18,0.14))] p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-white">
+                              {projectPreviewVideoCategory}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                                Clip Deck
+                              </span>
+                              <span className="rounded-full border border-white/12 bg-black/35 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/62">
+                                {projectPreviewVideoUrls.length}{" "}
+                                {projectPreviewVideoUrls.length === 1 ? "clip" : "clips"}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-sm leading-relaxed text-white/70 line-clamp-4">
+                            {projectPreview.description}
+                          </p>
+                        </div>
                       </div>
                     </>
                   ) : (
@@ -2276,7 +2688,7 @@ export default function StudioPage() {
                 <div className="rounded-[22px] border border-white/15 bg-black/30 p-4 space-y-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-white">
-                      {isVideoEditCategory ? "Carousel Setup" : "Details Preview"}
+                      {isVideoEditCategory ? "Showcase Setup" : "Details Preview"}
                     </p>
                     <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
                       {isVideoEditCategory
@@ -2292,7 +2704,7 @@ export default function StudioPage() {
                       <div className="rounded-xl border border-white/12 bg-black/35 p-4 space-y-3">
                         <div>
                           <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                            Carousel Heading
+                            Project Heading
                           </p>
                           <p className="mt-1 text-sm font-semibold text-white">
                             {projectPreviewVideoCategory}
@@ -2317,7 +2729,7 @@ export default function StudioPage() {
                               <p className="text-sm leading-relaxed text-white/68">
                                 {projectPreviewVideoUrls.length}{" "}
                                 {projectPreviewVideoUrls.length === 1 ? "clip is" : "clips are"}{" "}
-                                ready for this project carousel.
+                                ready for this in-focus project.
                               </p>
                               {projectPreviewVideoUrls.slice(0, 3).map((videoUrl, index) => (
                                 <p
@@ -2335,79 +2747,49 @@ export default function StudioPage() {
                             </div>
                           ) : (
                             <p className="mt-1 break-all text-sm leading-relaxed text-white/68">
-                              Add one or more direct `.mp4` file paths or URLs so the carousel can
-                              play all of your clips.
+                              Add one or more direct `.mp4` file paths or URLs so the homepage can
+                              play all of your clips inside the in-focus preview.
                             </p>
                           )}
                         </div>
                         <div>
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                            Clip Thumbnails
-                          </p>
-                          {projectPreviewVideoPosterCount > 0 ? (
-                            <p className="mt-1 text-sm leading-relaxed text-white/68">
-                              {projectPreviewVideoPosterCount}{" "}
-                              {projectPreviewVideoPosterCount === 1
-                                ? "thumbnail is"
-                                : "thumbnails are"}{" "}
-                              ready for this carousel.
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
+                              Clip Thumbnails
                             </p>
-                          ) : (
-                            <p className="mt-1 text-sm leading-relaxed text-white/68">
-                              Upload an optional image for each clip to override the default
-                              live frame preview from the video itself.
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                            Project Link
-                          </p>
-                          <p className="mt-1 break-all text-sm leading-relaxed text-white/68">
-                            {projectPreview.designLink}
-                          </p>
-                        </div>
-                      </div>
-
-                      {projectPreview.showDetailsModal && projectPreview.details ? (
-                        <>
-                          <div className="overflow-hidden rounded-xl border border-white/12 bg-black/35">
-                            <img
-                              src={projectPreview.details.heroImage}
-                              alt={projectPreview.details.title}
-                              className="h-28 w-full object-cover"
-                            />
+                            {projectPreviewVideoPosterCount > 0 ? (
+                              <p className="mt-1 text-sm leading-relaxed text-white/68">
+                                {projectPreviewVideoPosterCount}{" "}
+                                {projectPreviewVideoPosterCount === 1
+                                  ? "thumbnail is"
+                                  : "thumbnails are"}{" "}
+                                ready for the clip deck.
+                              </p>
+                            ) : (
+                              <p className="mt-1 text-sm leading-relaxed text-white/68">
+                                Upload an optional image for each clip to override the default
+                                live frame preview from the video itself.
+                              </p>
+                            )}
                           </div>
                           <div>
-                            <h4 className="text-sm font-semibold text-white">
-                              {projectPreview.details.title}
-                            </h4>
-                            <p className="mt-2 text-sm leading-relaxed text-white/68 line-clamp-5">
-                              {projectPreview.details.description}
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
+                              Project Box Thumbnail
+                            </p>
+                            <p className="mt-1 text-sm leading-relaxed text-white/68">
+                              {projectPreviewCardImage
+                                ? "A dedicated thumbnail is ready for the homepage project box."
+                                : "Add a dedicated image so the project box has its own thumbnail in the homepage rail."}
                             </p>
                           </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            {projectPreview.details.galleryImages
-                              .slice(0, 3)
-                              .map((image, index) => (
-                                <div
-                                  key={`${image}-${index}`}
-                                  className="overflow-hidden rounded-lg border border-white/10 bg-black/40"
-                                >
-                                  <img
-                                    src={image}
-                                    alt={`${projectPreview.details?.title} gallery ${index + 1}`}
-                                    className="h-16 w-full object-cover"
-                                  />
-                                </div>
-                              ))}
+                          <div>
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
+                              Project Link
+                            </p>
+                            <p className="mt-1 break-all text-sm leading-relaxed text-white/68">
+                              {projectPreview.designLink}
+                            </p>
                           </div>
-                        </>
-                      ) : (
-                        <p className="rounded-xl border border-dashed border-white/12 bg-black/20 px-4 py-6 text-sm text-white/55">
-                          Turn on the details modal to preview the case-study images here.
-                        </p>
-                      )}
+                        </div>
                     </>
                   ) : projectPreview.showDetailsModal && projectPreview.details ? (
                     <>
@@ -2470,17 +2852,32 @@ export default function StudioPage() {
                   key={`${activeCategory}-${project.title}-${index}`}
                   className="rounded-xl border border-white/15 bg-black/25 p-3"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-semibold text-sm">{project.title}</h3>
-                    {activeCategory === "Video Edit" && (
-                      <span className="rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                    )}
+                  <div className="flex items-start gap-3">
+                    <div className="h-14 w-14 overflow-hidden rounded-xl border border-white/12 bg-black/30">
+                      {project.image ? (
+                        <img
+                          src={project.image}
+                          alt={`${project.title} thumbnail`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-[linear-gradient(135deg,rgba(8,16,24,0.98),rgba(5,9,15,0.94))]" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="font-semibold text-sm">{project.title}</h3>
+                        {activeCategory === "Video Edit" && (
+                          <span className="rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-white/75 line-clamp-3">
+                        {project.description}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-white/75 mt-1 line-clamp-3">
-                    {project.description}
-                  </p>
 
                   {activeCategory === "Video Edit" && (
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -2496,6 +2893,9 @@ export default function StudioPage() {
 
                           return `${videoCount} ${videoCount === 1 ? "clip" : "clips"} ready`;
                         })()}
+                      </span>
+                      <span className="rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
+                        {project.image ? "Box thumbnail ready" : "Needs box thumbnail"}
                       </span>
                     </div>
                   )}
@@ -2546,7 +2946,7 @@ export default function StudioPage() {
               {activeProjects.length === 0 && (
                 <p className="text-sm text-white/65">
                   {activeCategory === "Video Edit"
-                    ? "No video edit projects yet. Add one project with a carousel heading and one or more direct .mp4 files."
+                    ? "No video edit projects yet. Add one project box with a heading, thumbnail, and one or more direct .mp4 files."
                     : "No projects yet in this category."}
                 </p>
               )}

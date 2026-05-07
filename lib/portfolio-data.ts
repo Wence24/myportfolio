@@ -30,15 +30,32 @@ export type Testimonial = {
   src: string;
 };
 
+export type CreativeExperienceEntry = {
+  role: string;
+  client: string;
+  period: string;
+  summary: string;
+  tags: string[];
+  image: string;
+};
+
 export type PortfolioContent = {
   projects: PortfolioProjects;
   testimonials: Testimonial[];
+  experienceEntries?: CreativeExperienceEntry[];
+  updatedAt?: string;
+  experienceEntriesSyncSupported?: boolean;
 };
 
 export const PORTFOLIO_STORAGE_KEY = "portfolio-projects-v1";
 export const PORTFOLIO_UPDATED_EVENT = "portfolio-projects-updated";
 export const TESTIMONIALS_STORAGE_KEY = "portfolio-testimonials-v1";
 export const TESTIMONIALS_UPDATED_EVENT = "portfolio-testimonials-updated";
+export const EXPERIENCE_STORAGE_KEY = "portfolio-experience-v1";
+export const EXPERIENCE_UPDATED_EVENT = "portfolio-experience-updated";
+export const EXPERIENCE_CONTENT_UPDATED_AT_KEY = "portfolio-experience-updated-at-v1";
+export const PORTFOLIO_CONTENT_UPDATED_AT_KEY = "portfolio-content-updated-at-v1";
+export const PORTFOLIO_SYNC_CHANNEL_NAME = "portfolio-sync-v1";
 
 export const defaultPortfolioProjects: PortfolioProjects = {
   "Graphic Design": [
@@ -112,10 +129,41 @@ export const defaultTestimonials: Testimonial[] = [
   },
 ];
 
+export const defaultExperienceEntries: CreativeExperienceEntry[] = [
+  {
+    role: "Short-Form Video Editing",
+    client: "Kayla",
+    period: "2024",
+    summary:
+      "Business-focused short-form edits built around clarity, captions, and message-first storytelling.",
+    tags: ["Short-form", "Captions", "Business"],
+    image: "/v2.png",
+  },
+  {
+    role: "Short-Form and Long-Form Video Editing",
+    client: "Vast Professionals",
+    period: "2025-2026",
+    summary:
+      "Delivered both short-form and long-form client content with motion, polish, and brand-consistent finishing.",
+    tags: ["Long-form", "Motion", "Branding"],
+    image: "/v3.png",
+  },
+  {
+    role: "Long-Form Video Editor",
+    client: "Henry Sims",
+    period: "2026-Present",
+    summary:
+      "Produced retention-focused long-form edits with stronger hooks, cleaner pacing, and polished sound design.",
+    tags: ["Retention", "Hooks", "Storytelling"],
+    image: "/v4.png",
+  },
+];
+
 type PortfolioContentRow = {
   id: string;
   projects: unknown;
   testimonials: unknown;
+  experience_entries?: unknown;
   updated_at?: string;
 };
 
@@ -290,6 +338,62 @@ export const normalizeTestimonials = (value: unknown): Testimonial[] => {
   return normalized.length > 0 ? normalized : defaultTestimonials;
 };
 
+export const parseExperienceEntries = (
+  value: unknown
+): CreativeExperienceEntry[] | null => {
+  if (typeof value === "string") {
+    try {
+      return parseExperienceEntries(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  }
+
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const raw = entry as Record<string, unknown>;
+      if (
+        typeof raw.role !== "string" ||
+        typeof raw.client !== "string" ||
+        typeof raw.period !== "string" ||
+        typeof raw.summary !== "string" ||
+        typeof raw.image !== "string" ||
+        !Array.isArray(raw.tags)
+      ) {
+        return null;
+      }
+
+      const tags = raw.tags.filter((tag): tag is string => typeof tag === "string");
+      if (tags.length === 0) {
+        return null;
+      }
+
+      return {
+        role: raw.role,
+        client: raw.client,
+        period: raw.period,
+        summary: raw.summary,
+        image: raw.image,
+        tags,
+      };
+    })
+    .filter((entry): entry is CreativeExperienceEntry => entry !== null);
+
+  return normalized.length > 0 ? normalized : null;
+};
+
+export const normalizeExperienceEntries = (value: unknown): CreativeExperienceEntry[] => {
+  return parseExperienceEntries(value) ?? defaultExperienceEntries;
+};
+
 export const fetchPortfolioContentFromSupabase = async (): Promise<PortfolioContent | null> => {
   const client = await getSupabaseClient();
   if (!client) {
@@ -299,12 +403,29 @@ export const fetchPortfolioContentFromSupabase = async (): Promise<PortfolioCont
   const config = await getSupabaseConfig();
   const contentRowId =
     config?.supabaseContentRowId || DEFAULT_SUPABASE_CONTENT_ROW_ID;
+  let experienceEntriesSyncSupported = true;
 
-  const { data, error } = await client
+  let { data, error } = await client
     .from(SUPABASE_CONTENT_TABLE)
-    .select("id, projects, testimonials, updated_at")
+    .select("id, projects, testimonials, experience_entries, updated_at")
     .eq("id", contentRowId)
     .maybeSingle<PortfolioContentRow>();
+
+  if (
+    error &&
+    /experience_entries/i.test(error.message) &&
+    /column/i.test(error.message)
+  ) {
+    experienceEntriesSyncSupported = false;
+    const fallbackResponse = await client
+      .from(SUPABASE_CONTENT_TABLE)
+      .select("id, projects, testimonials, updated_at")
+      .eq("id", contentRowId)
+      .maybeSingle<PortfolioContentRow>();
+
+    data = fallbackResponse.data;
+    error = fallbackResponse.error;
+  }
 
   if (error) {
     console.error("Failed to fetch portfolio content from Supabase:", error.message);
@@ -318,6 +439,9 @@ export const fetchPortfolioContentFromSupabase = async (): Promise<PortfolioCont
   return {
     projects: normalizeProjects(data.projects),
     testimonials: normalizeTestimonials(data.testimonials),
+    experienceEntries: parseExperienceEntries(data.experience_entries) ?? undefined,
+    updatedAt: typeof data.updated_at === "string" ? data.updated_at : undefined,
+    experienceEntriesSyncSupported,
   };
 };
 
@@ -337,12 +461,36 @@ export const savePortfolioContentToSupabase = async (
     id: contentRowId,
     projects: content.projects,
     testimonials: content.testimonials,
+    experience_entries: content.experienceEntries ?? defaultExperienceEntries,
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await client
+  let { error } = await client
     .from(SUPABASE_CONTENT_TABLE)
     .upsert(payload, { onConflict: "id" });
+
+  if (
+    error &&
+    /experience_entries/i.test(error.message) &&
+    /column/i.test(error.message)
+  ) {
+    const fallbackPayload = {
+      id: contentRowId,
+      projects: content.projects,
+      testimonials: content.testimonials,
+      updated_at: payload.updated_at,
+    };
+
+    const fallbackResponse = await client
+      .from(SUPABASE_CONTENT_TABLE)
+      .upsert(fallbackPayload, { onConflict: "id" });
+
+    error = fallbackResponse.error;
+
+    if (!error) {
+      return false;
+    }
+  }
 
   if (error) {
     console.error("Failed to save portfolio content to Supabase:", error.message);

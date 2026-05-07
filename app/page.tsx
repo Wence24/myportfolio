@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import React, { Fragment, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -18,7 +18,17 @@ import { CardBody, CardContainer, CardItem } from "@/components/ui/3d-card";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { Lens } from "@/components/ui/lens";
 import AnimatedTestimonialsDemo from "@/components/animated-testimonials-demo";
+import AuroraBackgroundDemo from "@/components/aurora-background-demo";
 import {
+  type CreativeExperienceEntry,
+  defaultExperienceEntries,
+  EXPERIENCE_CONTENT_UPDATED_AT_KEY,
+  EXPERIENCE_STORAGE_KEY,
+  EXPERIENCE_UPDATED_EVENT,
+  normalizeExperienceEntries,
+  parseExperienceEntries,
+  PORTFOLIO_CONTENT_UPDATED_AT_KEY,
+  PORTFOLIO_SYNC_CHANNEL_NAME,
   PORTFOLIO_STORAGE_KEY,
   PORTFOLIO_UPDATED_EVENT,
   fetchPortfolioContentFromSupabase,
@@ -48,6 +58,1077 @@ const MODAL_OPEN_DELAY_MS = 10;
 const CONTACT_PANEL_TRANSITION_MS = 220;
 const CONTACT_PANEL_OPEN_DELAY_MS = 8;
 const VIDEO_METADATA_TIMEOUT_MS = 12000;
+type PortfolioCategoryName = "Graphic Design" | "Video Edit" | "Certificates";
+
+type AboutExperienceSectionProps = {
+  aboutRef: React.RefObject<HTMLDivElement | null>;
+  showAbout: boolean;
+  helloVisible: boolean;
+  aboutFullName: string;
+  nameText: string;
+  nameDone: boolean;
+  onViewClientEdits: () => void;
+  highlightCards: ReadonlyArray<{
+    title: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }>;
+  snapshotStats: ReadonlyArray<{
+    value: string;
+    label: string;
+  }>;
+  experienceEntries: ReadonlyArray<CreativeExperienceEntry>;
+  experienceContentVersion: string;
+};
+
+const getVersionedAssetUrl = (url: string, version: string) => {
+  const trimmedUrl = url.trim();
+  if (!trimmedUrl || !version) {
+    return trimmedUrl;
+  }
+
+  if (/^(data:|blob:)/i.test(trimmedUrl)) {
+    return trimmedUrl;
+  }
+
+  const separator = trimmedUrl.includes("?") ? "&" : "?";
+  return `${trimmedUrl}${separator}v=${encodeURIComponent(version)}`;
+};
+
+const getStoredExperienceContentVersion = () => {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return (
+    window.localStorage.getItem(EXPERIENCE_CONTENT_UPDATED_AT_KEY) ||
+    window.localStorage.getItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY) ||
+    ""
+  );
+};
+
+function FreshAboutExperienceSection({
+  aboutRef,
+  showAbout,
+  helloVisible,
+  aboutFullName,
+  nameText,
+  nameDone,
+  onViewClientEdits,
+  highlightCards,
+  snapshotStats,
+  experienceEntries,
+}: AboutExperienceSectionProps) {
+  const rolePills = ["Video Editing", "Graphic Design", "WordPress Builds"] as const;
+
+  return (
+    <div
+      ref={aboutRef}
+      className="relative mt-14 overflow-visible transition-all duration-700 ease-out lg:mt-20"
+    >
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-x-0 top-[-4.5rem] h-28 bg-[linear-gradient(180deg,rgba(9,15,24,0)_0%,rgba(11,17,26,0.52)_55%,rgba(11,17,26,0.88)_100%)] blur-2xl" />
+        <div className="absolute left-[7%] top-[9%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.12)_0%,transparent_72%)] blur-3xl" />
+        <div className="absolute right-[6%] top-[14%] h-60 w-60 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.07)_0%,transparent_74%)] blur-3xl" />
+        <div className="absolute inset-x-[14%] top-[20%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        <div className="absolute inset-x-[16%] bottom-[10%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        <div className="absolute left-1/2 bottom-[14%] h-44 w-[72%] -translate-x-1/2 bg-[radial-gradient(circle,rgba(84,184,255,0.08)_0%,transparent_72%)] blur-3xl" />
+      </div>
+
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-2 sm:px-4 lg:px-6">
+        <div
+          className={`mx-auto max-w-3xl text-center transition-[opacity,transform] duration-500 ease-out ${
+            showAbout ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-5"
+          }`}
+        >
+          <span className="inline-flex items-center rounded-full border border-white/14 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#c7efff]">
+            About Me + Experience
+          </span>
+          <h2
+            className="mt-6 text-3xl font-bold text-white sm:text-4xl lg:text-[3.15rem]"
+            style={{
+              fontFamily: "'CreatoDisplay', sans-serif",
+              letterSpacing: "0.03em",
+              textShadow: "0 0 18px rgba(0,153,255,0.14)",
+            }}
+          >
+            A cleaner look at who you&apos;re hiring.
+          </h2>
+          <div className="mx-auto mt-4 h-[4px] w-24 rounded-full bg-[linear-gradient(90deg,#6677ff_0%,#54b8ff_52%,#74ebff_100%)] shadow-[0_0_18px_rgba(84,184,255,0.42)]" />
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-white/68 sm:text-base">
+            Short, polished, and easy to scan so clients get the important part fast.
+          </p>
+        </div>
+
+        <div className="mt-10 space-y-6">
+          <section
+            className={`relative overflow-hidden rounded-[36px] border border-white/12 bg-[linear-gradient(135deg,rgba(11,18,29,0.98),rgba(16,28,43,0.92)_58%,rgba(8,12,18,0.98)_100%)] p-5 shadow-[0_30px_80px_rgba(0,0,0,0.24)] backdrop-blur-xl transition-[opacity,transform] duration-[560ms] ease-out sm:p-6 lg:p-7 ${
+              helloVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+            }`}
+          >
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+              <div className="absolute left-[10%] top-[16%] h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(122,228,255,0.12)_0%,transparent_72%)] blur-3xl" />
+              <div className="absolute right-[8%] bottom-[14%] h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(116,126,255,0.12)_0%,transparent_72%)] blur-3xl" />
+              <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(rgba(255,255,255,0.15)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:24px_24px]" />
+            </div>
+
+            <div className="relative z-10 grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)_220px] xl:items-center">
+              <div
+                className={`relative mx-auto w-full max-w-[260px] transition-[opacity,transform] duration-500 ease-out ${
+                  helloVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+                }`}
+              >
+                <div className="absolute -left-3 top-4 rounded-2xl border border-[#8fdcff]/24 bg-[#071521]/88 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[#c8f3ff] shadow-[0_14px_32px_rgba(0,0,0,0.2)]">
+                  Available
+                </div>
+                <div className="absolute -right-3 bottom-5 rounded-2xl border border-white/14 bg-[#0f1723]/92 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-white/70 shadow-[0_14px_32px_rgba(0,0,0,0.2)]">
+                  Remote-ready
+                </div>
+                <div className="relative aspect-square overflow-hidden rounded-[30px] border border-white/12 bg-[radial-gradient(circle_at_50%_18%,rgba(255,255,255,0.12),rgba(255,255,255,0.02)_44%,rgba(3,8,14,0.9)_100%)] shadow-[0_18px_52px_rgba(0,0,0,0.32)]">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(120,227,255,0.16),transparent_42%)]" />
+                  <Image
+                    src="/wenshe.png"
+                    alt="Wence portrait"
+                    fill
+                    priority
+                    className="object-contain object-bottom"
+                  />
+                </div>
+              </div>
+
+              <div
+                className={`min-w-0 transition-[opacity,transform] duration-500 ease-out ${
+                  helloVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+                }`}
+                style={{ transitionDelay: "0.08s" }}
+              >
+                <p className="text-[11px] uppercase tracking-[0.28em] text-[#8fdcff]">
+                  Profile Snapshot
+                </p>
+
+                <h3
+                  className="relative mt-3 block text-4xl font-bold leading-[0.94] tracking-[-0.03em] text-white sm:text-[3rem]"
+                  aria-label={aboutFullName}
+                  style={{
+                    fontFamily: "'CreatoDisplay', sans-serif",
+                    textShadow: "0 0 16px rgba(0,153,255,0.12)",
+                  }}
+                >
+                  <span aria-hidden="true" className="invisible block">
+                    {aboutFullName}
+                  </span>
+                  <span aria-hidden="true" className="absolute inset-0">
+                    <span>{nameText}</span>
+                    {!nameDone && (
+                      <span className="ml-1 inline-block h-[1em] w-[2px] animate-blink bg-white align-baseline" />
+                    )}
+                  </span>
+                </h3>
+
+                <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/70 sm:text-base">
+                  I help brands, creators, and businesses turn rough ideas into cleaner
+                  edits, sharper visuals, and simple web experiences that already feel
+                  ready to publish.
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2.5">
+                  {rolePills.map((item) => (
+                    <span
+                      key={item}
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-white/76 backdrop-blur-md"
+                    >
+                      <Check className="h-3.5 w-3.5 text-[#8fdcff]" />
+                      {item}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={onViewClientEdits}
+                    className="group inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#76e1ff,#4a8fff)] px-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#04111b] shadow-[0_18px_36px_rgba(84,184,255,0.24)] transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(84,184,255,0.32)]"
+                  >
+                    View Portfolio
+                    <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  </button>
+
+                  <a
+                    href="/Wence-De-Vera-CV.pdf"
+                    download
+                    className="inline-flex h-11 items-center justify-center rounded-full border border-white/12 bg-white/[0.05] px-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/84 transition-[transform,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.08]"
+                  >
+                    Download CV
+                  </a>
+                </div>
+              </div>
+
+              <div
+                className={`grid gap-3 sm:grid-cols-3 xl:grid-cols-1 transition-[opacity,transform] duration-500 ease-out ${
+                  helloVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+                }`}
+                style={{ transitionDelay: "0.16s" }}
+              >
+                {snapshotStats.map((item) => (
+                  <div
+                    key={item.value}
+                    className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] px-4 py-4"
+                  >
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-[#8fdcff]/74">
+                      Snapshot
+                    </p>
+                    <p className="mt-2 text-[1.9rem] font-semibold leading-none text-white">
+                      {item.value}
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-white/58">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            {highlightCards.map((item, index) => {
+              const Icon = item.icon;
+
+              return (
+                <article
+                  key={item.title}
+                  className={`group relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-5 shadow-[0_18px_42px_rgba(0,0,0,0.16)] backdrop-blur-xl transition-[opacity,transform,border-color,background-color] duration-500 ease-out hover:-translate-y-1 hover:border-white/18 hover:bg-white/[0.07] ${
+                    showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+                  }`}
+                  style={{ transitionDelay: showAbout ? `${0.16 + index * 0.08}s` : "0s" }}
+                >
+                  <div className="pointer-events-none absolute inset-0">
+                    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
+                    <div className="absolute right-[-8%] top-[-8%] h-24 w-24 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.1)_0%,transparent_72%)] blur-3xl" />
+                  </div>
+
+                  <div className="relative z-10">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/12 bg-[#0a1724] text-[#a9ebff] shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <h3 className="mt-4 text-xl font-semibold text-white">{item.title}</h3>
+                    <p className="mt-3 text-sm leading-relaxed text-white/66">
+                      {item.description}
+                    </p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <section
+            className={`relative overflow-hidden rounded-[36px] border border-white/12 bg-[linear-gradient(180deg,rgba(18,26,36,0.96),rgba(10,16,24,0.98))] p-5 shadow-[0_28px_72px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-[opacity,transform] duration-[560ms] ease-out sm:p-6 lg:p-7 ${
+              showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
+            }`}
+            style={{ transitionDelay: showAbout ? "0.28s" : "0s" }}
+          >
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+              <div className="absolute left-[8%] bottom-[12%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.06)_0%,transparent_72%)] blur-3xl" />
+              <div className="absolute right-[10%] top-[16%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.1)_0%,transparent_72%)] blur-3xl" />
+            </div>
+
+            <div className="relative z-10">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.26em] text-[#8fdcff]">
+                    Experience Snapshot
+                  </p>
+                  <h3
+                    className="mt-3 text-2xl font-semibold text-white sm:text-[2.35rem]"
+                    style={{
+                      fontFamily: "'CreatoDisplay', sans-serif",
+                      letterSpacing: "0.03em",
+                      textShadow: "0 0 18px rgba(0,153,255,0.14)",
+                    }}
+                  >
+                    Past client work, made easy to scan.
+                  </h3>
+                </div>
+                <p className="max-w-xl text-sm leading-relaxed text-white/62 sm:text-right">
+                  A quick read on the projects, formats, and creative support I have
+                  already delivered.
+                </p>
+              </div>
+
+              <div className="mt-6 grid gap-4 xl:grid-cols-3">
+                {experienceEntries.map((experience, index) => (
+                  <article
+                    key={`${experience.client}-${experience.role}`}
+                    className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-5 transition-[transform,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-white/18 hover:bg-white/[0.07]"
+                    style={{
+                      animation: showAbout ? "fadeIn 0.72s ease forwards" : "none",
+                      animationDelay: `${0.12 + index * 0.08}s`,
+                    }}
+                  >
+                    <div className="pointer-events-none absolute inset-0">
+                      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/16 to-transparent" />
+                    </div>
+
+                    <div className="relative z-10">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="rounded-full border border-white/12 bg-black/18 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/58">
+                          {experience.period}
+                        </span>
+                        <ArrowUpRight className="h-4 w-4 text-white/28 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#8fdcff]" />
+                      </div>
+
+                      <h4 className="mt-5 text-xl font-semibold text-white">
+                        {experience.client}
+                      </h4>
+                      <p className="mt-2 text-sm font-medium text-[#b9eeff]">
+                        {experience.role}
+                      </p>
+                      <p className="mt-4 text-sm leading-relaxed text-white/68">
+                        {experience.summary}
+                      </p>
+
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {experience.tags.map((tag) => (
+                          <span
+                            key={`${experience.client}-${tag}`}
+                            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AboutExperienceSection({
+  aboutRef,
+  showAbout,
+  helloVisible,
+  aboutFullName,
+  nameText,
+  nameDone,
+  onViewClientEdits,
+  highlightCards,
+  snapshotStats,
+  experienceEntries,
+  experienceContentVersion,
+}: AboutExperienceSectionProps) {
+  return (
+    <FreshAboutExperienceSection
+      aboutRef={aboutRef}
+      showAbout={showAbout}
+      helloVisible={helloVisible}
+      aboutFullName={aboutFullName}
+      nameText={nameText}
+      nameDone={nameDone}
+      onViewClientEdits={onViewClientEdits}
+      highlightCards={highlightCards}
+      snapshotStats={snapshotStats}
+      experienceEntries={experienceEntries}
+      experienceContentVersion={experienceContentVersion}
+    />
+  );
+
+  return (
+    <div
+      ref={aboutRef}
+      className="relative mt-10 flex flex-col items-center overflow-visible transition-all duration-700 ease-out lg:mt-14"
+    >
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-x-0 top-[-4rem] h-24 bg-[linear-gradient(180deg,rgba(9,14,21,0)_0%,rgba(9,14,21,0.74)_56%,rgba(9,14,21,0.96)_100%)] blur-2xl" />
+        <div className="absolute left-[8%] top-[7%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(86,197,255,0.18)_0%,transparent_72%)] blur-3xl" />
+        <div className="absolute right-[6%] top-[18%] h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,transparent_74%)] blur-3xl" />
+        <div className="absolute inset-x-[18%] top-[12rem] h-px bg-gradient-to-r from-transparent via-white/14 to-transparent" />
+        <div className="absolute inset-x-[14%] bottom-[22%] h-40 bg-[radial-gradient(circle,rgba(84,184,255,0.08)_0%,transparent_72%)] blur-3xl" />
+      </div>
+
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-2 sm:px-4 lg:px-5">
+        <div
+          className={`mx-auto max-w-3xl text-center transition-[opacity,transform] duration-500 ease-out ${
+            showAbout ? "translate-y-0 opacity-100" : "-translate-y-5 opacity-0"
+          }`}
+        >
+          <span className="inline-flex items-center rounded-full border border-white/14 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#c7efff]">
+            Professional Profile
+          </span>
+          <h2
+            className="mt-5 text-[1.9rem] font-bold text-white sm:text-[2.35rem] lg:text-[2.75rem]"
+            style={{
+              fontFamily: "'CreatoDisplay', sans-serif",
+              letterSpacing: "0.03em",
+              textShadow: "0 0 18px rgba(0,153,255,0.14)",
+            }}
+          >
+            A fresher read on the person and projects behind the work.
+          </h2>
+          <div className="mx-auto mt-4 h-[4px] w-24 rounded-full bg-[linear-gradient(90deg,#6677ff_0%,#54b8ff_52%,#74ebff_100%)] shadow-[0_0_18px_rgba(84,184,255,0.42)]" />
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-white/68 sm:text-base">
+            Kept short, visual, and easy to scan.
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-6">
+          <section
+            className={`relative overflow-hidden rounded-[36px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,24,35,0.98),rgba(7,11,18,0.98)_62%,rgba(11,24,37,0.96)_100%)] p-5 shadow-[0_30px_80px_rgba(0,0,0,0.28)] transition-[opacity,transform] duration-500 ease-out sm:p-7 lg:p-8 ${
+              helloVisible ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
+            }`}
+          >
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/22 to-transparent" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(84,184,255,0.16),transparent_24%),radial-gradient(circle_at_84%_26%,rgba(255,255,255,0.08),transparent_24%),linear-gradient(135deg,rgba(255,255,255,0.05)_0%,transparent_35%)]" />
+              <div className="absolute right-[-8%] top-[-18%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(102,119,255,0.16)_0%,transparent_72%)] blur-3xl" />
+              <div className="absolute left-[-8%] bottom-[-18%] h-60 w-60 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.14)_0%,transparent_72%)] blur-3xl" />
+            </div>
+
+            <div className="relative z-10 grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] xl:items-stretch">
+              <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-5 sm:p-6 lg:p-7">
+                <span className="inline-flex items-center rounded-full border border-white/14 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#c7efff]">
+                  About Me
+                </span>
+
+                <h3
+                  className="relative mt-5 block text-4xl font-bold leading-[0.92] tracking-[-0.03em] text-white sm:text-[3.1rem] lg:text-[3.45rem]"
+                  aria-label={aboutFullName}
+                  style={{
+                    opacity: helloVisible ? 1 : 0,
+                    transform: helloVisible ? "translateX(0)" : "translateX(-40px)",
+                    transition: "opacity 0.42s ease-out 0.12s, transform 0.42s ease-out 0.12s",
+                    fontFamily: "'CreatoDisplay', sans-serif",
+                    textShadow: "0 0 16px rgba(0,153,255,0.1)",
+                  }}
+                >
+                  <span aria-hidden="true" className="invisible block">
+                    {aboutFullName}
+                  </span>
+                  <span aria-hidden="true" className="absolute inset-0">
+                    <span>{nameText}</span>
+                    {!nameDone && (
+                      <span className="ml-1 inline-block h-[1em] w-[2px] animate-blink bg-white align-baseline" />
+                    )}
+                  </span>
+                </h3>
+
+                <div className="mt-5 h-[4px] w-24 rounded-full bg-[linear-gradient(90deg,#6677ff_0%,#54b8ff_52%,#74ebff_100%)] shadow-[0_0_18px_rgba(84,184,255,0.42)]" />
+
+                <p
+                  className={`mt-5 max-w-2xl text-sm leading-relaxed text-white/70 transition-[opacity,transform] duration-420 ease-out sm:text-base ${
+                    helloVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+                  }`}
+                  style={{ transitionDelay: "0.12s" }}
+                >
+                  Video editor, graphic designer, and BSIT senior focused on clean storytelling, polished visuals, and smooth client collaboration.
+                </p>
+
+                <p className="mt-3 text-[11px] uppercase tracking-[0.24em] text-[#c7efff]/74">
+                  Video Editor • Graphic Designer • BSIT Senior
+                </p>
+
+                <div className="mt-7 grid gap-3 md:grid-cols-3">
+                  {highlightCards.map((item, index) => {
+                    const Icon = item.icon;
+                    return (
+                      <div
+                        key={item.title}
+                        className="group relative overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.025))] p-4 transition-[transform,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-white/18 hover:bg-white/[0.09]"
+                        style={{
+                          transitionDelay: showAbout ? `${0.16 + index * 0.05}s` : "0s",
+                        }}
+                      >
+                        <div className="pointer-events-none absolute inset-0">
+                          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
+                          <div className="absolute right-[-12%] top-[-20%] h-24 w-24 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.14)_0%,transparent_72%)] blur-3xl" />
+                        </div>
+
+                        <div className="relative z-10">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06]">
+                            <Icon className="h-5 w-5 text-[#c7efff]" />
+                          </div>
+                          <p className="mt-4 text-base font-semibold text-white">{item.title}</p>
+                          <p className="mt-2 text-sm leading-relaxed text-white/60">
+                            {item.description}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                  <a
+                    href="/Wence-De-Vera-CV.pdf"
+                    download
+                    className="inline-flex h-12 items-center justify-center rounded-full border border-[#8fdcff]/28 bg-[linear-gradient(90deg,rgba(84,184,255,0.16),rgba(111,228,255,0.08))] px-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d8f5ff] transition-[transform,border-color,background-color,box-shadow] duration-180 ease-out hover:-translate-y-0.5 hover:border-[#8fdcff]/42 hover:shadow-[0_12px_30px_rgba(84,184,255,0.18)]"
+                  >
+                    Download CV
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={onViewClientEdits}
+                    className="inline-flex h-12 items-center justify-center rounded-full border border-white/12 bg-white/[0.05] px-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/86 transition-[transform,border-color,background-color] duration-180 ease-out hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.08]"
+                  >
+                    View Client Edits
+                  </button>
+                </div>
+              </div>
+
+              <aside
+                className={`relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(11,18,27,0.98),rgba(7,11,18,0.98))] p-4 transition-[opacity,transform] duration-500 ease-out sm:p-5 ${
+                  helloVisible ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
+                }`}
+                style={{ transitionDelay: "0.08s" }}
+              >
+                <div className="pointer-events-none absolute inset-0">
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(255,255,255,0.14),transparent_22%),radial-gradient(circle_at_22%_84%,rgba(84,184,255,0.16),transparent_26%)]" />
+                </div>
+
+                <div className="relative z-10 flex h-full flex-col">
+                  <div className="relative aspect-[0.82] overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_50%_18%,rgba(255,255,255,0.16),rgba(255,255,255,0.04)_38%,rgba(0,0,0,0.4)_100%)]">
+                    <div className="absolute inset-x-[14%] top-[7%] h-[1px] bg-gradient-to-r from-transparent via-white/24 to-transparent" />
+                    <div className="absolute inset-x-[10%] bottom-[11%] h-24 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.22)_0%,transparent_70%)] blur-3xl" />
+                    <Image
+                      src="/wenshe.png"
+                      alt="Wence portrait"
+                      fill
+                      priority
+                      className="object-contain object-bottom grayscale"
+                    />
+
+                    <div className="absolute left-4 top-4 rounded-full border border-white/14 bg-[#06111c]/80 px-3 py-1.5 text-[10px] uppercase tracking-[0.22em] text-[#d7f4ff] backdrop-blur-md">
+                      Client-ready polish
+                    </div>
+                    <div className="absolute right-4 top-4 rounded-full border border-white/14 bg-[#0b1521]/80 px-3 py-1.5 text-[10px] uppercase tracking-[0.22em] text-white/76 backdrop-blur-md">
+                      Short + Long-Form
+                    </div>
+                    <div className="absolute bottom-4 left-4 right-4 rounded-[22px] border border-white/12 bg-[linear-gradient(180deg,rgba(5,12,18,0.78),rgba(5,12,18,0.48))] px-4 py-4 backdrop-blur-xl">
+                      <p className="text-[10px] uppercase tracking-[0.26em] text-[#c7efff]">
+                        Main Focus
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-white">
+                        Editing, design, and content that feels sharp fast.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                    {snapshotStats.map((item) => (
+                      <div
+                        key={item.value}
+                        className="rounded-[22px] border border-white/10 bg-white/[0.05] px-4 py-4"
+                      >
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-[#c7efff]/80">
+                          {item.value}
+                        </p>
+                        <p className="mt-2 text-sm leading-relaxed text-white/58">
+                          {item.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          <section
+            className={`relative overflow-hidden rounded-[36px] border border-white/10 bg-[linear-gradient(180deg,rgba(12,18,27,0.98),rgba(8,12,18,0.98))] p-5 shadow-[0_26px_72px_rgba(0,0,0,0.26)] transition-[opacity,transform] duration-500 ease-out sm:p-7 lg:p-8 ${
+              showAbout ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
+            }`}
+            style={{ transitionDelay: showAbout ? "0.14s" : "0s" }}
+          >
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_14%_18%,rgba(84,184,255,0.12),transparent_24%),radial-gradient(circle_at_82%_18%,rgba(102,119,255,0.1),transparent_22%)]" />
+            </div>
+
+            <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl">
+                <span className="inline-flex items-center rounded-full border border-white/14 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#c7efff]">
+                  Experience
+                </span>
+                <h3
+                  className="mt-5 text-3xl font-bold text-white sm:text-4xl lg:text-[3rem]"
+                  style={{
+                    fontFamily: "'CreatoDisplay', sans-serif",
+                    letterSpacing: "0.03em",
+                    textShadow: "0 0 18px rgba(0,153,255,0.14)",
+                  }}
+                >
+                  Client work with cleaner hooks, pacing, and finish.
+                </h3>
+                <div className="mt-4 h-[4px] w-24 rounded-full bg-[linear-gradient(90deg,#6677ff_0%,#54b8ff_52%,#74ebff_100%)] shadow-[0_0_18px_rgba(84,184,255,0.42)]" />
+                <p className="mt-5 max-w-xl text-sm leading-relaxed text-white/68 sm:text-base">
+                  A few recent projects, kept simple and easy to read.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.22em] text-white/58">
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2">
+                  2024 - Present
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2">
+                  Short + Long-Form
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2">
+                  Brand-Aware Delivery
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-8 grid gap-4 lg:grid-cols-3">
+              {experienceEntries.map((experience, index) => {
+                const accentClasses =
+                  index === 0
+                    ? "from-[#54b8ff]/18 via-[#0a1622] to-[#08111a]"
+                    : index === 1
+                      ? "from-[#6677ff]/18 via-[#0b1420] to-[#08111a]"
+                      : "from-[#74ebff]/16 via-[#0b1721] to-[#08111a]";
+                const badgeClasses =
+                  index === 0
+                    ? "text-[#c8f5ff]"
+                    : index === 1
+                      ? "text-[#d4ddff]"
+                      : "text-[#d8ffff]";
+                const offsetClass =
+                  index === 0 ? "lg:mt-0" : index === 1 ? "lg:mt-10" : "lg:mt-5";
+
+                return (
+                  <article
+                    key={`${experience.client}-${experience.role}`}
+                    className={`group relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br ${accentClasses} p-5 transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-1.5 hover:border-white/18 hover:shadow-[0_18px_40px_rgba(0,0,0,0.24)] sm:p-6 ${offsetClass}`}
+                    style={{
+                      transitionDelay: showAbout ? `${0.18 + index * 0.06}s` : "0s",
+                    }}
+                  >
+                    <div className="pointer-events-none absolute inset-0">
+                      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
+                      <div className="absolute right-[-14%] top-[-18%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.16)_0%,transparent_72%)] blur-3xl" />
+                    </div>
+
+                    <div className="relative z-10">
+                      <div className="flex items-start justify-between gap-4">
+                        <span className={`text-[2.8rem] font-semibold leading-none ${badgeClasses}/20`}>
+                          0{index + 1}
+                        </span>
+                        <span className="rounded-full border border-white/10 bg-black/18 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white/58">
+                          {experience.period}
+                        </span>
+                      </div>
+
+                      <p className="mt-5 text-[11px] uppercase tracking-[0.24em] text-[#c7efff]/82">
+                        {experience.role}
+                      </p>
+                      <h4 className="mt-2 text-2xl font-semibold text-white">
+                        {experience.client}
+                      </h4>
+                      <p className="mt-4 text-sm leading-relaxed text-white/66">
+                        {experience.summary}
+                      </p>
+
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {experience.tags.map((tag) => (
+                          <span
+                            key={`${experience.client}-${tag}`}
+                            className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-white/60"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AboutExperienceListSection({
+  aboutRef,
+  showAbout,
+  helloVisible,
+  aboutFullName,
+  nameText,
+  nameDone,
+  onViewClientEdits,
+  highlightCards,
+  snapshotStats,
+  experienceEntries,
+  experienceContentVersion,
+}: AboutExperienceSectionProps) {
+  return (
+    <div
+      ref={aboutRef}
+      className="relative -mt-10 flex flex-col items-center overflow-visible pt-10 transition-all duration-700 ease-out lg:-mt-14 lg:pt-14"
+    >
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-x-0 top-[-3rem] h-32 bg-[linear-gradient(180deg,rgba(5,9,14,0.6)_0%,rgba(7,12,18,0.3)_42%,rgba(9,14,21,0)_100%)] blur-2xl" />
+        <div className="absolute inset-x-[4%] top-[-8.5rem] h-56 bg-[radial-gradient(ellipse_at_top,rgba(46,92,135,0.14)_0%,rgba(30,57,86,0.12)_28%,rgba(14,24,35,0.1)_50%,rgba(9,14,21,0)_76%)] blur-3xl" />
+        <div className="absolute inset-x-[14%] top-[-3.75rem] h-24 bg-[linear-gradient(180deg,rgba(62,118,160,0.06)_0%,rgba(33,66,96,0.05)_42%,rgba(9,14,21,0)_100%)] blur-2xl" />
+        <div className="absolute left-[4%] top-[12%] h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(126,136,255,0.16)_0%,transparent_72%)] blur-3xl" />
+        <div className="absolute right-[4%] top-[18%] h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(99,210,255,0.14)_0%,transparent_72%)] blur-3xl" />
+        <div className="absolute inset-x-[18%] top-[7.75rem] h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+        <div className="absolute inset-x-[12%] bottom-[18%] h-44 bg-[radial-gradient(circle,rgba(84,184,255,0.08)_0%,transparent_72%)] blur-3xl" />
+      </div>
+
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-2 sm:px-4 lg:px-6">
+        <div
+          className={`mx-auto max-w-3xl text-center transition-[opacity,transform] duration-500 ease-out ${
+            showAbout ? "translate-y-0 opacity-100" : "-translate-y-5 opacity-0"
+          }`}
+        >
+          <span className="inline-flex items-center rounded-full border border-white/14 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#c7efff]">
+            Creative Profile
+          </span>
+          <h2
+            className="mt-6 text-3xl font-bold text-white sm:text-4xl lg:text-[3.15rem]"
+            style={{
+              fontFamily: "'CreatoDisplay', sans-serif",
+              letterSpacing: "0.03em",
+              textShadow: "0 0 18px rgba(0,153,255,0.14)",
+            }}
+          >
+            About me and video editing experience.
+          </h2>
+          <div className="mx-auto mt-4 h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#6677ff_0%,#54b8ff_52%,#74ebff_100%)] shadow-[0_0_18px_rgba(84,184,255,0.42)]" />
+          <p className="mx-auto mt-4 max-w-xl text-[13px] leading-relaxed text-white/68 sm:text-[15px]">
+            A straightforward look at my background and editing work.
+          </p>
+        </div>
+
+        <div className="mt-6 grid gap-10">
+          <section
+            className={`relative overflow-visible transition-[opacity,transform] duration-500 ease-out ${
+              helloVisible ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
+            }`}
+          >
+            <div className="pointer-events-none absolute inset-x-0 top-10 bottom-0">
+              <div className="absolute left-[8%] top-[4%] h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(126,136,255,0.2)_0%,transparent_72%)] blur-3xl" />
+              <div className="absolute right-[6%] top-[24%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(99,210,255,0.16)_0%,transparent_72%)] blur-3xl" />
+              <div className="absolute inset-x-[12%] bottom-[8%] h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+            </div>
+
+            <div className="relative z-10">
+              <div className="mt-2 grid gap-5 lg:grid-cols-[minmax(330px,0.92fr)_minmax(0,1.08fr)] lg:items-center lg:gap-6">
+                <div className="relative overflow-hidden rounded-[36px] border border-white/12 bg-[radial-gradient(circle_at_50%_14%,rgba(255,255,255,0.22),rgba(255,255,255,0.06)_34%,rgba(4,10,19,0.82)_100%)] shadow-[0_28px_70px_rgba(0,0,0,0.28)]">
+                  <div className="absolute inset-x-[10%] top-[6%] h-px bg-gradient-to-r from-transparent via-white/24 to-transparent" />
+                  <div className="absolute left-[-4%] top-[18%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(126,136,255,0.2)_0%,transparent_72%)] blur-3xl" />
+                  <div className="absolute right-[0%] bottom-[8%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(99,210,255,0.2)_0%,transparent_72%)] blur-3xl" />
+                  <div className="absolute inset-x-[14%] bottom-[10%] h-28 rounded-full bg-[radial-gradient(circle,rgba(126,136,255,0.18)_0%,transparent_72%)] blur-3xl" />
+                  <div className="absolute right-5 top-5 z-10 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-white/12 bg-[linear-gradient(135deg,rgba(10,27,42,0.9),rgba(12,46,74,0.72))] shadow-[0_12px_24px_rgba(0,0,0,0.18)] backdrop-blur-md">
+                    <Image
+                      src="/logo.png"
+                      alt="Wence logo"
+                      width={34}
+                      height={34}
+                      className="h-auto w-[30px] drop-shadow-[0_6px_12px_rgba(255,255,255,0.08)]"
+                    />
+                  </div>
+                  <div className="absolute left-4 top-4 z-10 rounded-full border border-white/14 bg-[#091120]/78 px-3 py-1.5 text-[10px] uppercase tracking-[0.22em] text-[#dce4ff] backdrop-blur-md">
+                    Video Editor
+                  </div>
+                  <div className="relative aspect-[4/5] min-h-[360px] sm:min-h-[460px]">
+                    <Image
+                      src="/wenshe.png"
+                      alt="Wence portrait"
+                      fill
+                      priority
+                      className="object-contain object-bottom grayscale"
+                    />
+                  </div>
+                </div>
+
+                <div className="relative rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] p-4 shadow-[0_18px_48px_rgba(0,0,0,0.18)] sm:p-5 lg:p-6">
+                  <div className="pointer-events-none absolute inset-0 rounded-[30px] bg-[linear-gradient(135deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_28%,rgba(255,255,255,0)_100%)]" />
+                  <div className="relative">
+                    <p className="text-[10px] uppercase tracking-[0.26em] text-[#d6dcff]">
+                      About Me
+                    </p>
+                  <h4
+                    className="relative mt-3 block text-[2rem] font-bold leading-[0.95] tracking-[-0.03em] text-white sm:text-[2.35rem]"
+                    aria-label={aboutFullName}
+                    style={{
+                      opacity: helloVisible ? 1 : 0,
+                      transform: helloVisible ? "translateX(0)" : "translateX(-32px)",
+                      transition:
+                        "opacity 0.42s ease-out 0.12s, transform 0.42s ease-out 0.12s",
+                      fontFamily: "'CreatoDisplay', sans-serif",
+                    }}
+                  >
+                    <span aria-hidden="true" className="invisible block">
+                      {aboutFullName}
+                    </span>
+                    <span aria-hidden="true" className="absolute inset-0">
+                      <span>{nameText}</span>
+                      {!nameDone && (
+                        <span className="ml-1 inline-block h-[1em] w-[2px] animate-blink bg-white align-baseline" />
+                      )}
+                    </span>
+                  </h4>
+
+                  <p
+                    className={`mt-4 max-w-2xl text-[13px] leading-relaxed text-white/68 transition-[opacity,transform] duration-420 ease-out sm:text-[15px] ${
+                      helloVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+                    }`}
+                    style={{ transitionDelay: "0.12s" }}
+                  >
+                    Video editor, graphic designer, and BSIT senior focused on making content feel cleaner, sharper, and easier to watch. I like edits with better pacing, stronger hooks, and visuals that still feel polished without becoming too noisy.
+                  </p>
+
+                  <p className="mt-3 text-[13px] leading-relaxed text-white/60 sm:text-[15px]">
+                    I work across short-form, long-form, and visual design, and I try to keep the process smooth for clients through clear updates, organized revisions, and reliable delivery.
+                  </p>
+
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {highlightCards.map((item) => (
+                      <span
+                        key={item.title}
+                        className="rounded-full border border-white/12 bg-white/[0.05] px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-white/68"
+                      >
+                        {item.title}
+                      </span>
+                    ))}
+                    {snapshotStats.map((item) => (
+                      <span
+                        key={item.value}
+                        className="rounded-full border border-[#aab2ff]/18 bg-[#aab2ff]/[0.06] px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] text-[#e9ecff]"
+                      >
+                        {item.value} {item.label}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <a
+                      href="/Wence-De-Vera-CV.pdf"
+                      download
+                      className="inline-flex h-11 w-full items-center justify-center rounded-full border border-[#73cfff]/34 bg-[linear-gradient(135deg,rgba(0,153,255,0.34),rgba(86,116,255,0.32)_48%,rgba(90,222,255,0.28)_100%)] px-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f3fbff] shadow-[0_14px_30px_rgba(0,153,255,0.14)] transition-[transform,border-color,background-color,box-shadow] duration-180 ease-out hover:-translate-y-0.5 hover:border-[#9fddff]/42 hover:shadow-[0_16px_34px_rgba(0,153,255,0.2)]"
+                    >
+                      Download CV
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={onViewClientEdits}
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[#73cfff]/30 bg-[linear-gradient(135deg,rgba(8,74,138,0.72),rgba(0,153,255,0.44)_54%,rgba(78,216,255,0.24)_100%)] px-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#eefcff] shadow-[0_14px_30px_rgba(0,153,255,0.12)] transition-[transform,border-color,background-color,box-shadow] duration-180 ease-out hover:-translate-y-0.5 hover:border-[#9fddff]/42 hover:shadow-[0_16px_34px_rgba(0,153,255,0.18)]"
+                    >
+                      View Client Edits
+                      <ArrowUpRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section
+            className={`relative overflow-visible transition-[opacity,transform] duration-500 ease-out ${
+              showAbout ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
+            }`}
+            style={{ transitionDelay: showAbout ? "0.14s" : "0s" }}
+          >
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute left-[4%] top-[8%] h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(90,181,255,0.14)_0%,transparent_72%)] blur-3xl" />
+              <div className="absolute right-[6%] top-[26%] h-52 w-52 rounded-full bg-[radial-gradient(circle,rgba(146,228,255,0.12)_0%,transparent_72%)] blur-3xl" />
+              <div className="absolute inset-x-[18%] bottom-[4%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            </div>
+
+            <div className="relative z-10">
+              <div className="text-center">
+                <h3
+                  className="text-[1.9rem] font-bold text-white sm:text-[2.35rem]"
+                  style={{
+                    fontFamily: "'CreatoDisplay', sans-serif",
+                    letterSpacing: "0.03em",
+                    textShadow: "0 0 18px rgba(84,184,255,0.14)",
+                  }}
+                >
+                  Video Editing Experience
+                </h3>
+                <div className="mx-auto mt-4 h-[3px] w-20 rounded-full bg-[linear-gradient(90deg,#6eaaff_0%,#57d2ff_52%,#b6f0ff_100%)] shadow-[0_0_18px_rgba(84,184,255,0.28)]" />
+              </div>
+
+              <div className="mt-4 flex flex-wrap justify-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/58">
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2">
+                  2024 - Present
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2">
+                  Short + Long-Form
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2">
+                  Brand-Aware
+                </span>
+              </div>
+
+              <div className="mt-7 space-y-4">
+                {experienceEntries.map((experience, index) => {
+                  const accentBarClass =
+                    index === 0
+                      ? "bg-[linear-gradient(180deg,#8fe7ff_0%,#6a86ff_100%)]"
+                    : index === 1
+                        ? "bg-[linear-gradient(180deg,#73ffe0_0%,#41b0ff_100%)]"
+                        : "bg-[linear-gradient(180deg,#fff0b3_0%,#63d5ca_100%)]";
+                  const accentGlowClass =
+                    index === 0
+                      ? "bg-[radial-gradient(circle,rgba(108,154,255,0.3)_0%,transparent_68%)]"
+                    : index === 1
+                        ? "bg-[radial-gradient(circle,rgba(73,223,201,0.28)_0%,transparent_68%)]"
+                        : "bg-[radial-gradient(circle,rgba(255,204,120,0.24)_0%,transparent_68%)]";
+                  const roleClass =
+                    index === 0
+                      ? "text-[#d9efff]"
+                    : index === 1
+                        ? "text-[#d7fff5]"
+                        : "text-[#fff4d8]";
+                  const periodClass =
+                    index === 0
+                      ? "border-[#87abff]/32 bg-[#87abff]/12 text-[#f2f6ff]"
+                    : index === 1
+                        ? "border-[#66f4db]/28 bg-[#66f4db]/12 text-[#f0fffb]"
+                        : "border-[#ffd68b]/26 bg-[#ffd68b]/12 text-[#fff7e6]";
+                  const tagClass =
+                    index === 0
+                      ? "border-[#7fa0ff]/18 bg-[#7fa0ff]/8 text-white/78"
+                    : index === 1
+                        ? "border-[#66f4db]/18 bg-[#66f4db]/8 text-white/78"
+                        : "border-[#ffd68b]/18 bg-[#ffd68b]/8 text-white/78";
+
+                  return (
+                    <article
+                      key={`${experience.client}-${experience.role}`}
+                      className="group relative overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(135deg,rgba(7,11,18,0.98)_0%,rgba(12,19,30,0.96)_54%,rgba(8,12,20,0.98)_100%)] shadow-[0_22px_48px_rgba(0,0,0,0.24)] transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:border-white/18 hover:shadow-[0_28px_58px_rgba(0,0,0,0.3)]"
+                      style={{
+                        transitionDelay: showAbout ? `${0.2 + index * 0.06}s` : "0s",
+                      }}
+                    >
+                      <div className={`absolute inset-x-0 top-0 h-[3px] ${accentBarClass}`} />
+                      <div className="pointer-events-none absolute inset-0">
+                        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                        <div className={`absolute -right-8 top-[-2rem] h-44 w-44 rounded-full blur-3xl ${accentGlowClass}`} />
+                        <div className="absolute left-[26%] top-0 h-full w-px bg-white/6" />
+                        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02)_22%,rgba(255,255,255,0)_64%)]" />
+                        <div className="absolute right-[-8%] top-[18%] h-28 w-40 rotate-[18deg] bg-white/[0.04] blur-2xl transition-opacity duration-200 ease-out group-hover:opacity-100" />
+                      </div>
+                      <div className="pointer-events-none absolute right-4 top-4 text-[2.7rem] font-semibold leading-none text-white/[0.06] sm:text-[3.6rem]">
+                        {String(index + 1).padStart(2, "0")}
+                      </div>
+
+                      <div className="relative z-10 lg:grid lg:grid-cols-[148px_minmax(0,1fr)_auto] lg:items-stretch lg:gap-5">
+                        <div className="relative overflow-hidden border-b border-white/10 bg-[#09131d] lg:min-h-[188px] lg:rounded-r-[22px] lg:border-b-0 lg:border-r">
+                          {experience.image.trim().length > 0 ? (
+                            <>
+                              <img
+                                key={`${experience.client}-${experience.image}-${experienceContentVersion}`}
+                                src={getVersionedAssetUrl(
+                                  experience.image,
+                                  experienceContentVersion
+                                )}
+                                alt={`${experience.client} preview`}
+                                className="h-44 w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03] lg:h-full lg:w-[148px]"
+                              />
+                              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,11,18,0.05),rgba(7,11,18,0.54)_100%)]" />
+                              <div className="absolute inset-x-0 bottom-0 h-20 bg-[linear-gradient(180deg,rgba(4,7,11,0)_0%,rgba(4,7,11,0.78)_100%)] lg:hidden" />
+                            </>
+                          ) : (
+                            <div className="flex h-44 w-full items-center justify-center bg-[linear-gradient(135deg,rgba(10,18,27,0.98),rgba(8,12,18,0.98))] text-xs font-semibold uppercase tracking-[0.22em] text-white/42 lg:h-full lg:w-[148px]">
+                              Image
+                            </div>
+                          )}
+                          <div className={`absolute left-4 top-4 h-10 w-1 rounded-full ${accentBarClass}`} />
+                        </div>
+
+                        <div className="min-w-0 px-4 py-4 sm:px-5 sm:py-5 lg:px-0">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between lg:hidden">
+                            <div>
+                              <p className="text-lg font-semibold leading-tight text-white">
+                                {experience.client}
+                              </p>
+                              <p className={`mt-1 text-[11px] uppercase tracking-[0.2em] ${roleClass}`}>
+                                {experience.role}
+                              </p>
+                            </div>
+                            <span className={`w-fit rounded-full border px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] shadow-[0_8px_24px_rgba(0,0,0,0.16)] ${periodClass}`}>
+                              {experience.period}
+                            </span>
+                          </div>
+
+                          <div className="hidden lg:block">
+                            <p className="text-[1.4rem] font-semibold leading-tight text-white">
+                              {experience.client}
+                            </p>
+                            <p className={`mt-1 text-[11px] uppercase tracking-[0.2em] ${roleClass}`}>
+                              {experience.role}
+                            </p>
+                          </div>
+
+                          <p className="mt-3 max-w-3xl text-[13px] leading-relaxed text-white/82 sm:text-[14px]">
+                            {experience.summary}
+                          </p>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {experience.tags.map((tag) => (
+                              <span
+                                key={`${experience.client}-${tag}`}
+                                className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] ${tagClass}`}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="hidden px-4 py-5 lg:flex lg:items-center">
+                          <span className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold uppercase tracking-[0.13em] shadow-[0_10px_26px_rgba(0,0,0,0.18)] ${periodClass}`}>
+                            {experience.period}
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.018))] p-4 shadow-[0_18px_40px_rgba(0,0,0,0.16)] sm:p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-[#c6fff1]">
+                      Current Focus
+                    </p>
+                    <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-white/64 sm:text-sm">
+                      Retention-driven edits, business content, and polished long-form support for creators and brands.
+                    </p>
+                  </div>
+
+                  <a
+                    href="/Wence-De-Vera-CV.pdf"
+                    download
+                    className="inline-flex h-11 items-center justify-center rounded-full border border-[#aab2ff]/26 bg-[linear-gradient(90deg,rgba(99,210,191,0.14),rgba(87,210,255,0.08))] px-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#effffb] transition-[transform,border-color,background-color] duration-180 ease-out hover:-translate-y-0.5 hover:border-white/20"
+                  >
+                    Download CV
+                  </a>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const router = useRouter();
@@ -62,7 +1143,7 @@ export default function Home() {
   const [graphicText, setGraphicText] = useState("");
 const [videoDone, setVideoDone] = useState(false);
 const [graphicDone, setGraphicDone] = useState(false);
-const [activeBox, setActiveBox] = useState("Video Edit"); // default Projects
+const [activeBox, setActiveBox] = useState<PortfolioCategoryName>("Video Edit"); // default Projects
 const [showPortfolio, setShowPortfolio] = useState(false);
 const portfolioShown = useRef(false);
 const [showModal, setShowModal] = useState(false);
@@ -78,10 +1159,14 @@ const [isAddingProject, setIsAddingProject] = useState(false);
 
 const [animateTab, setAnimateTab] = useState(false);
 const [videoCarouselIndexes, setVideoCarouselIndexes] = useState<Record<string, number>>({});
-const [videoCarouselMotion, setVideoCarouselMotion] = useState<
-  Record<string, VideoCarouselMotionState>
->({});
-const [activeCarouselPlaybackKey, setActiveCarouselPlaybackKey] = useState<string | null>(null);
+const [selectedVideoProjectKey, setSelectedVideoProjectKey] = useState<string | null>(null);
+const [selectedCategoryProjectIndexes, setSelectedCategoryProjectIndexes] = useState<
+  Record<PortfolioCategoryName, number>
+>({
+  "Video Edit": 0,
+  "Graphic Design": 0,
+  Certificates: 0,
+});
 
 const portfolioCategories = [
   {
@@ -137,22 +1222,7 @@ type NewProjectForm = {
   galleryImages: string[];
 };
 
-type VideoCarouselMotionState = {
-  token: number;
-  direction: -1 | 1;
-};
-
 type VideoProjectAspectRatio = "landscape" | "portrait";
-
-type CarouselClipVideoProps = {
-  playbackKey: string;
-  videoUrl: string;
-  posterUrl?: string;
-  isActive: boolean;
-  isVisible: boolean;
-  activePlaybackKey: string | null;
-  onPlaybackStart: (playbackKey: string) => void;
-};
 
 const DEFAULT_VIDEO_EDIT_GROUP = "Featured Edits";
 const VIDEO_ASPECT_RATIO_OPTIONS: Array<{
@@ -171,224 +1241,6 @@ const VIDEO_ASPECT_RATIO_OPTIONS: Array<{
     description: "Vertical short-form video for reels, shorts, and TikToks.",
   },
 ];
-const carouselClipPlaybackTimes = new Map<string, number>();
-let activeCarouselVideoElement: HTMLVideoElement | null = null;
-
-const pauseOtherCarouselVideos = (
-  currentVideo: HTMLVideoElement,
-  playbackKey: string
-) => {
-  if (typeof document === "undefined") {
-    return;
-  }
-
-  document
-    .querySelectorAll<HTMLVideoElement>('video[data-carousel-video="true"]')
-    .forEach((videoElement) => {
-      if (videoElement === currentVideo) {
-        return;
-      }
-
-      const otherPlaybackKey = videoElement.dataset.playbackKey?.trim();
-      if (otherPlaybackKey) {
-        carouselClipPlaybackTimes.set(otherPlaybackKey, videoElement.currentTime || 0);
-      }
-
-      videoElement.pause();
-      videoElement.currentTime = videoElement.currentTime;
-    });
-
-  activeCarouselVideoElement = currentVideo;
-  carouselClipPlaybackTimes.set(playbackKey, currentVideo.currentTime || 0);
-};
-
-function CarouselClipVideo({
-  playbackKey,
-  videoUrl,
-  posterUrl,
-  isActive,
-  isVisible,
-  activePlaybackKey,
-  onPlaybackStart,
-}: CarouselClipVideoProps) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const lastPlaybackTimeRef = useRef(0);
-  const hasCustomPoster = typeof posterUrl === "string" && posterUrl.trim().length > 0;
-  const shouldKeepPlaying = isActive && isVisible && activePlaybackKey === playbackKey;
-
-  const savePlaybackTime = useCallback((time: number) => {
-    if (!Number.isFinite(time) || time < 0) {
-      return;
-    }
-
-    lastPlaybackTimeRef.current = time;
-    carouselClipPlaybackTimes.set(playbackKey, time);
-  }, [playbackKey]);
-
-  const restorePlaybackTime = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    const savedPlaybackTime =
-      carouselClipPlaybackTimes.get(playbackKey) ?? lastPlaybackTimeRef.current;
-    if (
-      savedPlaybackTime > 0.15 &&
-      Math.abs(video.currentTime - savedPlaybackTime) > 0.35
-    ) {
-      try {
-        video.currentTime = savedPlaybackTime;
-      } catch {
-        // ignore currentTime assignment errors on partially loaded media
-      }
-    }
-  }, [playbackKey]);
-
-  const resumePlayback = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    restorePlaybackTime();
-    const playPromise = video.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      void playPromise.catch(() => {
-        // ignore autoplay interruptions from the browser
-      });
-    }
-  }, [restorePlaybackTime]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
-    if (shouldKeepPlaying) {
-      if (video.readyState >= 1) {
-        resumePlayback();
-        return;
-      }
-
-      const handleReadyForResume = () => {
-        resumePlayback();
-      };
-
-      video.addEventListener("loadedmetadata", handleReadyForResume, { once: true });
-      video.addEventListener("canplay", handleReadyForResume, { once: true });
-      return () => {
-        video.removeEventListener("loadedmetadata", handleReadyForResume);
-        video.removeEventListener("canplay", handleReadyForResume);
-      };
-    }
-
-    savePlaybackTime(video.currentTime || lastPlaybackTimeRef.current);
-    video.pause();
-  }, [resumePlayback, savePlaybackTime, shouldKeepPlaying, videoUrl]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || isVisible) {
-      return;
-    }
-
-    savePlaybackTime(video.currentTime || lastPlaybackTimeRef.current);
-    video.pause();
-  }, [isVisible, playbackKey, savePlaybackTime]);
-
-  useEffect(() => {
-    lastPlaybackTimeRef.current = carouselClipPlaybackTimes.get(playbackKey) ?? 0;
-  }, [playbackKey, videoUrl]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || shouldKeepPlaying) {
-      return;
-    }
-
-    savePlaybackTime(video.currentTime || lastPlaybackTimeRef.current);
-    video.pause();
-  }, [savePlaybackTime, shouldKeepPlaying]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    return () => {
-      if (activeCarouselVideoElement === video) {
-        activeCarouselVideoElement = null;
-      }
-    };
-  }, []);
-
-  return (
-    <video
-      ref={videoRef}
-      src={videoUrl}
-      poster={hasCustomPoster ? posterUrl : undefined}
-      data-carousel-video="true"
-      data-playback-key={playbackKey}
-      className="h-full w-full object-cover"
-      controls={isActive}
-      controlsList="nodownload"
-      disablePictureInPicture
-      playsInline
-      loop
-      preload={hasCustomPoster || !isVisible ? "metadata" : "auto"}
-      onContextMenu={(event) => {
-        event.preventDefault();
-      }}
-      onLoadedData={(event) => {
-        if (hasCustomPoster || shouldKeepPlaying || !isVisible) {
-          return;
-        }
-
-        const video = event.currentTarget;
-        const savedPlaybackTime =
-          carouselClipPlaybackTimes.get(playbackKey) ?? lastPlaybackTimeRef.current;
-        const previewTime = savedPlaybackTime > 0.15 ? savedPlaybackTime : 0.01;
-
-        if (!Number.isFinite(video.duration) || video.duration <= 0) {
-          return;
-        }
-
-        try {
-          video.currentTime = Math.min(previewTime, Math.max(video.duration - 0.05, 0));
-        } catch {
-          // ignore currentTime assignment errors while previewing the first frame
-        }
-      }}
-      onPlay={(event) => {
-        const currentVideo = event.currentTarget;
-
-        pauseOtherCarouselVideos(currentVideo, playbackKey);
-        onPlaybackStart(playbackKey);
-
-        window.setTimeout(() => {
-          pauseOtherCarouselVideos(currentVideo, playbackKey);
-        }, 0);
-      }}
-      onTimeUpdate={(event) => {
-        savePlaybackTime(event.currentTarget.currentTime);
-      }}
-      onSeeked={(event) => {
-        savePlaybackTime(event.currentTarget.currentTime);
-      }}
-      onPause={(event) => {
-        savePlaybackTime(event.currentTarget.currentTime);
-        if (activeCarouselVideoElement === event.currentTarget) {
-          activeCarouselVideoElement = null;
-        }
-      }}
-      onEnded={(event) => {
-        savePlaybackTime(event.currentTarget.currentTime);
-        if (activeCarouselVideoElement === event.currentTarget) {
-          activeCarouselVideoElement = null;
-        }
-      }}
-    />
-  );
-}
 
 const getVideoProjectCategory = (project: PortfolioProject) =>
   project.videoCategory?.trim() || project.title?.trim() || DEFAULT_VIDEO_EDIT_GROUP;
@@ -582,12 +1434,15 @@ const groupVideoProjects = (projects: PortfolioProject[]) => {
     const clipsToAdd = projectVideoUrls.length > 0 ? projectVideoUrls : [""];
     const projectVideoPosterUrls = getProjectVideoPosterUrls(project, clipsToAdd.length);
     const projectVideoAspectRatio = getVideoProjectAspectRatio(project);
+    const previewImage =
+      project.image || projectVideoPosterUrls.find((item) => item.trim().length > 0) || "";
 
     return {
       key: projectKey,
       name: categoryName,
       project,
       aspectRatio: projectVideoAspectRatio,
+      previewImage,
       clips: clipsToAdd.map((videoUrl, index) => ({
         key: `${projectKey}-${index}-${videoUrl || "empty"}`,
         project,
@@ -1275,6 +2130,29 @@ const initialPortfolioProjects: Record<string, PortfolioProject[]> = {
 const [portfolioProjects, setPortfolioProjects] = useState<Record<string, PortfolioProject[]>>(
   initialPortfolioProjects
 );
+const [experienceEntries, setExperienceEntries] = useState<CreativeExperienceEntry[]>(() => {
+  if (typeof window === "undefined") {
+    return defaultExperienceEntries;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(EXPERIENCE_STORAGE_KEY);
+    if (!raw) {
+      return defaultExperienceEntries;
+    }
+
+    return normalizeExperienceEntries(JSON.parse(raw));
+  } catch {
+    return defaultExperienceEntries;
+  }
+});
+const [experienceContentVersion, setExperienceContentVersion] = useState(() => {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return getStoredExperienceContentVersion();
+});
 
 const normalizeStoredProjects = (value: unknown): Record<string, PortfolioProject[]> => {
   if (!value || typeof value !== "object") {
@@ -1333,6 +2211,8 @@ const tikTokBubbleRef = useRef<HTMLDivElement>(null);
 const contactMessageCardRef = useRef<HTMLDivElement>(null);
 const contactMessageRef = useRef<HTMLTextAreaElement>(null);
 const shouldFocusContactMessageRef = useRef(false);
+const videoProjectViewerRef = useRef<HTMLDivElement>(null);
+const projectRailViewportRef = useRef<HTMLDivElement>(null);
 const heroMarkerLayouts = createHeroMarkerLayouts();
 
 
@@ -1440,60 +2320,196 @@ useEffect(() => {
 useEffect(() => {
   if (typeof window === "undefined") return;
 
+  const syncExperienceFromStorage = () => {
+    try {
+      const raw = window.localStorage.getItem(EXPERIENCE_STORAGE_KEY);
+      const storedVersion = getStoredExperienceContentVersion();
+      if (!raw) {
+        window.localStorage.setItem(
+          EXPERIENCE_STORAGE_KEY,
+          JSON.stringify(defaultExperienceEntries)
+        );
+        setExperienceEntries(defaultExperienceEntries);
+        setExperienceContentVersion(storedVersion);
+        return;
+      }
+
+      setExperienceEntries(normalizeExperienceEntries(JSON.parse(raw)));
+      setExperienceContentVersion(storedVersion);
+    } catch {
+      setExperienceEntries(defaultExperienceEntries);
+      setExperienceContentVersion("");
+    }
+  };
+
+  syncExperienceFromStorage();
+  window.addEventListener("storage", syncExperienceFromStorage);
+  window.addEventListener(
+    EXPERIENCE_UPDATED_EVENT,
+    syncExperienceFromStorage as EventListener
+  );
+  window.addEventListener("focus", syncExperienceFromStorage);
+  window.addEventListener("pageshow", syncExperienceFromStorage as EventListener);
+  document.addEventListener("visibilitychange", syncExperienceFromStorage);
+  const syncChannel =
+    typeof BroadcastChannel !== "undefined"
+      ? new BroadcastChannel(PORTFOLIO_SYNC_CHANNEL_NAME)
+      : null;
+  if (syncChannel) {
+    syncChannel.onmessage = (event) => {
+      const payload = event.data as {
+        type?: string;
+        experienceEntries?: unknown;
+        updatedAt?: string;
+      };
+
+      if (payload?.type !== "experience-updated") {
+        return;
+      }
+
+      const nextExperienceEntries = normalizeExperienceEntries(
+        payload.experienceEntries
+      );
+      setExperienceEntries(nextExperienceEntries);
+      setExperienceContentVersion(payload.updatedAt || "");
+
+      try {
+        window.localStorage.setItem(
+          EXPERIENCE_STORAGE_KEY,
+          JSON.stringify(nextExperienceEntries)
+        );
+        if (payload.updatedAt) {
+          window.localStorage.setItem(
+            EXPERIENCE_CONTENT_UPDATED_AT_KEY,
+            payload.updatedAt
+          );
+          window.localStorage.setItem(
+            PORTFOLIO_CONTENT_UPDATED_AT_KEY,
+            payload.updatedAt
+          );
+        }
+      } catch {
+        // ignore storage write errors
+      }
+    };
+  }
+
+  return () => {
+    window.removeEventListener("storage", syncExperienceFromStorage);
+    window.removeEventListener(
+      EXPERIENCE_UPDATED_EVENT,
+      syncExperienceFromStorage as EventListener
+    );
+    window.removeEventListener("focus", syncExperienceFromStorage);
+    window.removeEventListener("pageshow", syncExperienceFromStorage as EventListener);
+    document.removeEventListener("visibilitychange", syncExperienceFromStorage);
+    syncChannel?.close();
+  };
+}, []);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
   let cancelled = false;
   const syncPortfolioFromSupabase = async () => {
     const remoteContent = await fetchPortfolioContentFromSupabase();
     if (!remoteContent || cancelled) return;
 
-    const normalizedProjects = normalizeStoredProjects(remoteContent.projects);
-    setPortfolioProjects(normalizedProjects);
+    const localPortfolioUpdatedAtValue = window.localStorage.getItem(
+      PORTFOLIO_CONTENT_UPDATED_AT_KEY
+    );
+    const localExperienceUpdatedAtValue = getStoredExperienceContentVersion();
+    const localPortfolioUpdatedAt = localPortfolioUpdatedAtValue
+      ? Date.parse(localPortfolioUpdatedAtValue)
+      : Number.NaN;
+    const localExperienceUpdatedAt = localExperienceUpdatedAtValue
+      ? Date.parse(localExperienceUpdatedAtValue)
+      : Number.NaN;
+    const remoteUpdatedAt = remoteContent.updatedAt
+      ? Date.parse(remoteContent.updatedAt)
+      : Number.NaN;
+    const hasLocalPortfolioUpdatedAt = Number.isFinite(localPortfolioUpdatedAt);
+    const hasLocalExperienceUpdatedAt = Number.isFinite(localExperienceUpdatedAt);
+    const hasRemoteUpdatedAt = Number.isFinite(remoteUpdatedAt);
+    const shouldApplyRemoteProjects = hasRemoteUpdatedAt
+      ? !hasLocalPortfolioUpdatedAt || remoteUpdatedAt >= localPortfolioUpdatedAt
+      : !hasLocalPortfolioUpdatedAt;
+    const remoteExperienceEntries =
+      remoteContent.experienceEntriesSyncSupported !== false
+        ? parseExperienceEntries(remoteContent.experienceEntries)
+        : null;
+    const shouldApplyRemoteExperience =
+      remoteExperienceEntries !== null &&
+      (hasRemoteUpdatedAt
+        ? !hasLocalExperienceUpdatedAt || remoteUpdatedAt >= localExperienceUpdatedAt
+        : !hasLocalExperienceUpdatedAt);
 
-    try {
-      window.localStorage.setItem(
-        PORTFOLIO_STORAGE_KEY,
-        JSON.stringify(normalizedProjects)
-      );
-      window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
-    } catch {
-      // ignore storage write errors
+    if (!shouldApplyRemoteProjects && !shouldApplyRemoteExperience) {
+      return;
+    }
+
+    if (shouldApplyRemoteProjects) {
+      const normalizedProjects = normalizeStoredProjects(remoteContent.projects);
+      setPortfolioProjects(normalizedProjects);
+      try {
+        window.localStorage.setItem(
+          PORTFOLIO_STORAGE_KEY,
+          JSON.stringify(normalizedProjects)
+        );
+        if (remoteContent.updatedAt) {
+          window.localStorage.setItem(
+            PORTFOLIO_CONTENT_UPDATED_AT_KEY,
+            remoteContent.updatedAt
+          );
+        }
+        window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
+      } catch {
+        // ignore storage write errors
+      }
+    }
+
+    if (shouldApplyRemoteExperience && remoteExperienceEntries) {
+      setExperienceEntries(remoteExperienceEntries);
+      setExperienceContentVersion(remoteContent.updatedAt || "");
+      try {
+        window.localStorage.setItem(
+          EXPERIENCE_STORAGE_KEY,
+          JSON.stringify(remoteExperienceEntries)
+        );
+        if (remoteContent.updatedAt) {
+          window.localStorage.setItem(
+            EXPERIENCE_CONTENT_UPDATED_AT_KEY,
+            remoteContent.updatedAt
+          );
+        }
+        window.dispatchEvent(new Event(EXPERIENCE_UPDATED_EVENT));
+      } catch {
+        // ignore storage write errors
+      }
     }
   };
 
   void syncPortfolioFromSupabase();
+  const handleWindowFocus = () => {
+    void syncPortfolioFromSupabase();
+  };
+  const handleVisibilityChange = () => {
+    if (!document.hidden) {
+      void syncPortfolioFromSupabase();
+    }
+  };
+  const handlePageShow = () => {
+    void syncPortfolioFromSupabase();
+  };
+  window.addEventListener("focus", handleWindowFocus);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("pageshow", handlePageShow);
 
   return () => {
     cancelled = true;
-  };
-}, []);
-
-useEffect(() => {
-  if (typeof document === "undefined") {
-    return;
-  }
-
-  const handleCarouselVideoPlay = (event: Event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLVideoElement)) {
-      return;
-    }
-
-    if (target.dataset.carouselVideo !== "true") {
-      return;
-    }
-
-    const playbackKey = target.dataset.playbackKey?.trim() || "";
-    pauseOtherCarouselVideos(target, playbackKey);
-    if (playbackKey) {
-      setActiveCarouselPlaybackKey(playbackKey);
-    }
-  };
-
-  document.addEventListener("play", handleCarouselVideoPlay, true);
-  document.addEventListener("playing", handleCarouselVideoPlay, true);
-
-  return () => {
-    document.removeEventListener("play", handleCarouselVideoPlay, true);
-    document.removeEventListener("playing", handleCarouselVideoPlay, true);
+    window.removeEventListener("focus", handleWindowFocus);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    window.removeEventListener("pageshow", handlePageShow);
   };
 }, []);
 
@@ -1766,7 +2782,7 @@ const scrollToSection = (ref: React.RefObject<HTMLDivElement | null> | null) => 
 };
 
 const openPortfolioCategory = (
-  categoryName: "Graphic Design" | "Video Edit" | "Certificates",
+  categoryName: PortfolioCategoryName,
   shouldScroll = false
 ) => {
   setActiveBox(categoryName);
@@ -1781,6 +2797,22 @@ const openPortfolioCategory = (
       scrollToSection(portfolioRef);
     }, 80);
   }
+};
+
+const openVideoProjectShowcase = (projectKey: string) => {
+  setSelectedVideoProjectKey(projectKey);
+
+  window.setTimeout(() => {
+    videoProjectViewerRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, 110);
+};
+
+const openProjectDetails = (project: PortfolioProject) => {
+  setSelectedProject(project);
+  setShowModal(true);
 };
 
 const handleSecretLogoTap = () => {
@@ -2061,33 +3093,6 @@ const getVideoCarouselIndex = (groupName: string, projectCount: number) => {
   return ((currentIndex % projectCount) + projectCount) % projectCount;
 };
 
-const getVideoCarouselMotionDirection = (
-  currentIndex: number,
-  nextIndex: number,
-  projectCount: number
-): -1 | 1 => {
-  if (projectCount <= 1) {
-    return 1;
-  }
-
-  const forwardDistance = (nextIndex - currentIndex + projectCount) % projectCount;
-  if (forwardDistance === 0) {
-    return 1;
-  }
-
-  return forwardDistance <= projectCount / 2 ? 1 : -1;
-};
-
-const triggerVideoCarouselMotion = (groupName: string, direction: -1 | 1) => {
-  setVideoCarouselMotion((prev) => ({
-    ...prev,
-    [groupName]: {
-      token: (prev[groupName]?.token ?? 0) + 1,
-      direction,
-    },
-  }));
-};
-
 const setVideoCarouselIndex = (groupName: string, nextIndex: number, projectCount: number) => {
   if (projectCount <= 0) {
     return;
@@ -2099,10 +3104,6 @@ const setVideoCarouselIndex = (groupName: string, nextIndex: number, projectCoun
     return;
   }
 
-  triggerVideoCarouselMotion(
-    groupName,
-    getVideoCarouselMotionDirection(currentIndex, normalizedNextIndex, projectCount)
-  );
   setVideoCarouselIndexes((prev) => ({
     ...prev,
     [groupName]: normalizedNextIndex,
@@ -2118,7 +3119,6 @@ const shiftVideoCarousel = (
     return;
   }
 
-  triggerVideoCarouselMotion(groupName, direction >= 0 ? 1 : -1);
   setVideoCarouselIndexes((prev) => {
     const currentIndex = ((prev[groupName] ?? 0) % projectCount + projectCount) % projectCount;
     return {
@@ -2126,36 +3126,6 @@ const shiftVideoCarousel = (
       [groupName]: (currentIndex + direction + projectCount) % projectCount,
     };
   });
-};
-
-const getVideoCarouselClipOffset = (
-  clipIndex: number,
-  activeIndex: number,
-  clipCount: number
-) => {
-  if (clipCount <= 1) {
-    return 0;
-  }
-
-  if (clipCount === 2) {
-    return clipIndex === activeIndex ? 0 : 1;
-  }
-
-  const forwardDistance = (clipIndex - activeIndex + clipCount) % clipCount;
-
-  if (forwardDistance === 0) {
-    return 0;
-  }
-
-  if (forwardDistance === 1) {
-    return 1;
-  }
-
-  if (forwardDistance === clipCount - 1) {
-    return -1;
-  }
-
-  return forwardDistance < clipCount / 2 ? 2 : -2;
 };
 
 const handleAddProjectSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -2401,27 +3371,109 @@ const handleContactSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
   }
 };
 
-const isAnyModalOpen = isDetailsModalMounted || isAddProjectModalMounted;
-const activeProjects = portfolioProjects[activeBox] || [];
+const activeCategoryName = activeBox as PortfolioCategoryName;
+const activeProjects = portfolioProjects[activeCategoryName] || [];
 const isVideoEditShowcase = activeBox === "Video Edit";
 const videoProjectGroups = isVideoEditShowcase ? groupVideoProjects(activeProjects) : [];
 const totalVideoClipCount = isVideoEditShowcase
   ? videoProjectGroups.reduce((total, group) => total + group.clips.length, 0)
   : 0;
-const totalCreativeProjects =
-  (portfolioProjects["Graphic Design"]?.length || 0) +
-  (portfolioProjects["Video Edit"]?.length || 0);
+const selectedVideoProjectGroup = isVideoEditShowcase
+  ? videoProjectGroups.find((group) => group.key === selectedVideoProjectKey) ?? null
+  : null;
+const selectedVideoProject = selectedVideoProjectGroup?.project ?? null;
+const selectedVideoProjectClipIndex = selectedVideoProjectGroup
+  ? getVideoCarouselIndex(selectedVideoProjectGroup.key, selectedVideoProjectGroup.clips.length)
+  : 0;
+const selectedVideoProjectClip = selectedVideoProjectGroup
+  ? selectedVideoProjectGroup.clips[selectedVideoProjectClipIndex] ?? null
+  : null;
+const selectedVideoProjectParentLabel =
+  selectedVideoProjectGroup && selectedVideoProject
+    ? getVideoProjectParentLabel(selectedVideoProject, selectedVideoProjectGroup.name)
+    : "";
+const selectedCategoryProjectIndex = !isVideoEditShowcase
+  ? Math.min(
+      selectedCategoryProjectIndexes[activeCategoryName] ?? 0,
+      Math.max(activeProjects.length - 1, 0)
+    )
+  : 0;
+const spotlightCategoryProject = !isVideoEditShowcase
+  ? activeProjects[selectedCategoryProjectIndex] ?? null
+  : null;
 const totalCertificates = portfolioProjects.Certificates?.length || 0;
+const categoryProjectCounts = {
+  "Video Edit": videoProjectGroups.length,
+  "Graphic Design": portfolioProjects["Graphic Design"]?.length || 0,
+  Certificates: totalCertificates,
+} as const;
 const activeCategoryMeta =
   portfolioCategories.find((item) => item.name === activeBox) ?? portfolioCategories[0];
 const activeCategoryCountText =
   isVideoEditShowcase && videoProjectGroups.length > 0
-    ? `${totalVideoClipCount} ${totalVideoClipCount === 1 ? "clip" : "clips"} across ${
-        videoProjectGroups.length
-      } ${
-        videoProjectGroups.length === 1 ? "project carousel" : "project carousels"
-      }.`
+    ? `${videoProjectGroups.length} cinematic ${
+        videoProjectGroups.length === 1 ? "project" : "projects"
+      } and ${totalVideoClipCount} ${totalVideoClipCount === 1 ? "clip" : "clips"} on standby.`
     : `${activeProjects.length} ${activeProjects.length === 1 ? "item" : "items"} currently showing.`;
+
+useEffect(() => {
+  if (!isVideoEditShowcase) {
+    return;
+  }
+
+  if (videoProjectGroups.length === 0) {
+    if (selectedVideoProjectKey) {
+      setSelectedVideoProjectKey(null);
+    }
+    return;
+  }
+
+  if (!selectedVideoProjectKey) {
+    setSelectedVideoProjectKey(videoProjectGroups[0]?.key ?? null);
+    return;
+  }
+
+  const hasSelectedProject = videoProjectGroups.some(
+    (group) => group.key === selectedVideoProjectKey
+  );
+
+  if (!hasSelectedProject) {
+    setSelectedVideoProjectKey(videoProjectGroups[0]?.key ?? null);
+  }
+}, [isVideoEditShowcase, selectedVideoProjectKey, videoProjectGroups]);
+
+useEffect(() => {
+  if (isVideoEditShowcase || activeProjects.length === 0) {
+    return;
+  }
+
+  const currentIndex = selectedCategoryProjectIndexes[activeCategoryName] ?? 0;
+  if (currentIndex >= activeProjects.length) {
+    setSelectedCategoryProjectIndexes((prev) => ({
+      ...prev,
+      [activeCategoryName]: 0,
+    }));
+  }
+}, [
+  activeCategoryName,
+  activeProjects.length,
+  isVideoEditShowcase,
+  selectedCategoryProjectIndexes,
+]);
+
+const scrollProjectRail = (direction: -1 | 1) => {
+  const railViewport = projectRailViewportRef.current;
+  if (!railViewport) {
+    return;
+  }
+
+  const distance = Math.max(railViewport.clientWidth * 0.72, 240);
+  railViewport.scrollBy({
+    left: distance * direction,
+    behavior: "smooth",
+  });
+};
+
 const glassSectionClass =
   "relative mx-auto w-full max-w-7xl rounded-[26px] border border-white/10 bg-white/[0.03] p-[1.5px] shadow-[0_18px_60px_rgba(0,0,0,0.24)] transform-gpu [backface-visibility:hidden]";
 const glassSectionPanelClass =
@@ -2566,31 +3618,56 @@ const creativeExperienceEntries = [
     role: "Short-Form Video Editing",
     client: "Kayla",
     period: "2024",
-    points: [
-      "Edited short-form video content for B2B and business platforms, tailored to support and empower women facing professional and personal challenges.",
-      "Enhanced storytelling through precise cuts, captions, and pacing to deliver clear, engaging, and value-driven messages.",
-      "Applied motion graphics, subtitles, and audio optimization to improve clarity, accessibility, and audience engagement.",
-    ],
+    summary:
+      "Business-focused short-form edits shaped for clarity, captions, and message-first storytelling.",
+    tags: ["Short-form", "Captions", "Business"],
   },
   {
     role: "Short-Form and Long-Form Video Editing",
     client: "Vast Professionals",
     period: "2025-2026",
-    points: [
-      "Edited and optimized short-form and long-form video content, ensuring strong storytelling, pacing, and platform-ready delivery.",
-      "Created motion graphics, visual effects, and performed color correction and grading to maintain visual quality and brand consistency.",
-      "Designed and mixed audio, including music, sound effects, and voiceovers, to enhance overall viewer engagement.",
-    ],
+    summary:
+      "Handled both short and long-form client content with motion, polish, and brand-consistent finishing.",
+    tags: ["Long-form", "Motion", "Branding"],
   },
   {
     role: "Long-Form Video Editor",
     client: "Henry Sims",
     period: "2026-Present",
-    points: [
-      "Edited long-form videos with fast-paced storytelling, strong hooks, and a focus on viewer retention.",
-      "Incorporated motion graphics, dynamic subtitles, and visual elements to simplify complex information and maintain engagement.",
-      "Produced polished, informative content with smooth transitions, sound design, and attention to detail.",
-    ],
+    summary:
+      "Retention-focused long-form edits with stronger hooks, cleaner pacing, and polished sound design.",
+    tags: ["Retention", "Hooks", "Storytelling"],
+  },
+] as const;
+const aboutHighlightCards = [
+  {
+    title: "Retention pacing",
+    description: "Hooks, rhythm, and cleaner watch flow.",
+    icon: Film,
+  },
+  {
+    title: "Visual polish",
+    description: "Layouts, thumbnails, and sharper brand detail.",
+    icon: Palette,
+  },
+  {
+    title: "Smooth handoff",
+    description: "Clear updates, revisions, and quick replies.",
+    icon: Globe,
+  },
+] as const;
+const aboutSnapshotStats = [
+  {
+    value: "2+ yrs",
+    label: "creative delivery",
+  },
+  {
+    value: "24 hrs",
+    label: "usual response",
+  },
+  {
+    value: "3 lanes",
+    label: "edit, design, web",
   },
 ] as const;
 const contactPlatforms = [
@@ -2720,45 +3797,11 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         <div className="absolute left-1/2 bottom-[-8%] h-[24rem] w-[84vw] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(102,214,255,0.14)_0%,rgba(102,214,255,0.05)_34%,transparent_74%)] blur-3xl opacity-85" />
       </div>
 
-      {/* HERO ATMOSPHERE */}
-      <div className="absolute inset-0 z-0">
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(1,4,8,0.56) 0%, rgba(1,3,6,0.82) 58%, rgba(1,2,5,0.95) 100%), linear-gradient(122deg, rgba(255,255,255,0.02) 0%, transparent 30%, transparent 72%, rgba(255,255,255,0.01) 100%), radial-gradient(circle at 50% 0%, rgba(255,255,255,0.018) 0%, transparent 34%), radial-gradient(circle at 50% 40%, rgba(0,153,255,0.06) 0%, transparent 24%), radial-gradient(circle at 18% 56%, rgba(0,153,255,0.05) 0%, transparent 22%), radial-gradient(circle at 82% 72%, rgba(255,255,255,0.04) 0%, transparent 18%), radial-gradient(circle at 38% 92%, rgba(0,153,255,0.045) 0%, transparent 24%)",
-          }}
-        />
-        <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(143,220,255,0.08)_1px,transparent_1px)] [background-size:40px_40px] [mask-image:linear-gradient(180deg,transparent_0%,black_12%,black_92%,transparent_100%)]" />
-        <div
-          className="absolute left-[-12%] top-[12%] hidden h-[30rem] w-[30rem] opacity-60 lg:block"
-          style={{
-            borderRadius: "999px",
-            background:
-              "conic-gradient(from 165deg, transparent 0deg, rgba(214,225,238,0.12) 64deg, transparent 110deg, transparent 360deg)",
-            WebkitMask:
-              "radial-gradient(circle, transparent 61%, black 63%, black 65.5%, transparent 67.5%)",
-            mask:
-              "radial-gradient(circle, transparent 61%, black 63%, black 65.5%, transparent 67.5%)",
-          }}
-        />
-        <div className="absolute left-1/2 top-[7%] h-px w-[58vw] -translate-x-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-70" />
-        <div className="absolute left-1/2 top-[9%] h-24 w-[50vw] -translate-x-1/2 bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,rgba(0,153,255,0.045)_44%,transparent_74%)] blur-3xl opacity-40" />
-        <div className="absolute left-[8%] top-[34%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,transparent_72%)] blur-3xl sm:h-52 sm:w-52" />
-        <div className="absolute right-[10%] top-[46%] h-28 w-28 rounded-[28px] border border-white/6 opacity-45 rotate-[10deg] sm:h-36 sm:w-36" />
-        <div className="absolute left-[14%] top-[63%] h-20 w-[36%] bg-[radial-gradient(circle,rgba(255,255,255,0.07)_0%,transparent_72%)] blur-3xl sm:h-24" />
-        <div className="absolute right-[12%] top-[78%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.07)_0%,transparent_74%)] blur-3xl sm:h-52 sm:w-52" />
-        <div className="absolute left-[9%] top-[88%] h-24 w-24 rounded-full border border-[#8fdcff]/10 opacity-50 sm:h-32 sm:w-32" />
-        <div className="absolute inset-y-[18%] left-[6%] w-px bg-gradient-to-b from-transparent via-white/12 to-transparent opacity-60" />
-        <div className="absolute inset-y-[28%] right-[7%] w-px bg-gradient-to-b from-transparent via-[#8fdcff]/14 to-transparent opacity-60" />
-        <div className="absolute left-1/2 bottom-[7%] h-40 w-[84%] -translate-x-1/2 bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,rgba(0,153,255,0.025)_36%,transparent_74%)] blur-3xl opacity-80" />
-      </div>
-
       {/* NAVBAR */}
       <div className="relative z-50 px-2 pt-3 sm:px-4 lg:px-5">
         <nav
          ref={navbarRef}
-          className="sticky top-3 mx-auto w-full max-w-[1520px] overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,8,14,0.9),rgba(5,10,18,0.76))] px-3 py-3.5 font-semibold tracking-[0.02em] shadow-[0_22px_60px_rgba(0,0,0,0.3)] backdrop-blur-2xl lg:px-5"
+          className="sticky top-3 mx-auto w-full max-w-[1520px] overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,8,14,0.88),rgba(5,10,18,0.8))] px-3 py-3.5 font-semibold tracking-[0.02em] shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-2xl lg:px-5"
         >
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/28 to-transparent" />
@@ -2817,8 +3860,6 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             </div>
           </div>
         </nav>
-
-        <div className="pointer-events-none absolute left-1/2 top-full h-14 w-[min(88vw,1180px)] -translate-x-1/2 bg-[radial-gradient(circle,rgba(118,208,255,0.2)_0%,rgba(118,208,255,0.08)_38%,transparent_72%)] blur-2xl" />
       </div>
 
      {/* SIDE NAV */}
@@ -2837,228 +3878,39 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
   </div>
 </div>
 
-      {/* HERO STACK */}
-      <div ref={heroRef} className="relative z-10 flex flex-col items-center justify-center pt-[30vh] sm:pt-[34vh] lg:pt-[40vh]">
-        <div
-          className="absolute"
-          style={{
-            transform: "translateY(12%) scaleY(1.2)",
-            transformOrigin: "center",
-          }}
-        >
-          <span
-            className="pointer-events-none absolute left-0 top-0 select-none text-[11px] text-gray-400 sm:text-base"
-            style={{
-              transform: "translate(8%, -8%)",
-              fontFamily: "Calibri, sans-serif",
-              lineHeight: "1.2",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {videoText}
-            {!videoDone && (
-              <span className="inline-block w-[1px] h-[1em] bg-gray-400 ml-1 animate-blink align-baseline" />
-            )}
-          </span>
-
-          <span
-            className="pointer-events-none absolute right-0 top-0 select-none text-[11px] text-gray-400 sm:text-base"
-            style={{
-              transform: "translate(-8%, -22%)",
-              fontFamily: "Calibri, sans-serif",
-              lineHeight: "1.2",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {graphicText}
-            {videoDone && !graphicDone && (
-              <span className="inline-block w-[1px] h-[1em] bg-gray-400 ml-1 animate-blink align-baseline" />
-            )}
-          </span>
-
-          <div className="relative inline-block align-top">
-            <h1
-              className={`
-                text-[8.25rem] sm:text-[13rem] md:text-[22rem] lg:text-[32rem] xl:text-[40rem]
-                portfolio-heading portfolio-main-text select-none pointer-events-none leading-none
-                text-white/38
-              `}
-              data-text="PORTFOLIO"
-            >
-              PORTFOLIO
-            </h1>
-          </div>
-        </div>
-
-        <div
-          className={`pointer-events-none absolute left-1/2 top-[5%] z-10 hidden h-[34rem] w-[34rem] -translate-x-1/2 rounded-full transition-[opacity,transform] duration-[780ms] ease-out lg:block ${
-            imageVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
-          }`}
-          style={{
-            background:
-              "radial-gradient(circle, rgba(0,153,255,0.18) 0%, rgba(0,153,255,0.07) 28%, rgba(255,255,255,0.04) 44%, transparent 72%)",
-            filter: "blur(10px)",
-          }}
+      <div ref={heroRef} className="relative z-10 mt-0 w-full">
+        <AuroraBackgroundDemo
+          isVisible={introDone}
+          onViewPortfolio={() => scrollToSection(portfolioRef)}
+          onContact={() => scrollToSection(contactRef)}
         />
-        <div
-          className={`pointer-events-none absolute left-1/2 top-[8%] z-10 hidden h-[31rem] w-[31rem] -translate-x-1/2 transition-[opacity,transform] duration-[780ms] ease-out lg:block ${
-            imageVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
-          }`}
-          style={{
-            background:
-              "conic-gradient(from 205deg, transparent 0deg, rgba(143,227,255,0.16) 54deg, transparent 112deg, transparent 360deg)",
-            WebkitMask:
-              "radial-gradient(circle, transparent 61%, black 63%, black 65.5%, transparent 67.5%)",
-            mask:
-              "radial-gradient(circle, transparent 61%, black 63%, black 65.5%, transparent 67.5%)",
-          }}
-        />
-
-        <div
-          className={`pointer-events-none absolute z-20 transition-all duration-1000 ${
-            imageVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-          }`}
-          style={{ top: "1%" }}
-        >
-          <Image
-            src="/v6.png"
-            alt="Wens"
-            width={810}
-            height={810}
-            priority
-            className="h-auto w-[22rem] max-w-[84vw] object-contain grayscale brightness-[1.1] contrast-[1.12] drop-shadow-[0_30px_80px_rgba(0,0,0,0.56)] sm:w-[28rem] md:w-[38rem] lg:w-[50rem]"
-          />
-        </div>
-
-        <div className="pointer-events-none absolute left-[10%] right-[10%] top-[64%] z-[11] hidden h-[23rem] -translate-y-1/2 xl:block">
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full overflow-visible">
-            {heroSignatureFrames.map((frame, index) => {
-              const isActive = activeHeroMarker === index;
-              const layout = heroMarkerLayouts[index];
-              const lineLoadDelay = 180 + index * 120;
-
-              if (!layout) return null;
-
-              return (
-                <path
-                  key={frame.key}
-                  d={`M ${layout.anchorX} ${layout.anchorY} L ${layout.bendX} ${layout.bendY} L ${layout.circleX} ${layout.circleY}`}
-                  fill="none"
-                  stroke={isActive ? "rgba(168,235,255,0.88)" : "rgba(255,255,255,0.3)"}
-                  strokeWidth={isActive ? 0.3 : 0.2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  pathLength={1}
-                  style={{
-                    opacity: imageVisible ? 1 : 0,
-                    strokeDasharray: 1,
-                    strokeDashoffset: imageVisible ? 0 : 1,
-                    transition: `stroke-dashoffset 860ms cubic-bezier(0.22,1,0.36,1) ${lineLoadDelay}ms, opacity 320ms ease-out ${lineLoadDelay}ms, stroke 260ms ease-out, stroke-width 260ms ease-out`,
-                  }}
-                />
-              );
-            })}
-          </svg>
-        </div>
-
-        <div className="absolute left-[10%] right-[10%] top-[64%] z-[12] hidden h-[23rem] -translate-y-1/2 xl:block">
-          {heroSignatureFrames.map((frame, index) => {
-            const Icon = frame.icon;
-            const isActive = activeHeroMarker === index;
-            const layout = heroMarkerLayouts[index];
-            const popupOffsetRem =
-              frame.key === "identity" ? -4 : frame.key === "finish" ? 4 : 0;
-            const markerLoadDelay = 420 + index * 110;
-
-            if (!layout) return null;
-
-            return (
-              <div
-                key={frame.key}
-                className="absolute"
-                style={{
-                  left: `${layout.circleX}%`,
-                  top: `${layout.circleY}%`,
-                  opacity: imageVisible ? 1 : 0,
-                  transform: imageVisible
-                    ? "translate(-50%, -50%) scale(1)"
-                    : "translate(-50%, -50%) scale(0.72)",
-                  transition: `transform 560ms cubic-bezier(0.22,1,0.36,1) ${markerLoadDelay}ms, opacity 320ms ease-out ${markerLoadDelay}ms`,
-                }}
-              >
-                <button
-                  type="button"
-                  data-hero-marker-button="true"
-                  aria-pressed={isActive}
-                  onClick={() =>
-                    setActiveHeroMarker((currentMarker) =>
-                      currentMarker === index ? null : index
-                    )
-                  }
-                  className={`relative flex h-7 w-7 items-center justify-center rounded-full border bg-transparent transition-[transform,border-color,box-shadow] duration-220 ease-out ${
-                    isActive
-                      ? "scale-105 border-[#8fdcff]/58 shadow-[0_0_14px_rgba(143,227,255,0.16)]"
-                      : "border-white/20 hover:scale-[1.04] hover:border-[#8fdcff]/34 hover:shadow-[0_0_10px_rgba(143,227,255,0.1)]"
-                  }`}
-                >
-                  <span
-                    className={`absolute inset-[3px] rounded-full border transition-colors duration-220 ${
-                      isActive ? "border-[#8fdcff]/44" : "border-white/12"
-                    }`}
-                  />
-                  <span
-                    className={`relative h-1.5 w-1.5 rounded-full transition-all duration-220 ${
-                      isActive
-                        ? "bg-[#eafcff] shadow-[0_0_8px_rgba(143,227,255,0.58)]"
-                        : "bg-white/78 shadow-[0_0_6px_rgba(255,255,255,0.12)]"
-                    }`}
-                  />
-                </button>
-
-                <div
-                  className={`absolute w-[232px] transition-[opacity,transform,filter] duration-220 ease-out ${
-                    isActive
-                      ? "pointer-events-auto -translate-x-1/2 translate-y-0 opacity-100 blur-0"
-                      : "pointer-events-none -translate-x-1/2 translate-y-2 opacity-0 blur-[2px]"
-                  }`}
-                  style={{
-                    left: `calc(50% + ${popupOffsetRem}rem)`,
-                    top: "2.45rem",
-                  }}
-                >
-                  <div className="relative overflow-hidden rounded-[16px] border border-white/10 bg-[linear-gradient(135deg,rgba(5,11,18,0.92),rgba(8,17,27,0.8))] px-4 py-2 shadow-[0_16px_36px_rgba(0,0,0,0.24)] backdrop-blur-xl">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(143,227,255,0.08),transparent_44%)]" />
-                    <div className="relative flex items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[#9be8ff]">
-                        <Icon className="h-3 w-3" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[8px] uppercase tracking-[0.26em] text-[#8fdcff]/68">
-                          Signature Frame
-                        </p>
-                        <p className="mt-0.5 text-[13px] font-semibold leading-snug text-white">
-                          {frame.title}
-                        </p>
-                        <p className="mt-0.5 text-[10px] leading-snug text-white/58">
-                          {frame.description}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <div className="pointer-events-none absolute inset-x-[-8%] bottom-[-8.5rem] z-0 h-80 bg-[radial-gradient(ellipse_at_center,rgba(62,122,177,0.18)_0%,rgba(31,64,96,0.14)_30%,rgba(10,18,28,0.08)_56%,rgba(9,14,21,0)_82%)] blur-[72px] opacity-100" />
+        <div className="pointer-events-none absolute inset-x-[8%] bottom-[-5.5rem] z-0 h-40 bg-[linear-gradient(180deg,rgba(92,180,232,0)_0%,rgba(92,180,232,0.1)_34%,rgba(46,96,140,0.08)_58%,rgba(11,20,30,0.04)_78%,rgba(92,180,232,0)_100%)] blur-[40px] opacity-92" />
       </div>
 
+      <AboutExperienceListSection
+        aboutRef={aboutRef}
+        showAbout={showAbout}
+        helloVisible={helloVisible}
+        aboutFullName={aboutFullName}
+        nameText={nameText}
+        nameDone={nameDone}
+        onViewClientEdits={() => openPortfolioCategory("Video Edit", true)}
+        highlightCards={aboutHighlightCards}
+        snapshotStats={aboutSnapshotStats}
+        experienceEntries={experienceEntries}
+        experienceContentVersion={experienceContentVersion}
+      />
 
+      {false ? (
+        <>
       {/* ===== ABOUT ME SECTION ===== */}
       <div
         ref={aboutRef}
-        className="relative mt-[610px] flex flex-col items-center overflow-visible transition-all duration-700 ease-out"
+        className="relative mt-12 flex flex-col items-center overflow-visible transition-all duration-700 ease-out lg:mt-16"
       >
         <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-x-0 top-[-4.5rem] h-28 bg-[linear-gradient(180deg,rgba(9,15,24,0)_0%,rgba(11,17,26,0.6)_55%,rgba(11,17,26,0.9)_100%)] blur-2xl" />
           <div className="absolute left-[8%] top-[8%] h-52 w-52 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.16)_0%,transparent_72%)] blur-3xl" />
           <div className="absolute right-[6%] top-[6%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.07)_0%,transparent_74%)] blur-3xl" />
           <div className="absolute inset-x-[10%] bottom-[12%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -3086,17 +3938,32 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               <span className="inline-flex rounded-full border border-[#0099ff]/25 bg-[#0099ff]/10 px-4 py-1 text-[11px] uppercase tracking-[0.26em] text-[#8fdcff]">
                 About Me + Experience
               </span>
+              <h3
+                className="mt-4 max-w-3xl text-3xl font-bold text-white sm:text-[2.7rem]"
+                style={{
+                  fontFamily: "'CreatoDisplay', sans-serif",
+                  letterSpacing: "0.02em",
+                  textShadow: "0 0 16px rgba(0,153,255,0.1)",
+                }}
+              >
+                A quick read on who I am and the work I bring.
+              </h3>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/68 sm:text-base">
+                Short, clear, and client-friendly. Here is the profile, focus, and real
+                project experience behind the edits.
+              </p>
             </div>
 
-            <div className="relative mt-4 grid w-full gap-4 xl:grid-cols-[minmax(280px,0.58fr)_minmax(0,1.42fr)] xl:items-start">
+            <div className="relative mt-6 grid w-full gap-5 xl:grid-cols-[minmax(320px,0.82fr)_minmax(0,1.18fr)] xl:items-start">
               <div
-                className={`relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,23,31,0.94),rgba(10,15,22,0.92))] p-5 transition-[opacity,transform] duration-500 ease-out ${
+                className={`relative overflow-hidden rounded-[30px] border border-white/12 bg-[linear-gradient(180deg,rgba(14,22,32,0.96),rgba(8,13,20,0.94))] p-5 transition-[opacity,transform] duration-500 ease-out sm:p-6 ${
                   helloVisible ? "translate-x-0 opacity-100" : "-translate-x-10 opacity-0"
                 }`}
               >
                 <div className="pointer-events-none absolute inset-0">
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/16 to-transparent" />
-                  <div className="absolute left-1/2 top-[28%] h-44 w-44 -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.13)_0%,transparent_74%)] blur-3xl" />
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                  <div className="absolute left-[12%] top-[10%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,transparent_74%)] blur-3xl" />
+                  <div className="absolute right-[8%] bottom-[8%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.06)_0%,transparent_74%)] blur-3xl" />
                 </div>
 
                 <div className="relative z-10">
@@ -3116,7 +3983,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                         helloVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
                       }`}
                     >
-                      Hello! I am
+                      Quick Profile
                     </p>
 
                     <h3
@@ -3145,8 +4012,8 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                       }`}
                       style={{ transitionDelay: "0.12s" }}
                     >
-                      4th-year BSIT student, video editor, and graphic designer focused on
-                      clear storytelling, clean execution, and platform-ready creative work.
+                      Video editor, graphic designer, and BSIT senior focused on clean,
+                      engaging work that feels polished from idea to final output.
                     </p>
 
                     <p className="mt-4 text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]/78">
@@ -3154,126 +4021,46 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                     </p>
                   </div>
 
-                  <div className="mt-6 space-y-3">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <a
-                          href="https://your-link-1.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]"
-                        >
-                          <div
-                            className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
-                            style={{
-                              backgroundColor: "#0099ff",
-                              WebkitMaskImage: "url('/linkedin.png')",
-                              WebkitMaskRepeat: "no-repeat",
-                              WebkitMaskSize: "18px",
-                              WebkitMaskPosition: "center",
-                              maskImage: "url('/linkedin.png')",
-                              maskRepeat: "no-repeat",
-                              maskSize: "18px",
-                              maskPosition: "center",
-                            }}
-                          />
-                          <img
-                            src="/linkedin.png"
-                            alt="LinkedIn"
-                            className="h-[18px] w-[18px] object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
-                          />
-                        </a>
-
-                        <a
-                          href="https://your-link-2.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]"
-                        >
-                          <div
-                            className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
-                            style={{
-                              backgroundColor: "#0099ff",
-                              WebkitMaskImage: "url('/behance.png')",
-                              WebkitMaskRepeat: "no-repeat",
-                              WebkitMaskSize: "18px",
-                              WebkitMaskPosition: "center",
-                              maskImage: "url('/behance.png')",
-                              maskRepeat: "no-repeat",
-                              maskSize: "18px",
-                              maskPosition: "center",
-                            }}
-                          />
-                          <img
-                            src="/behance.png"
-                            alt="Behance"
-                            className="h-[18px] w-[18px] object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
-                          />
-                        </a>
-
-                        <a
-                          href="https://your-link-3.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]"
-                        >
-                          <div
-                            className="absolute inset-0 opacity-0 transition-opacity duration-180 ease-out group-hover:opacity-100"
-                            style={{
-                              backgroundColor: "#0099ff",
-                              WebkitMaskImage: "url('/upwork.png')",
-                              WebkitMaskRepeat: "no-repeat",
-                              WebkitMaskSize: "18px",
-                              WebkitMaskPosition: "center",
-                              maskImage: "url('/upwork.png')",
-                              maskRepeat: "no-repeat",
-                              maskSize: "18px",
-                              maskPosition: "center",
-                            }}
-                          />
-                          <img
-                            src="/upwork.png"
-                            alt="Upwork"
-                            className="h-[18px] w-[18px] object-contain brightness-0 invert transition-opacity duration-180 ease-out group-hover:opacity-0"
-                          />
-                        </a>
-                      </div>
-
-                      <div className="min-w-0 flex-1 self-center">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#8fdcff]/78">
-                          Response Time
+                  <div className="mt-6 space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-[20px] border border-white/10 bg-white/[0.04] px-4 py-4">
+                        <p className="text-[10px] uppercase tracking-[0.22em] text-[#8fdcff]/74">
+                          Experience
                         </p>
-                        <div className="mt-2 flex items-center gap-2 text-sm text-white/68">
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-[#8fdcff] shadow-[0_0_10px_rgba(143,220,255,0.6)]" />
-                          <span>Replies within 24 hours</span>
-                        </div>
+                        <p className="mt-2 text-2xl font-semibold text-white">2+ yrs</p>
+                        <p className="mt-1 text-sm text-white/58">Editing and design work</p>
+                      </div>
+                      <div className="rounded-[20px] border border-white/10 bg-white/[0.04] px-4 py-4">
+                        <p className="text-[10px] uppercase tracking-[0.22em] text-[#8fdcff]/74">
+                          Focus
+                        </p>
+                        <p className="mt-2 text-2xl font-semibold text-white">3 lanes</p>
+                        <p className="mt-1 text-sm text-white/58">Edit, design, web</p>
+                      </div>
+                      <div className="rounded-[20px] border border-white/10 bg-white/[0.04] px-4 py-4">
+                        <p className="text-[10px] uppercase tracking-[0.22em] text-[#8fdcff]/74">
+                          Response
+                        </p>
+                        <p className="mt-2 text-2xl font-semibold text-white">24 hrs</p>
+                        <p className="mt-1 text-sm text-white/58">Typical reply time</p>
                       </div>
                     </div>
 
-                    <div className="grid w-full max-w-[420px] grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row">
                       <a
                         href="/Wence-De-Vera-CV.pdf"
                         download
-                        className="inline-flex h-11 w-full items-center justify-center rounded-full border border-[#8fdcff]/25 bg-[#8fdcff]/10 px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#b9eeff] transition-[transform,border-color,background-color] duration-160 ease-out hover:-translate-y-0.5 hover:border-[#8fdcff]/40"
+                        className="inline-flex h-11 items-center justify-center rounded-full border border-[#8fdcff]/25 bg-[#8fdcff]/10 px-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#b9eeff] transition-[transform,border-color,background-color] duration-160 ease-out hover:-translate-y-0.5 hover:border-[#8fdcff]/40"
                       >
                         Download CV
                       </a>
 
-                      <a
-                        href="#projects"
-                        className="inline-flex h-11 w-full items-center justify-center rounded-full border border-[#8fdcff]/25 bg-[#8fdcff]/10 px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#b9eeff] transition-[transform,border-color,background-color] duration-160 ease-out hover:-translate-y-0.5 hover:border-[#8fdcff]/40"
-                      >
-                        View Projects
-                      </a>
-                    </div>
-
-                    <div className="w-full max-w-[420px] rounded-[22px] border border-white/12 bg-white/[0.03] p-3 backdrop-blur-md">
                       <button
                         type="button"
                         onClick={() => openPortfolioCategory("Video Edit", true)}
-                        className="inline-flex h-11 w-full items-center justify-center rounded-full border border-[#8fdcff]/25 bg-[#8fdcff]/10 px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#b9eeff] transition-[transform,border-color,background-color] duration-160 ease-out hover:-translate-y-0.5 hover:border-[#8fdcff]/40"
+                        className="inline-flex h-11 items-center justify-center rounded-full border border-white/12 bg-white/[0.05] px-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/84 transition-[transform,border-color,background-color] duration-160 ease-out hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.08]"
                       >
-                        Go to Client Edits
+                        View Client Edits
                       </button>
                     </div>
                   </div>
@@ -3281,71 +4068,71 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
               </div>
 
               <div
-                className={`relative overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(180deg,rgba(34,40,49,0.97),rgba(19,24,32,0.95))] p-5 transition-[opacity,transform] duration-500 ease-out ${
+                className={`relative overflow-hidden rounded-[30px] border border-white/12 bg-[linear-gradient(180deg,rgba(22,29,39,0.98),rgba(12,17,24,0.96))] p-5 transition-[opacity,transform] duration-500 ease-out sm:p-6 ${
                   helloVisible ? "translate-x-0 opacity-100" : "translate-x-10 opacity-0"
                 }`}
                 style={{ transitionDelay: "0.08s" }}
               >
                 <div className="pointer-events-none absolute inset-0">
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/14 to-transparent" />
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
                   <div className="absolute right-[8%] top-[10%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,transparent_74%)] blur-3xl" />
+                  <div className="absolute left-[6%] bottom-[8%] h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.05)_0%,transparent_74%)] blur-3xl" />
                 </div>
 
                 <div className="relative z-10">
                   <p className="text-[11px] uppercase tracking-[0.24em] text-[#8fdcff]">
-                    Profile Overview
+                    Experience Snapshot
                   </p>
-                  <h4 className="mt-3 max-w-xl text-xl font-semibold text-white sm:text-2xl">
-                    A detail-first editor blending technical perspective with polished,
-                    platform-ready storytelling.
+                  <h4 className="mt-3 max-w-xl text-xl font-semibold text-white sm:text-[2.2rem]">
+                    Real client work, shown simply.
                   </h4>
-                  <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 sm:text-base">
-                    I am a 4th-year BSIT student with 2 years of hands-on editing
-                    experience. I focus on cinematic pacing, strong viewer retention,
-                    clean motion work, and thoughtful sound design so every output feels
-                    intentional from first cut to final export.
+                  <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/68 sm:text-base">
+                    A concise look at the kind of editing and creative support I have
+                    already delivered for clients.
                   </p>
 
-                  <div className="mt-8 rounded-[22px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.035))] px-4 py-3 sm:px-5">
-                    <div className="grid gap-2 text-[10px] uppercase tracking-[0.22em] text-white/44 sm:grid-cols-[1.45fr_0.85fr_0.5fr] sm:items-center">
-                      <span>What I Did</span>
-                      <span>Client</span>
-                      <span>Period</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 space-y-6">
+                  <div className="mt-6 grid gap-4 lg:grid-cols-3">
                     {creativeExperienceEntries.map((experience) => (
-                      <div
+                      <article
                         key={`${experience.client}-${experience.role}`}
-                        className="rounded-[22px] border border-white/12 bg-[linear-gradient(180deg,rgba(68,74,86,0.4),rgba(24,29,37,0.84))] px-4 py-4 sm:px-5 sm:py-5"
+                        className="group relative overflow-hidden rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-4 transition-[transform,border-color,background-color,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.07] sm:p-5"
                       >
-                        <div className="grid gap-3 sm:grid-cols-[1.45fr_0.85fr_0.5fr] sm:items-start">
-                          <div className="min-w-0">
-                            <h4 className="text-lg font-semibold text-white">
-                              {experience.role}
-                            </h4>
-                          </div>
-                          <p className="text-sm font-medium text-[#b9eeff]">
-                            {experience.client}
-                          </p>
-                          <span className="self-start rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/58">
-                            {experience.period}
-                          </span>
+                        <div className="pointer-events-none absolute inset-0">
+                          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/16 to-transparent" />
+                          <div className="absolute right-[-8%] top-[-8%] h-24 w-24 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.1)_0%,transparent_72%)] blur-3xl" />
                         </div>
 
-                        <ul className="mt-4 space-y-3">
-                          {experience.points.map((point, pointIndex) => (
-                            <li
-                              key={`${experience.client}-${pointIndex}`}
-                              className="flex items-start gap-3"
-                            >
-                              <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#8fdcff]" />
-                              <p className="text-sm leading-relaxed text-white/68">{point}</p>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                        <div className="relative z-10">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-lg font-semibold text-white">
+                                {experience.client}
+                              </p>
+                              <p className="mt-1 text-sm font-medium text-[#b9eeff]">
+                                {experience.role}
+                              </p>
+                            </div>
+                            <span className="shrink-0 rounded-full border border-white/10 bg-black/18 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/58">
+                              {experience.period}
+                            </span>
+                          </div>
+
+                          <p className="mt-4 text-sm leading-relaxed text-white/68">
+                            {experience.summary}
+                          </p>
+
+                          <div className="mt-5 flex flex-wrap gap-2">
+                            {experience.tags.map((tag) => (
+                              <span
+                                key={`${experience.client}-${tag}`}
+                                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </article>
                     ))}
                   </div>
                 </div>
@@ -3356,6 +4143,8 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
           </div>
         </div>
       </div>
+        </>
+      ) : null}
 
 <div className="relative mt-16 flex flex-col items-center overflow-visible transition-all duration-700 ease-out lg:mt-20">
   <div className="pointer-events-none absolute inset-0">
@@ -3478,454 +4267,593 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
     <div className="absolute right-[8%] bottom-[10%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,transparent_74%)] blur-3xl" />
   </div>
 
-  <div className={`${glassSectionClass} z-10`}>
-    <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
-    <div className={glassSectionPanelClass}>
+  <div className="relative z-10 mx-auto w-full max-w-7xl px-2 sm:px-4 lg:px-6">
+    <div className="space-y-8">
       <div
-        className={`pointer-events-none absolute inset-0 z-30 rounded-[24px] bg-black/40 transition-opacity duration-300 ${
-          isAnyModalOpen ? "opacity-100" : "opacity-0"
+        className={`mx-auto max-w-3xl text-center transition-[opacity,transform] duration-500 ease-out ${
+          showPortfolio ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-5"
         }`}
-      />
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        <div className="absolute right-[7%] top-[12%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,transparent_74%)] blur-3xl" />
-      </div>
-
-      <div className={`${glassSectionInnerClass} space-y-8`}>
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
-        <div
-          className={`transition-[opacity,transform] duration-420 ease-out ${
-            showPortfolio ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-6 scale-95"
-          }`}
+      >
+        <span className="inline-flex items-center rounded-full border border-white/14 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#c7efff]">
+          Portfolio Showcase
+        </span>
+        <h2
+          className="mt-6 text-3xl font-bold text-white sm:text-4xl lg:text-[3.15rem]"
+          style={{
+            fontFamily: "'CreatoDisplay', sans-serif",
+            letterSpacing: "0.03em",
+            textShadow: "0 0 18px rgba(0,153,255,0.14)",
+          }}
         >
-          <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Portfolio</p>
-          <h2
-            className="mt-4 text-3xl font-bold text-white sm:text-4xl"
-            style={{
-              fontFamily: "'CreatoDisplay', sans-serif",
-              letterSpacing: "0.03em",
-              textShadow: "0 0 16px rgba(0,153,255,0.18)",
-            }}
-          >
-            Portfolio Showcase
-          </h2>
-          <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/72 sm:text-base">
-            Browse the work by category in one cleaner section. Graphic design keeps its visual
-            card layout, while video edits now break into grouped carousels with playable clips
-            inside the same showcase flow.
-          </p>
-        </div>
-
-        <div
-          className={`transition-[opacity,transform] duration-420 ease-out ${
-            showPortfolio ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-6 scale-95"
-          }`}
-        >
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[24px] border border-white/12 bg-black/20 p-4 backdrop-blur-md">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">Creative Work</p>
-              <p className="mt-3 text-3xl font-semibold text-white">{totalCreativeProjects}</p>
-              <p className="mt-2 text-xs leading-relaxed text-white/58">
-                Graphics and edited video projects currently inside the showcase.
-              </p>
-            </div>
-            <div className="rounded-[24px] border border-white/12 bg-black/20 p-4 backdrop-blur-md">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">Certificates</p>
-              <p className="mt-3 text-3xl font-semibold text-white">{totalCertificates}</p>
-              <p className="mt-2 text-xs leading-relaxed text-white/58">
-                Validated milestones and proof of continuous learning.
-              </p>
-            </div>
-            <div className="rounded-[24px] border border-white/12 bg-black/20 p-4 backdrop-blur-md">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">Live Category</p>
-              <p className="mt-3 text-lg font-semibold text-white">{activeCategoryMeta.name}</p>
-              <p className="mt-2 text-xs leading-relaxed text-white/58">
-                {activeCategoryCountText}
-              </p>
-            </div>
-          </div>
-        </div>
+          Browse the work like a highlight reel.
+        </h2>
+        <div className="mx-auto mt-4 h-[4px] w-24 rounded-full bg-[linear-gradient(90deg,#6677ff_0%,#54b8ff_52%,#74ebff_100%)] shadow-[0_0_18px_rgba(84,184,255,0.42)]" />
+        <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-white/68 sm:text-base">
+          {isVideoEditShowcase
+            ? `${videoProjectGroups.length} projects, ${totalVideoClipCount} clips. Pick a card and the rest shrink back while the selected edit takes the stage.`
+            : `A cleaner spotlight for ${activeCategoryMeta.name.toLowerCase()}. Tap a card, let one piece lead, and keep the rest in the rail.`}
+        </p>
       </div>
 
       <div
-        className={`w-full transition-[opacity,transform] duration-[520ms] ease-out ${
+        className={`flex flex-wrap justify-center gap-3 transition-[opacity,transform] duration-500 ease-out ${
+          showPortfolio ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"
+        }`}
+      >
+        {portfolioCategories.map((item, index) => {
+          const Icon = item.icon;
+          const isActive = activeBox === item.name;
+          const categoryCount = categoryProjectCounts[item.name];
+          const accentStyles =
+            item.name === "Video Edit"
+              ? {
+                  activeBorder: "rgba(111, 228, 255, 0.42)",
+                  activeBackground:
+                    "linear-gradient(180deg, rgba(73, 202, 255, 0.18), rgba(73, 202, 255, 0.08))",
+                  activeShadow: "rgba(73, 202, 255, 0.18)",
+                  idleBackground: "rgba(73, 202, 255, 0.035)",
+                  iconColor: "#c8f5ff",
+                  iconBackground: "#091724",
+                }
+              : item.name === "Graphic Design"
+                ? {
+                    activeBorder: "rgba(112, 156, 255, 0.4)",
+                    activeBackground:
+                      "linear-gradient(180deg, rgba(88, 133, 255, 0.18), rgba(88, 133, 255, 0.08))",
+                    activeShadow: "rgba(88, 133, 255, 0.18)",
+                    idleBackground: "rgba(88, 133, 255, 0.035)",
+                    iconColor: "#d8e3ff",
+                    iconBackground: "#10192c",
+                  }
+                : {
+                    activeBorder: "rgba(255, 214, 107, 0.4)",
+                    activeBackground:
+                      "linear-gradient(180deg, rgba(255, 214, 107, 0.16), rgba(255, 214, 107, 0.06))",
+                    activeShadow: "rgba(255, 214, 107, 0.15)",
+                    idleBackground: "rgba(255, 214, 107, 0.03)",
+                    iconColor: "#fff0be",
+                    iconBackground: "#241c0d",
+                  };
+
+          return (
+            <button
+              key={item.name}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => openPortfolioCategory(item.name)}
+              className={`group inline-flex items-center gap-3 rounded-full border px-4 py-3 text-left transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out ${
+                isActive
+                  ? "text-white"
+                  : "border-white/10 text-white/78 hover:-translate-y-0.5 hover:border-white/18"
+              }`}
+              style={{
+                animation: showPortfolio ? "fadeIn 0.68s ease forwards" : "none",
+                animationDelay: `${0.08 + index * 0.08}s`,
+                borderColor: isActive ? accentStyles.activeBorder : undefined,
+                background: isActive ? accentStyles.activeBackground : accentStyles.idleBackground,
+                boxShadow: isActive
+                  ? `0 18px 40px ${accentStyles.activeShadow}`
+                  : "none",
+              }}
+            >
+              <span
+                className={`flex h-10 w-10 items-center justify-center rounded-full border ${
+                  isActive
+                    ? "border-white/24"
+                    : "border-white/10 bg-black/18 text-white/70"
+                }`}
+                style={
+                  isActive
+                    ? {
+                        color: accentStyles.iconColor,
+                        background: accentStyles.iconBackground,
+                      }
+                    : undefined
+                }
+              >
+                <Icon className="h-4.5 w-4.5" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold">{item.name}</span>
+                <span className="block text-[11px] uppercase tracking-[0.18em] text-white/50">
+                  {categoryCount} {categoryCount === 1 ? "item" : "items"}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        className={`transition-[opacity,transform] duration-[560ms] ease-out ${
           showPortfolio ? "opacity-100 translate-y-0 blur-0" : "pointer-events-none opacity-0 translate-y-8 blur-sm"
         }`}
       >
-        <div className="rounded-[26px] border border-white/12 bg-black/20 p-4 backdrop-blur-md sm:p-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {portfolioCategories.map((item, index) => {
-              const Icon = item.icon;
-              const isActive = activeBox === item.name;
-
-              return (
-                <button
-                  key={item.name}
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={() => {
-                    openPortfolioCategory(item.name);
-                  }}
-                  className={`group rounded-[22px] border p-4 text-left transition-[transform,border-color,background-color,box-shadow] duration-180 ease-out ${
-                    isActive
-                      ? "border-[#00d4ff]/24 bg-[#04101a]/68 shadow-[0_10px_22px_rgba(0,153,255,0.12)]"
-                      : "border-white/12 bg-white/[0.04] hover:-translate-y-1 hover:border-[#00d4ff]/22 hover:bg-white/[0.07]"
-                  }`}
-                  style={{
-                    animation: showPortfolio ? "fadeIn 0.7s ease forwards" : "none",
-                    animationDelay: `${0.08 + index * 0.08}s`,
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span
-                      className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
-                        isActive ? "bg-[#0099ff] text-white" : "bg-white/10 text-white/80"
-                      }`}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <span
-                      className={`text-[11px] uppercase tracking-[0.22em] ${
-                        isActive ? "text-[#9be8ff]" : "text-white/42"
-                      }`}
-                    >
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                  </div>
-                  <p className="mt-4 text-sm font-semibold text-white">{item.name}</p>
-                  <p className="mt-2 text-xs leading-relaxed text-white/60">{item.description}</p>
-                </button>
-              );
-            })}
+        <div className="relative overflow-hidden rounded-[34px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-4 shadow-[0_28px_90px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:p-5 lg:p-6">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            <div className="absolute left-[10%] top-[18%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,transparent_72%)] blur-3xl" />
+            <div className="absolute right-[9%] bottom-[12%] h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(125,225,255,0.12)_0%,transparent_72%)] blur-3xl" />
           </div>
 
-          <div className="mt-2 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-4 sm:px-5 sm:py-5">
-            {showPortfolio &&
-              (activeProjects.length > 0 ? (
-                isVideoEditShowcase ? (
-                  <div key={`${activeBox}-${animateTab ? "in" : "out"}`} className="space-y-6">
-                    {videoProjectGroups.map((group, groupIndex) => {
-                      const activeIndex = getVideoCarouselIndex(group.key, group.clips.length);
-                      const activeClip = group.clips[activeIndex];
-                      const activeProject = activeClip.project;
-                      const groupMotion = videoCarouselMotion[group.key] ?? {
-                        token: 0,
-                        direction: 1 as const,
-                      };
-                      const isPortraitCarousel = group.aspectRatio === "portrait";
-                      const carouselStageClass = isPortraitCarousel
-                        ? "h-[250px] sm:h-[360px] lg:h-[420px]"
-                        : "h-[210px] sm:h-[270px] lg:h-[320px]";
-                      const carouselCardSizeClass = isPortraitCarousel
-                        ? "w-[42%] aspect-[9/16] sm:w-[32%] lg:w-[25%]"
-                        : "w-[82%] aspect-[16/9] sm:w-[66%] lg:w-[54%]";
-                      const stageMotionClass =
-                        groupMotion.token > 0
-                          ? groupMotion.direction > 0
-                            ? groupMotion.token % 2 === 0
-                              ? "video-carousel-track-shift--to-left-a"
-                              : "video-carousel-track-shift--to-left-b"
-                            : groupMotion.token % 2 === 0
-                              ? "video-carousel-track-shift--to-right-a"
-                              : "video-carousel-track-shift--to-right-b"
-                          : "";
-                      const canSwitchClips = group.clips.length > 1;
-                      const hasProjectLink =
-                        activeProject.designLink.trim().length > 0 &&
-                        activeProject.designLink.trim() !== "#";
-                      const parentProjectLabel = getVideoProjectParentLabel(
-                        activeProject,
-                        group.name
-                      );
-
-                      return (
-                        <section
-                          key={`${activeBox}-${group.key}-${groupIndex}`}
-                          className="relative px-1 pb-4 pt-3 opacity-0 translate-y-6 animate-fadeIn sm:px-1.5 sm:pb-5 sm:pt-4"
-                          style={{ animationDelay: `${0.18 + groupIndex * 0.12}s` }}
-                        >
-                          <div className="pointer-events-none absolute inset-0">
-                            <div className="absolute left-[10%] top-0 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.18)_0%,transparent_72%)] blur-3xl" />
-                          </div>
-
-                          <div className="relative z-10 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] px-4 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-md sm:px-5 sm:py-5 lg:px-6 lg:py-6">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                              <div>
-                                <p className="text-[10px] uppercase tracking-[0.28em] text-[#8fdcff]">
-                                  Project Title
-                                </p>
-                                <h3 className="mt-2 text-2xl font-semibold text-white sm:text-[1.9rem]">
-                                  {group.name}
-                                </h3>
-                              </div>
-                              <div className="flex items-center gap-2 self-start sm:self-end">
-                                <span className="rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/62">
-                                  {group.clips.length} {group.clips.length === 1 ? "clip" : "clips"}
-                                </span>
-                                <span className="rounded-full border border-[#8fdcff]/20 bg-[#07131d] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#aeeaff]">
-                                  Carousel
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="relative mt-5 overflow-hidden rounded-[28px] border border-white/12 bg-[radial-gradient(circle_at_top_left,rgba(143,220,255,0.14),transparent_34%),radial-gradient(circle_at_82%_16%,rgba(89,136,255,0.11),transparent_30%),linear-gradient(180deg,rgba(4,10,18,0.96),rgba(2,7,12,0.985))] px-3 py-5 shadow-[0_22px_70px_rgba(0,0,0,0.3)] sm:px-5 lg:px-6">
-                              <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                                <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.07)_1px,transparent_1px)] [background-size:120px_120px]" />
-                                <div className="absolute left-[-6%] top-[10%] h-40 w-40 rounded-full border border-[#8fdcff]/10 bg-[#8fdcff]/[0.05] blur-3xl sm:h-56 sm:w-56" />
-                                <div className="absolute right-[-4%] top-[-8%] h-48 w-48 rounded-full border border-white/8 bg-[#153149]/25 blur-3xl sm:h-64 sm:w-64" />
-                                <div className="absolute bottom-[-18%] left-1/2 h-40 w-[68%] -translate-x-1/2 rounded-full bg-[#8fdcff]/[0.05] blur-3xl" />
-                                <div className="absolute left-[8%] top-[18%] h-24 w-24 rounded-[30px] border border-white/8 rotate-12" />
-                                <div className="absolute right-[12%] bottom-[20%] h-20 w-20 rounded-full border border-[#8fdcff]/12" />
-                                <div className="absolute inset-x-12 top-7 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-                                <div className="absolute inset-x-10 bottom-9 h-px bg-gradient-to-r from-transparent via-[#8fdcff]/12 to-transparent" />
-                              </div>
-                              <div
-                                className={`relative mx-auto w-full max-w-[920px] ${carouselStageClass} ${stageMotionClass}`}
-                              >
-                                {group.clips.map((clip, index) => {
-                                  const clipIsReady = clip.videoUrl.trim().length > 0;
-                                  const clipOffset = getVideoCarouselClipOffset(
-                                    index,
-                                    activeIndex,
-                                    group.clips.length
-                                  );
-                                  const isActiveCard = clipOffset === 0;
-                                  const isVisibleCard = Math.abs(clipOffset) <= 1;
-                                  const cardPositionClass =
-                                    clipOffset === 0
-                                      ? "z-30 opacity-100 translate-x-[-50%] scale-100 rotate-0 blur-0"
-                                      : clipOffset < 0
-                                        ? "z-20 opacity-55 translate-x-[-78%] scale-[0.8] -rotate-[5deg] blur-[1px] sm:translate-x-[-84%] lg:translate-x-[-88%]"
-                                        : clipOffset === 1
-                                          ? "z-10 opacity-55 translate-x-[-22%] scale-[0.8] rotate-[5deg] blur-[1px] sm:translate-x-[-16%] lg:translate-x-[-12%]"
-                                          : clipOffset < 0
-                                            ? "z-0 opacity-0 translate-x-[-100%] scale-[0.68] -rotate-[8deg]"
-                                            : "z-0 opacity-0 translate-x-[0%] scale-[0.68] rotate-[8deg]";
-
-                                  return (
-                                    <div
-                                      key={clip.key}
-                                      className={`absolute left-1/2 top-1/2 -translate-y-1/2 transition-[transform,opacity,filter] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${carouselCardSizeClass} ${cardPositionClass} ${
-                                        isVisibleCard ? "" : "pointer-events-none"
-                                      }`}
-                                    >
-                                      <div
-                                        className={`relative h-full overflow-hidden rounded-[24px] border backdrop-blur-xl ${
-                                          isActiveCard
-                                            ? "border-[#8fdcff]/28 bg-black/30 shadow-[0_24px_60px_rgba(0,0,0,0.38)]"
-                                            : "border-white/10 bg-black/25 shadow-[0_16px_40px_rgba(0,0,0,0.24)]"
-                                        }`}
-                                      >
-                                        {isActiveCard ? (
-                                          <div className="pointer-events-none absolute inset-0 z-10 rounded-[24px] ring-1 ring-[#8fdcff]/8 shadow-[inset_0_0_34px_rgba(125,225,255,0.14)]" />
-                                        ) : null}
-                                        {clipIsReady ? (
-                                          <CarouselClipVideo
-                                            playbackKey={clip.key}
-                                            videoUrl={clip.videoUrl}
-                                            posterUrl={clip.posterUrl || undefined}
-                                            isActive={isActiveCard}
-                                            isVisible={isVisibleCard}
-                                            activePlaybackKey={activeCarouselPlaybackKey}
-                                            onPlaybackStart={setActiveCarouselPlaybackKey}
-                                          />
-                                        ) : (
-                                          <div
-                                            className="flex h-full w-full items-center justify-center px-6 text-center"
-                                            style={{
-                                              background: clip.posterUrl || clip.project.image
-                                                ? `linear-gradient(135deg, rgba(2, 6, 10, 0.76), rgba(2, 6, 10, 0.94)), url(${clip.posterUrl || clip.project.image}) center/cover`
-                                                : "linear-gradient(135deg, rgba(4,10,18,0.98), rgba(6,18,28,0.92))",
-                                            }}
-                                          >
-                                            <div className="max-w-xs">
-                                              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/12 bg-white/8 text-[#9ae9ff]">
-                                                <Play className="ml-0.5 h-5 w-5" />
-                                              </span>
-                                              <p className="mt-3 text-sm font-semibold text-white">
-                                                No direct video file added yet
-                                              </p>
-                                            </div>
-                                          </div>
-                                        )}
-
-                                        {!isActiveCard && isVisibleCard ? (
-                                          <div className="pointer-events-none absolute inset-0 bg-black/22" />
-                                        ) : null}
-
-                                        {!isActiveCard && isVisibleCard ? (
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              setVideoCarouselIndex(
-                                                group.key,
-                                                index,
-                                                group.clips.length
-                                              )
-                                            }
-                                            className="absolute inset-0 z-20 cursor-pointer"
-                                            aria-label={`Show clip ${clip.clipIndex + 1} in ${group.name}`}
-                                          />
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-
-                                {canSwitchClips ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        shiftVideoCarousel(group.key, -1, group.clips.length)
-                                      }
-                                      className="absolute left-0 top-1/2 z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/14 bg-black/55 text-white/88 backdrop-blur-md transition-colors hover:bg-black/75 sm:left-3"
-                                      aria-label={`Show previous video in ${group.name}`}
-                                    >
-                                      <ChevronLeft className="h-5 w-5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        shiftVideoCarousel(group.key, 1, group.clips.length)
-                                      }
-                                      className="absolute right-0 top-1/2 z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/14 bg-black/55 text-white/88 backdrop-blur-md transition-colors hover:bg-black/75 sm:right-3"
-                                      aria-label={`Show next video in ${group.name}`}
-                                    >
-                                      <ChevronRight className="h-5 w-5" />
-                                    </button>
-                                  </>
-                                ) : null}
-                              </div>
-                            </div>
-
-                            <div className="mt-6 rounded-[22px] border border-white/10 bg-black/20 px-5 py-5 sm:px-6 sm:py-6">
-                              <div className="flex flex-col gap-5">
-                                <div>
-                                <p className="text-[10px] uppercase tracking-[0.22em] text-white/40">
-                                  Project
-                                </p>
-                                <div className="mt-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                                  <h4 className="text-lg font-semibold text-white sm:text-[1.15rem]">
-                                    {activeProject.title}
-                                  </h4>
-                                  {parentProjectLabel ? (
-                                    <span className="text-xs font-medium text-white/56">
-                                      under {parentProjectLabel}
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/68">
-                                  {activeProject.description}
-                                </p>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-3 border-t border-white/8 pt-4">
-                                  {hasProjectLink ? (
-                                    <a
-                                      href={activeProject.designLink}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-[#8fdcff]/22 bg-[#07141f] px-4 py-2 text-sm font-semibold text-[#b6efff] transition-colors hover:bg-[#0a1b29]"
-                                    >
-                                      Open project link
-                                      <ExternalLink className="h-4 w-4" />
-                                    </a>
-                                  ) : null}
-                                  <span className="inline-flex w-fit rounded-full border border-white/12 bg-black/30 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-white/56">
-                                    Clip {activeIndex + 1} / {group.clips.length}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </section>
-                      );
-                    })}
+          {showPortfolio &&
+            (activeProjects.length > 0 ? (
+              <div
+                key={`${activeBox}-${animateTab ? "in" : "out"}`}
+                className="relative z-10 space-y-6 opacity-0 animate-fadeIn"
+                style={{ animationDuration: "0.76s", animationDelay: "0.06s" }}
+              >
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.26em] text-[#bcefff]">
+                      {isVideoEditShowcase ? "Project Rail" : "Portfolio Rail"}
+                    </p>
+                    <p className="mt-2 text-sm text-white/62">
+                      {isVideoEditShowcase
+                        ? "These are past projects I created for previous clients. Pick a card to open its clips."
+                        : "Choose a piece to bring it forward."}
+                    </p>
                   </div>
-                ) : (
-                  <div
-                    key={`${activeBox}-${animateTab ? "in" : "out"}`}
-                    className="grid grid-cols-1 auto-rows-fr gap-6 md:grid-cols-2 xl:grid-cols-3"
-                  >
-                    {activeProjects.map((project, index) => (
-                      <div
-                        key={`${activeBox}-${project.title}-${index}`}
-                        className="-mt-4 h-full opacity-0 translate-y-6 animate-fadeIn"
-                        style={{ animationDelay: `${0.18 + index * 0.12}s` }}
-                      >
-                        <CardContainer
-                          className="h-full w-full !items-start !justify-start"
-                          containerClassName="h-full !items-start !justify-start"
-                        >
-                          <CardBody className="relative flex h-full w-full flex-col overflow-hidden rounded-[22px] border border-white/10 bg-white/10 p-4 shadow-lg backdrop-blur-xl transition-all duration-700 hover:scale-[1.02] hover:bg-white/20 hover:shadow-[0_0_15px_rgba(0,153,255,0.3)]">
-                            <CardItem translateZ={90} className="w-full">
-                              <Image
-                                src={project.image}
-                                alt={project.title}
-                                width={400}
-                                height={250}
-                                className="mb-4 h-[220px] w-full rounded-[18px] object-cover"
-                              />
-                            </CardItem>
-
-                            <CardItem translateZ={55} className="w-full">
-                              <h3 className="project-heading mb-1 text-m tracking-wider text-white line-clamp-1">
-                                {project.title}
-                              </h3>
-                            </CardItem>
-                            <CardItem translateZ={45} className="w-full flex-1">
-                              <p className="mt-2 mb-4 text-xs text-white/80 line-clamp-3">
-                                {project.description}
-                              </p>
-                            </CardItem>
-
-                            <div className="relative z-20 mt-4 flex w-full items-center justify-between gap-3 pointer-events-auto">
-                              <a
-                                href={project.designLink}
-                                data-no-tilt="true"
-                                className="flex items-center gap-2 text-xs font-semibold text-[#0099ff] hover:underline"
-                              >
-                                Link to design
-                                <ExternalLink className="h-3 w-3 -mt-[0px] -ml-1" />
-                              </a>
-
-                              <InteractiveHoverButton
-                                onClick={() => {
-                                  setSelectedProject(project);
-                                  setShowModal(true);
-                                }}
-                                data-no-tilt="true"
-                                defaultLabel="Details"
-                                hoverLabel="Open"
-                                className="cursor-pointer"
-                              />
-                            </div>
-                          </CardBody>
-                        </CardContainer>
-                      </div>
-                    ))}
-                  </div>
-                )
-              ) : (
-                <div
-                  key={`${activeBox}-${animateTab ? "in" : "out"}-empty`}
-                  className="mt-5 rounded-[20px] border border-dashed border-white/12 bg-black/20 px-5 py-10 text-center"
-                >
-                  <p className="text-sm text-white/72 sm:text-base">
-                    {isVideoEditShowcase
-                      ? "No video edits in this showcase yet."
-                      : `No projects in ${activeBox} yet.`}
-                  </p>
-                  <p className="mt-2 text-xs text-white/45">
-                    {isVideoEditShowcase
-                      ? "Add a video edit in Studio, assign it to a category, and include a direct video file so the carousel can play it here."
-                      : "Add work to this category and it will appear here automatically."}
-                  </p>
+                  <span className="rounded-full border border-white/12 bg-black/22 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/55">
+                    {activeCategoryCountText}
+                  </span>
                 </div>
-              ))}
-          </div>
+
+                <div className="relative">
+                  {(isVideoEditShowcase ? videoProjectGroups.length > 1 : activeProjects.length > 1) ? (
+                    <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-20 hidden items-center justify-between sm:flex">
+                      <button
+                        type="button"
+                        onClick={() => scrollProjectRail(-1)}
+                        className="pointer-events-auto inline-flex h-11 w-11 -translate-x-3 items-center justify-center rounded-full border border-white/12 bg-[#09131e]/90 text-white/82 shadow-[0_12px_24px_rgba(0,0,0,0.24)] transition-colors hover:bg-[#0d1824]"
+                        aria-label="Scroll project boxes left"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => scrollProjectRail(1)}
+                        className="pointer-events-auto inline-flex h-11 w-11 translate-x-3 items-center justify-center rounded-full border border-white/12 bg-[#09131e]/90 text-white/82 shadow-[0_12px_24px_rgba(0,0,0,0.24)] transition-colors hover:bg-[#0d1824]"
+                        aria-label="Scroll project boxes right"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ) : null}
+
+                  <div
+                    ref={projectRailViewportRef}
+                    className="overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  >
+                    <div className="flex min-w-max items-stretch gap-4 px-1 sm:px-10">
+                      {isVideoEditShowcase
+                        ? videoProjectGroups.map((group, index) => {
+                            const isSelected = selectedVideoProjectGroup?.key === group.key;
+                            const clipCount = group.clips.length;
+                            const activeIndex = getVideoCarouselIndex(group.key, group.clips.length);
+                            const previewClip = group.clips[activeIndex];
+                            const previewImage =
+                              group.project.image || previewClip?.posterUrl || group.previewImage;
+                            const projectSummary =
+                              group.project.description?.trim() ||
+                              "Preview clips from this editing project.";
+
+                            return (
+                              <button
+                                key={group.key}
+                                type="button"
+                                onClick={() => openVideoProjectShowcase(group.key)}
+                                className={`group relative h-[292px] w-[248px] shrink-0 overflow-hidden rounded-[30px] border text-left transition-[transform,opacity,border-color,background-color,box-shadow] duration-500 ease-out sm:h-[304px] sm:w-[260px] ${
+                                  isSelected
+                                    ? "border-white/28 bg-white/[0.08] opacity-100 shadow-[0_24px_60px_rgba(0,0,0,0.22)]"
+                                    : "border-white/10 bg-white/[0.04] opacity-80 hover:-translate-y-1 hover:border-white/18 hover:opacity-100"
+                                }`}
+                                style={{
+                                  animation: showPortfolio ? "fadeIn 0.72s ease forwards" : "none",
+                                  animationDelay: `${0.1 + index * 0.06}s`,
+                                }}
+                              >
+                                <div className="relative z-10 flex h-full flex-col p-4">
+                                  <div className="relative aspect-[5/4] overflow-hidden rounded-[22px] border border-white/10 bg-black/24">
+                                    {previewImage ? (
+                                      <img
+                                        src={previewImage}
+                                        alt={group.name}
+                                        className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.06]"
+                                        loading="lazy"
+                                      />
+                                    ) : (
+                                      <div className="h-full w-full bg-[linear-gradient(135deg,rgba(8,16,24,0.98),rgba(5,9,15,0.94))]" />
+                                    )}
+                                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,11,18,0.04),rgba(6,11,18,0.18)_45%,rgba(5,8,13,0.74)_100%)]" />
+                                  </div>
+
+                                  <div className="mt-3 space-y-2">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <p className="line-clamp-1 text-lg font-semibold text-white">
+                                        {group.name}
+                                      </p>
+                                      <span className="rounded-full border border-white/12 bg-black/22 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/58">
+                                        {clipCount} {clipCount === 1 ? "clip" : "clips"}
+                                      </span>
+                                    </div>
+                                    <p className="line-clamp-2 text-sm text-white/60">
+                                      {projectSummary}
+                                    </p>
+                                  </div>
+
+                                  <div className="mt-auto pt-3">
+                                    <span className="inline-flex rounded-full border border-[#9adfff]/22 bg-[#091826]/78 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c8f5ff]">
+                                      Preview project
+                                    </span>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })
+                        : activeProjects.map((project, index) => {
+                            const isSelected = selectedCategoryProjectIndex === index;
+                            const projectSummary =
+                              project.description?.trim() || "Preview this portfolio piece.";
+
+                            return (
+                              <button
+                                key={`${activeBox}-${project.title}-${index}`}
+                                type="button"
+                                onClick={() =>
+                                  setSelectedCategoryProjectIndexes((prev) => ({
+                                    ...prev,
+                                    [activeCategoryName]: index,
+                                  }))
+                                }
+                                className={`group relative h-[292px] w-[248px] shrink-0 overflow-hidden rounded-[30px] border text-left transition-[transform,opacity,border-color,background-color,box-shadow] duration-500 ease-out sm:h-[304px] sm:w-[260px] ${
+                                  isSelected
+                                    ? "border-white/28 bg-white/[0.08] opacity-100 shadow-[0_24px_60px_rgba(0,0,0,0.22)]"
+                                    : "border-white/10 bg-white/[0.04] opacity-80 hover:-translate-y-1 hover:border-white/18 hover:opacity-100"
+                                }`}
+                                style={{
+                                  animation: showPortfolio ? "fadeIn 0.72s ease forwards" : "none",
+                                  animationDelay: `${0.1 + index * 0.06}s`,
+                                }}
+                              >
+                                <div className="relative z-10 flex h-full flex-col p-4">
+                                  <div className="relative aspect-[5/4] overflow-hidden rounded-[22px] border border-white/10 bg-black/24">
+                                    <img
+                                      src={project.image}
+                                      alt={project.title}
+                                      className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.06]"
+                                      loading="lazy"
+                                    />
+                                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,11,18,0.04),rgba(6,11,18,0.18)_45%,rgba(5,8,13,0.74)_100%)]" />
+                                  </div>
+
+                                  <div className="mt-3 space-y-2">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <p className="line-clamp-1 text-lg font-semibold text-white">
+                                        {project.title}
+                                      </p>
+                                      <span className="rounded-full border border-white/12 bg-black/22 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/58">
+                                        {String(index + 1).padStart(2, "0")}
+                                      </span>
+                                    </div>
+                                    <p className="line-clamp-2 text-sm text-white/60">
+                                      {projectSummary}
+                                    </p>
+                                  </div>
+
+                                  <div className="mt-auto pt-3">
+                                    <span className="inline-flex rounded-full border border-[#9adfff]/22 bg-[#091826]/78 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c8f5ff]">
+                                      Preview project
+                                    </span>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                    </div>
+                  </div>
+                </div>
+
+                {isVideoEditShowcase && selectedVideoProjectGroup && selectedVideoProjectClip ? (
+                  <section
+                    ref={videoProjectViewerRef}
+                    className="relative overflow-hidden rounded-[32px] border border-white/14 bg-[linear-gradient(180deg,rgba(7,14,22,0.94),rgba(6,11,17,0.96))] p-5 shadow-[0_26px_80px_rgba(0,0,0,0.26)] sm:p-6"
+                  >
+                    <div className="pointer-events-none absolute inset-0">
+                      <div className="absolute left-[8%] top-[10%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(125,225,255,0.14)_0%,transparent_72%)] blur-3xl" />
+                      <div className="absolute right-[6%] top-[14%] h-24 w-24 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.08)_0%,transparent_74%)] blur-3xl" />
+                    </div>
+
+                    <div className="relative z-10">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1 sm:pr-8 lg:pr-10">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-[#9adfff]/22 bg-[#091826]/78 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c8f5ff]">
+                              In Focus
+                            </span>
+                            <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/56">
+                              {selectedVideoProjectGroup.clips.length}{" "}
+                              {selectedVideoProjectGroup.clips.length === 1 ? "clip" : "clips"}
+                            </span>
+                          </div>
+                          <h3 className="mt-4 text-2xl font-semibold text-white sm:text-[2.3rem]">
+                            {selectedVideoProjectGroup.name}
+                          </h3>
+                          <p className="mt-3 text-sm leading-relaxed text-white/64">
+                            {selectedVideoProjectGroup.project.description?.trim() ||
+                              "Past client project highlights and selected edit samples."}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 sm:shrink-0">
+                          {selectedVideoProjectParentLabel ? (
+                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/54">
+                              {selectedVideoProjectParentLabel}
+                            </span>
+                          ) : null}
+                          {selectedVideoProjectGroup.project.designLink.trim().length > 0 &&
+                          selectedVideoProjectGroup.project.designLink.trim() !== "#" ? (
+                            <a
+                              href={selectedVideoProjectGroup.project.designLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/[0.1]"
+                            >
+                              Project link
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div
+                        className={`mt-6 overflow-hidden rounded-[28px] border border-white/12 bg-black/30 shadow-[0_24px_70px_rgba(0,0,0,0.28)] ${
+                          selectedVideoProjectGroup.aspectRatio === "portrait"
+                            ? "mx-auto aspect-[4/5] w-full max-w-[420px]"
+                            : "aspect-[16/9] w-full"
+                        }`}
+                      >
+                        {selectedVideoProjectClip.videoUrl.trim().length > 0 ? (
+                          <video
+                            key={selectedVideoProjectClip.key}
+                            src={selectedVideoProjectClip.videoUrl}
+                            poster={selectedVideoProjectClip.posterUrl || undefined}
+                            className="h-full w-full object-cover"
+                            controls
+                            controlsList="nodownload"
+                            disablePictureInPicture
+                            playsInline
+                            preload="none"
+                            onContextMenu={(event) => {
+                              event.preventDefault();
+                            }}
+                          />
+                        ) : (
+                          <div
+                            className="flex h-full w-full items-center justify-center px-6 text-center"
+                            style={{
+                              background:
+                                selectedVideoProjectClip.posterUrl ||
+                                selectedVideoProjectGroup.previewImage ||
+                                selectedVideoProjectGroup.project.image
+                                  ? `linear-gradient(135deg, rgba(2, 6, 10, 0.68), rgba(2, 6, 10, 0.92)), url(${
+                                      selectedVideoProjectClip.posterUrl ||
+                                      selectedVideoProjectGroup.previewImage ||
+                                      selectedVideoProjectGroup.project.image
+                                    }) center/cover`
+                                  : "linear-gradient(135deg, rgba(4,10,18,0.98), rgba(6,18,28,0.92))",
+                            }}
+                          >
+                            <div className="max-w-sm">
+                              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/12 bg-white/8 text-[#9ae9ff]">
+                                <Play className="ml-0.5 h-5 w-5" />
+                              </span>
+                              <p className="mt-3 text-sm font-semibold text-white">
+                                No direct video file added yet
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-5 space-y-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-[#bcefff]">
+                              Clip Deck
+                            </p>
+                            <p className="mt-2 text-sm text-white/58">
+                              Only the selected project loads its video.
+                            </p>
+                          </div>
+
+                          {selectedVideoProjectGroup.clips.length > 1 ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  shiftVideoCarousel(
+                                    selectedVideoProjectGroup.key,
+                                    -1,
+                                    selectedVideoProjectGroup.clips.length
+                                  )
+                                }
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.05] text-white/80 transition-colors hover:bg-white/[0.1]"
+                                aria-label={`Show previous clip in ${selectedVideoProjectGroup.name}`}
+                              >
+                                <ChevronLeft className="h-4.5 w-4.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  shiftVideoCarousel(
+                                    selectedVideoProjectGroup.key,
+                                    1,
+                                    selectedVideoProjectGroup.clips.length
+                                  )
+                                }
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.05] text-white/80 transition-colors hover:bg-white/[0.1]"
+                                aria-label={`Show next clip in ${selectedVideoProjectGroup.name}`}
+                              >
+                                <ChevronRight className="h-4.5 w-4.5" />
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <div className="flex min-w-max gap-3">
+                            {selectedVideoProjectGroup.clips.map((clip, clipIndex) => {
+                              const isActiveClip = clipIndex === selectedVideoProjectClipIndex;
+                              const previewImage =
+                                clip.posterUrl ||
+                                selectedVideoProjectGroup.previewImage ||
+                                selectedVideoProjectGroup.project.image;
+
+                              return (
+                                <button
+                                  key={clip.key}
+                                  type="button"
+                                  onClick={() =>
+                                    setVideoCarouselIndex(
+                                      selectedVideoProjectGroup.key,
+                                      clipIndex,
+                                      selectedVideoProjectGroup.clips.length
+                                    )
+                                  }
+                                  className={`group w-[150px] overflow-hidden rounded-[20px] border text-left transition-[transform,border-color,background-color,box-shadow] duration-300 ease-out ${
+                                    isActiveClip
+                                      ? "border-white/24 bg-white/[0.08] shadow-[0_16px_34px_rgba(0,0,0,0.2)]"
+                                      : "border-white/10 bg-white/[0.04] hover:-translate-y-0.5 hover:border-white/18 hover:bg-white/[0.07]"
+                                  }`}
+                                >
+                                  <div className="relative aspect-[16/10] overflow-hidden">
+                                    {previewImage ? (
+                                      <img
+                                        src={previewImage}
+                                        alt={`${selectedVideoProjectGroup.name} clip ${clipIndex + 1}`}
+                                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
+                                        loading="lazy"
+                                      />
+                                    ) : (
+                                      <div className="h-full w-full bg-[linear-gradient(135deg,rgba(8,16,24,0.98),rgba(5,9,15,0.94))]" />
+                                    )}
+                                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,11,18,0.08),rgba(5,8,13,0.72)_100%)]" />
+                                  </div>
+                                  <div className="px-3 py-3">
+                                    <p className="text-sm font-semibold text-white">
+                                      Clip {String(clipIndex + 1).padStart(2, "0")}
+                                    </p>
+                                    <p className="mt-1 text-[11px] text-white/54">
+                                      {clip.videoUrl.trim().length > 0 ? "Load in stage" : "Poster only"}
+                                    </p>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                ) : null}
+
+                {!isVideoEditShowcase && spotlightCategoryProject ? (
+                  <section className="relative overflow-hidden rounded-[32px] border border-white/14 bg-[linear-gradient(180deg,rgba(7,14,22,0.94),rgba(6,11,17,0.96))] shadow-[0_26px_80px_rgba(0,0,0,0.26)]">
+                    <img
+                      src={spotlightCategoryProject.image}
+                      alt={spotlightCategoryProject.title}
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,12,18,0.08),rgba(7,12,18,0.18)_30%,rgba(5,8,13,0.92)_100%)]" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(125,225,255,0.18),transparent_34%)]" />
+
+                    <div className="relative z-10 flex min-h-[460px] flex-col justify-between p-5 sm:p-6">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-white/14 bg-white/[0.08] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
+                          Spotlight
+                        </span>
+                        <span className="rounded-full border border-white/12 bg-black/22 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/58">
+                          {activeBox}
+                        </span>
+                      </div>
+
+                      <div className="max-w-2xl">
+                        <h3 className="text-3xl font-semibold text-white sm:text-[2.4rem]">
+                          {spotlightCategoryProject.title}
+                        </h3>
+                        <p className="mt-3 max-w-xl line-clamp-3 text-sm leading-relaxed text-white/68 sm:text-base">
+                          {spotlightCategoryProject.description}
+                        </p>
+
+                        <div className="mt-6 flex flex-wrap gap-3">
+                          {spotlightCategoryProject.designLink.trim().length > 0 &&
+                          spotlightCategoryProject.designLink.trim() !== "#" ? (
+                            <a
+                              href={spotlightCategoryProject.designLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-white/[0.08] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/[0.12]"
+                            >
+                              Open project
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          ) : null}
+                          {(spotlightCategoryProject.showDetailsModal ||
+                            spotlightCategoryProject.details) && (
+                            <button
+                              type="button"
+                              onClick={() => openProjectDetails(spotlightCategoryProject)}
+                              className="inline-flex items-center rounded-full border border-white/14 bg-black/22 px-4 py-2 text-sm font-semibold text-white/82 transition-colors hover:bg-white/[0.08]"
+                            >
+                              View details
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            ) : (
+              <div
+                key={`${activeBox}-${animateTab ? "in" : "out"}-empty`}
+                className="relative z-10 rounded-[28px] border border-dashed border-white/12 bg-black/20 px-5 py-12 text-center"
+              >
+                <p className="text-sm text-white/72 sm:text-base">
+                  {isVideoEditShowcase
+                    ? "No video edits in this showcase yet."
+                    : `No projects in ${activeBox} yet.`}
+                </p>
+                <p className="mt-2 text-xs text-white/45">
+                  {isVideoEditShowcase
+                    ? "Add a video edit in Studio and include a direct playable file so it can open inside this spotlight view."
+                    : "Add work to this category and it will appear here automatically."}
+                </p>
+              </div>
+            ))}
         </div>
+        <div className="pointer-events-none mx-auto mt-6 h-[3px] w-44 rounded-full bg-[linear-gradient(90deg,rgba(96,214,255,0),rgba(96,214,255,0.72),rgba(153,239,255,1),rgba(96,214,255,0.72),rgba(96,214,255,0))] shadow-[0_0_26px_rgba(96,214,255,0.48)]" />
       </div>
     </div>
   </div>
@@ -4136,11 +5064,12 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             <div className="rounded-xl border border-[#8fdcff]/18 bg-[#06111a]/72 p-4 space-y-4">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">
-                  Video Carousel Setup
+                  Video Project Setup
                 </p>
                 <p className="mt-2 text-xs leading-relaxed text-white/60">
-                  Each Video Edit project becomes one carousel. Leave the heading blank to use the
-                  project title, then add one or more video clips below.
+                  Each Video Edit project becomes one project box. When someone clicks it, the
+                  uploaded clips open inside that project viewer instead of loading every video at
+                  once.
                 </p>
               </div>
 
@@ -4399,10 +5328,6 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
       animation: modalFlowLayer 4.2s ease-in-out infinite;
     }
   `}</style>
-</div>
-
-
-  </div>
 
 
 
@@ -5282,6 +6207,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
 
       
+    </div>
     </div>
 
     

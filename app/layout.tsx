@@ -20,14 +20,14 @@ export default function RootLayout({
       <body className="antialiased font-codenso">
         <div aria-hidden="true" className="site-background">
           <div className="site-background__base" />
-          <div className="site-background__panel" />
-          <div className="site-background__slab site-background__slab--primary" />
-          <div className="site-background__slab site-background__slab--secondary" />
-          <div className="site-background__ring site-background__ring--left" />
-          <div className="site-background__ring site-background__ring--right" />
-          <div className="site-background__lines" />
-          <div className="site-background__grid" />
+          <div className="site-background__aurora site-background__aurora--primary" />
+          <div className="site-background__aurora site-background__aurora--secondary" />
+          <div className="site-background__lights" />
+          <div className="site-background__haze" />
+          <div className="site-background__grunge" />
           <div className="site-background__texture" />
+          <div className="site-background__vignette" />
+          <div className="site-background__frame" />
         </div>
         <div className="site-shell">{children}</div>
       </body>

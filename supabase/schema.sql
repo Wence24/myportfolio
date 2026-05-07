@@ -1,4 +1,4 @@
--- Portfolio studio content (projects + testimonials) in one row.
+-- Portfolio studio content (projects, testimonials, and experience entries) in one row.
 -- Run this in Supabase SQL Editor.
 
 create extension if not exists "pgcrypto";
@@ -9,6 +9,9 @@ create table if not exists public.portfolio_content (
   testimonials jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+alter table public.portfolio_content
+add column if not exists experience_entries jsonb not null default '[]'::jsonb;
 
 alter table public.portfolio_content enable row level security;
 
