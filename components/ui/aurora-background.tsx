@@ -6,12 +6,14 @@ import { cn } from "@/lib/utils";
 interface AuroraBackgroundProps extends React.HTMLProps<HTMLDivElement> {
   children: ReactNode;
   showRadialGradient?: boolean;
+  motionLite?: boolean;
 }
 
 export const AuroraBackground = ({
   className,
   children,
   showRadialGradient = true,
+  motionLite = false,
   ...props
 }: AuroraBackgroundProps) => {
   const auroraBottomFadeClass =
@@ -42,29 +44,38 @@ export const AuroraBackground = ({
       >
         <div
           className={cn(
-            "absolute -inset-[12px] animate-aurora bg-[image:var(--dark-gradient),var(--aurora)] bg-[size:300%,_200%] bg-[position:50%_50%,50%_50%] opacity-70 blur-[12px] will-change-transform",
+            "absolute -inset-[12px] animate-aurora transform-gpu bg-[image:var(--dark-gradient),var(--aurora)] bg-[position:50%_50%,50%_50%] will-change-transform",
+            motionLite
+              ? "bg-[size:240%,_170%] opacity-62 blur-[8px]"
+              : "bg-[size:300%,_200%] opacity-70 blur-[12px]",
             showRadialGradient &&
               "[mask-image:radial-gradient(ellipse_at_100%_0%,black_10%,var(--transparent)_72%)]"
           )}
         />
-        <div
-          className={cn(
-            "absolute -inset-[12px] animate-aurora-slower bg-[image:var(--dark-gradient),var(--aurora)] bg-[size:220%,_160%] bg-[position:50%_50%,50%_50%] opacity-55 mix-blend-screen blur-[28px] will-change-transform",
-            showRadialGradient &&
-              "[mask-image:radial-gradient(ellipse_at_0%_100%,black_12%,var(--transparent)_74%)]"
-          )}
-        />
+        {!motionLite && (
+          <div
+            className={cn(
+              "absolute -inset-[12px] animate-aurora-slower transform-gpu bg-[image:var(--dark-gradient),var(--aurora)] bg-[size:220%,_160%] bg-[position:50%_50%,50%_50%] opacity-55 mix-blend-screen blur-[28px] will-change-transform",
+              showRadialGradient &&
+                "[mask-image:radial-gradient(ellipse_at_0%_100%,black_12%,var(--transparent)_74%)]"
+            )}
+          />
+        )}
       </div>
 
       <div
         className={cn(
-          "pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(5,9,14,0.16),rgba(5,9,14,0.42)_46%,rgba(5,9,14,0.36)_60%,rgba(5,9,14,0.18)_76%,rgba(5,9,14,0)_100%)]",
+          motionLite
+            ? "pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(5,9,14,0.18),rgba(5,9,14,0.34)_46%,rgba(5,9,14,0.26)_60%,rgba(5,9,14,0.12)_76%,rgba(5,9,14,0)_100%)]"
+            : "pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(5,9,14,0.16),rgba(5,9,14,0.42)_46%,rgba(5,9,14,0.36)_60%,rgba(5,9,14,0.18)_76%,rgba(5,9,14,0)_100%)]",
           auroraBottomFadeClass
         )}
       />
       <div
         className={cn(
-          "pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),transparent_30%),radial-gradient(circle_at_18%_22%,rgba(109,223,255,0.16),transparent_24%),radial-gradient(circle_at_82%_78%,rgba(104,117,255,0.16),transparent_24%)]",
+          motionLite
+            ? "pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.1),transparent_28%),radial-gradient(circle_at_18%_22%,rgba(109,223,255,0.1),transparent_20%),radial-gradient(circle_at_82%_78%,rgba(104,117,255,0.1),transparent_20%)]"
+            : "pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),transparent_30%),radial-gradient(circle_at_18%_22%,rgba(109,223,255,0.16),transparent_24%),radial-gradient(circle_at_82%_78%,rgba(104,117,255,0.16),transparent_24%)]",
           auroraBottomFadeClass
         )}
       />

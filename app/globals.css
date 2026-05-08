@@ -233,6 +233,18 @@ body {
   animation: auroraShift 24s linear infinite reverse;
 }
 
+.motion-lite .animate-aurora {
+  animation-duration: 30s !important;
+  filter: blur(8px) !important;
+  opacity: 0.52 !important;
+}
+
+.motion-lite .animate-aurora-slower {
+  animation-duration: 40s !important;
+  filter: blur(16px) !important;
+  opacity: 0.36 !important;
+}
+
 /* ----------------- PULSE GLOW ANIMATION ----------------- */
 @keyframes pulseGlow {
   0%, 100% {
@@ -268,6 +280,16 @@ body {
 
 .animate-pulse-slow {
   animation: pulse-slow 4s ease-in-out infinite;
+}
+
+.motion-lite .animate-pulseGlow,
+.motion-lite .animate-pulse-slow {
+  animation: none !important;
+}
+
+.motion-lite .logo-shine::before {
+  animation: none !important;
+  opacity: 0 !important;
 }
 
 

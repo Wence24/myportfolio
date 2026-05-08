@@ -58,6 +58,13 @@ const MODAL_OPEN_DELAY_MS = 10;
 const CONTACT_PANEL_TRANSITION_MS = 220;
 const CONTACT_PANEL_OPEN_DELAY_MS = 8;
 const VIDEO_METADATA_TIMEOUT_MS = 12000;
+const INTRO_DOOR_OPEN_MS = 760;
+const INTRO_DOOR_OPEN_MOTION_LITE_MS = 560;
+const INTRO_OVERLAY_RELEASE_MS = 140;
+const INTRO_BACKDROP_FADE_MS = 420;
+const INTRO_ATMOSPHERE_FADE_MS = 320;
+const INTRO_LOGO_PULSE_MS = 1480;
+const INTRO_LOGO_PULSE_MOTION_LITE_MS = 1080;
 type PortfolioCategoryName = "Graphic Design" | "Video Edit" | "Certificates";
 
 type AboutExperienceSectionProps = {
@@ -104,6 +111,33 @@ const getStoredExperienceContentVersion = () => {
     window.localStorage.getItem(EXPERIENCE_CONTENT_UPDATED_AT_KEY) ||
     window.localStorage.getItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY) ||
     ""
+  );
+};
+
+const shouldUseMotionLite = () => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const navigatorWithDeviceMemory = window.navigator as Navigator & {
+    deviceMemory?: number;
+    connection?: {
+      saveData?: boolean;
+    };
+  };
+  const cpuCores = window.navigator.hardwareConcurrency;
+  const deviceMemory = navigatorWithDeviceMemory.deviceMemory;
+  const isSmallScreen = window.innerWidth <= 1024;
+
+  return (
+    mediaQuery.matches ||
+    navigatorWithDeviceMemory.connection?.saveData === true ||
+    (typeof cpuCores === "number" && cpuCores <= 4) ||
+    (typeof deviceMemory === "number" && deviceMemory <= 4) ||
+    (isSmallScreen &&
+      ((typeof cpuCores === "number" && cpuCores <= 8) ||
+        (typeof deviceMemory === "number" && deviceMemory <= 6)))
   );
 };
 
@@ -1027,8 +1061,8 @@ function AboutExperienceListSection({
                         {String(index + 1).padStart(2, "0")}
                       </div>
 
-                      <div className="relative z-10 lg:grid lg:grid-cols-[148px_minmax(0,1fr)_auto] lg:items-stretch lg:gap-5">
-                        <div className="relative overflow-hidden border-b border-white/10 bg-[#09131d] lg:min-h-[188px] lg:rounded-r-[22px] lg:border-b-0 lg:border-r">
+                      <div className="relative z-10 lg:grid lg:grid-cols-[132px_minmax(0,1fr)_auto] lg:items-stretch lg:gap-5">
+                        <div className="relative overflow-hidden border-b border-white/10 bg-[#09131d] lg:min-h-[172px] lg:rounded-r-[22px] lg:border-b-0 lg:border-r">
                           {experience.image.trim().length > 0 ? (
                             <>
                               <img
@@ -1038,13 +1072,13 @@ function AboutExperienceListSection({
                                   experienceContentVersion
                                 )}
                                 alt={`${experience.client} preview`}
-                                className="h-44 w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03] lg:h-full lg:w-[148px]"
+                                className="h-40 w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03] lg:h-full lg:w-[132px]"
                               />
                               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,11,18,0.05),rgba(7,11,18,0.54)_100%)]" />
                               <div className="absolute inset-x-0 bottom-0 h-20 bg-[linear-gradient(180deg,rgba(4,7,11,0)_0%,rgba(4,7,11,0.78)_100%)] lg:hidden" />
                             </>
                           ) : (
-                            <div className="flex h-44 w-full items-center justify-center bg-[linear-gradient(135deg,rgba(10,18,27,0.98),rgba(8,12,18,0.98))] text-xs font-semibold uppercase tracking-[0.22em] text-white/42 lg:h-full lg:w-[148px]">
+                            <div className="flex h-40 w-full items-center justify-center bg-[linear-gradient(135deg,rgba(10,18,27,0.98),rgba(8,12,18,0.98))] text-xs font-semibold uppercase tracking-[0.22em] text-white/42 lg:h-full lg:w-[132px]">
                               Image
                             </div>
                           )}
@@ -1137,7 +1171,10 @@ export default function Home() {
   const [introDone, setIntroDone] = useState(false);
   const [introPulse, setIntroPulse] = useState(false);
   const [introLogoVisible, setIntroLogoVisible] = useState(false);
+  const [introWelcomeVisible, setIntroWelcomeVisible] = useState(false);
+  const [introDoorsOpen, setIntroDoorsOpen] = useState(false);
   const [introExit, setIntroExit] = useState(false);
+  const [isMotionLite, setIsMotionLite] = useState(() => shouldUseMotionLite());
   const [showAbout, setShowAbout] = useState(false); // scroll-triggered About Me
   const [videoText, setVideoText] = useState("");
   const [graphicText, setGraphicText] = useState("");
@@ -2217,21 +2254,53 @@ const heroMarkerLayouts = createHeroMarkerLayouts();
 
 
   const hasRun = useRef(false);
-  const navbarRef = useRef<HTMLDivElement>(null);
-
   const aboutRef = useRef<HTMLDivElement>(null);
   const portfolioRef = useRef<HTMLDivElement>(null);
   const reviewsRef = useRef<HTMLDivElement>(null);
   const contactRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
+  const sideNavTriggerRef = useRef<HTMLDivElement>(null);
 
   const [showSideNav, setShowSideNav] = useState(false);
-  const [activeSection, setActiveSection] = useState("home");
-  const showSideNavRef = useRef(false);
-  const activeSectionRef = useRef("home");
+const [activeSection, setActiveSection] = useState("home");
+const showSideNavRef = useRef(false);
+const activeSectionRef = useRef("home");
   type SideNavId = "home" | "about" | "portfolio" | "reviews" | "contact";
   const [, setLogoTapCount] = useState(0);
   const logoTapResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const applyMotionMode = () => {
+    const nextMotionLite = shouldUseMotionLite();
+    setIsMotionLite(nextMotionLite);
+    document.documentElement.classList.toggle("motion-lite", nextMotionLite);
+    document.body.classList.toggle("motion-lite", nextMotionLite);
+  };
+
+  applyMotionMode();
+  window.addEventListener("resize", applyMotionMode, { passive: true });
+
+  if (typeof mediaQuery.addEventListener === "function") {
+    mediaQuery.addEventListener("change", applyMotionMode);
+    return () => {
+      mediaQuery.removeEventListener("change", applyMotionMode);
+      window.removeEventListener("resize", applyMotionMode);
+      document.documentElement.classList.remove("motion-lite");
+      document.body.classList.remove("motion-lite");
+    };
+  }
+
+  mediaQuery.addListener(applyMotionMode);
+  return () => {
+    mediaQuery.removeListener(applyMotionMode);
+    window.removeEventListener("resize", applyMotionMode);
+    document.documentElement.classList.remove("motion-lite");
+    document.body.classList.remove("motion-lite");
+  };
+}, []);
 
 useEffect(() => {
   if (!portfolioRef.current) return;
@@ -2576,16 +2645,47 @@ useEffect(() => {
     const timers: Array<ReturnType<typeof setTimeout>> = [];
     let videoInterval: ReturnType<typeof setInterval> | null = null;
     let graphicInterval: ReturnType<typeof setInterval> | null = null;
+    const introTiming = isMotionLite
+      ? {
+          pulse: 40,
+          logo: 180,
+          welcome: 1080,
+          exit: 1760,
+          reveal: 1980,
+          text: 2060,
+          image: 2180,
+          typingStart: 2100,
+          typingStep: 82,
+          graphicDelay: 260,
+          doorDuration: INTRO_DOOR_OPEN_MOTION_LITE_MS,
+        }
+      : {
+          pulse: 80,
+          logo: 260,
+          welcome: 1360,
+          exit: 2140,
+          reveal: 2380,
+          text: 2480,
+          image: 2660,
+          typingStart: 2520,
+          typingStep: 100,
+          graphicDelay: 420,
+          doorDuration: INTRO_DOOR_OPEN_MS,
+        };
+    const introDoneDelay =
+      introTiming.reveal + introTiming.doorDuration + INTRO_OVERLAY_RELEASE_MS;
 
     const schedule = (callback: () => void, delay: number) => {
       timers.push(setTimeout(callback, delay));
     };
 
-    schedule(() => setIntroPulse(true), 80);
-    schedule(() => setIntroLogoVisible(true), 260);
-    schedule(() => setIntroExit(true), 1480);
-    schedule(() => setTextVisible(true), 1580);
-    schedule(() => setImageVisible(true), 1840);
+    schedule(() => setIntroPulse(true), introTiming.pulse);
+    schedule(() => setIntroLogoVisible(true), introTiming.logo);
+    schedule(() => setIntroWelcomeVisible(true), introTiming.welcome);
+    schedule(() => setIntroExit(true), introTiming.exit);
+    schedule(() => setIntroDoorsOpen(true), introTiming.reveal);
+    schedule(() => setTextVisible(true), introTiming.text);
+    schedule(() => setImageVisible(true), introTiming.image);
 
     schedule(() => {
       let vIndex = 0;
@@ -2615,21 +2715,21 @@ useEffect(() => {
                   }
                   setGraphicDone(true);
                 }
-              }, 100);
-            }, 420)
+              }, introTiming.typingStep);
+            }, introTiming.graphicDelay)
           );
         }
-      }, 100);
-    }, 1640);
+      }, introTiming.typingStep);
+    }, introTiming.typingStart);
 
-    schedule(() => setIntroDone(true), 2120);
+    schedule(() => setIntroDone(true), introDoneDelay);
 
     return () => {
       timers.forEach((timer) => clearTimeout(timer));
       if (videoInterval) clearInterval(videoInterval);
       if (graphicInterval) clearInterval(graphicInterval);
     };
-  }, []);
+  }, [isMotionLite]);
 
 useEffect(() => {
   if (activeHeroMarker === null) return;
@@ -2687,68 +2787,88 @@ useEffect(() => {
 
 
 
-  // Scroll animation for About Me & Side Nav
   useEffect(() => {
-    let ticking = false;
+    if (!aboutRef.current || hasShownAbout.current) return;
 
-    const runScrollWork = () => {
-      if (!aboutRef.current) return;
-      const rect = aboutRef.current.getBoundingClientRect();
-      const triggerPoint = window.innerHeight * 0.9; // show About Me when 90% of viewport
-      if (rect.top < triggerPoint && !hasShownAbout.current) {
-  setShowAbout(true);
-  hasShownAbout.current = true;
-}
-
-
-      // Show side nav after hero
-      if (heroRef.current) {
-        const nextShowSideNav = window.scrollY > heroRef.current.offsetHeight - 200;
-        if (showSideNavRef.current !== nextShowSideNav) {
-          showSideNavRef.current = nextShowSideNav;
-          setShowSideNav(nextShowSideNav);
-        }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting || hasShownAbout.current) return;
+        hasShownAbout.current = true;
+        setShowAbout(true);
+        observer.disconnect();
+      },
+      {
+        threshold: 0.12,
+        rootMargin: "0px 0px -10% 0px",
       }
-      
+    );
 
-      // Detect active section
-      const sections = [
-        { id: "home", ref: heroRef },
-        { id: "about", ref: aboutRef },
-        { id: "portfolio", ref: portfolioRef },
-        { id: "reviews", ref: reviewsRef },
-        { id: "contact", ref: contactRef },
-      ];
+    observer.observe(aboutRef.current);
 
-      for (const s of sections) {
-        if (!s.ref.current) continue;
-        const r = s.ref.current.getBoundingClientRect();
-        if (r.top <= window.innerHeight * 0.45 && r.bottom >= 0) {
-          if (activeSectionRef.current !== s.id) {
-            activeSectionRef.current = s.id;
-            setActiveSection(s.id);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const sections = [
+      { id: "home", ref: heroRef },
+      { id: "about", ref: aboutRef },
+      { id: "portfolio", ref: portfolioRef },
+      { id: "reviews", ref: reviewsRef },
+      { id: "contact", ref: contactRef },
+    ] as const;
+
+    const activeSections = new Set<string>();
+    const thresholdSteps = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 1];
+
+    const updateActiveSection = () => {
+      const nextActiveSection =
+        sections.find((section) => activeSections.has(section.id))?.id ||
+        activeSectionRef.current;
+
+      if (activeSectionRef.current !== nextActiveSection) {
+        activeSectionRef.current = nextActiveSection;
+        setActiveSection(nextActiveSection);
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const sectionId = (entry.target as HTMLElement).dataset.sectionId;
+          if (!sectionId) return;
+
+          if (entry.isIntersecting) {
+            activeSections.add(sectionId);
+          } else {
+            activeSections.delete(sectionId);
           }
-          break;
-        }
+        });
+
+        updateActiveSection();
+      },
+      {
+        threshold: thresholdSteps,
+        rootMargin: "-45% 0px -45% 0px",
       }
-    };
+    );
 
-    const handleScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        runScrollWork();
-        ticking = false;
-      });
-    };
+    sections.forEach((section) => {
+      if (!section.ref.current) return;
+      section.ref.current.dataset.sectionId = section.id;
+      observer.observe(section.ref.current);
+    });
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    runScrollWork(); // check on mount
-    return () => window.removeEventListener("scroll", handleScroll);
+    updateActiveSection();
+
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
 useEffect(() => {
-  if (!navbarRef.current) return;
+  if (!sideNavTriggerRef.current) return;
 
   const observer = new IntersectionObserver(
     ([entry]) => {
@@ -2758,10 +2878,10 @@ useEffect(() => {
         setShowSideNav(nextShowSideNav);
       }
     },
-    { threshold: 0 }
+    { threshold: 0, rootMargin: "-120px 0px 0px 0px" }
   );
 
-  observer.observe(navbarRef.current);
+  observer.observe(sideNavTriggerRef.current);
 
   return () => {
     observer.disconnect();
@@ -3753,37 +3873,96 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
     <div className="relative min-h-screen overflow-x-hidden overflow-y-auto bg-transparent">
       {/* INTRO BUILD-UP + LOGO REVEAL */}
       {!introDone && (
-        <div
-          className={`fixed inset-0 z-[9999] pointer-events-none overflow-hidden transition-opacity duration-700 ${
-            introExit ? "opacity-0" : "opacity-100"
-          }`}
-        >
-          <div className="absolute inset-0 bg-black/88" />
+        <div className="fixed inset-0 z-[9999] pointer-events-none overflow-hidden">
           <div
-            className={`absolute inset-0 ${
+            className={`intro-backdrop ${
               introPulse ? "intro-backdrop-active" : "intro-backdrop-idle"
+            } ${
+              introDoorsOpen ? "intro-backdrop-open" : ""
             }`}
           />
-          <div className={`intro-scanline ${introPulse ? "intro-scanline-active" : ""}`} />
-          <div className={`intro-burst ${introPulse ? "intro-burst-active" : ""}`} />
+          <div
+            className={`intro-atmosphere ${
+              introExit ? "intro-atmosphere-exit" : ""
+            } ${introDoorsOpen ? "intro-atmosphere-open" : ""}`}
+          >
+            <span className="intro-atmosphere-grid" />
+            <span className="intro-atmosphere-haze intro-atmosphere-haze-left" />
+            <span className="intro-atmosphere-haze intro-atmosphere-haze-right" />
+            <span className="intro-atmosphere-beam intro-atmosphere-beam-a" />
+            <span className="intro-atmosphere-beam intro-atmosphere-beam-b" />
+            <span className="intro-atmosphere-beam intro-atmosphere-beam-c" />
+            <span className="intro-side-rail intro-side-rail-left" />
+            <span className="intro-side-rail intro-side-rail-right" />
+            <span className="intro-side-flare intro-side-flare-left" />
+            <span className="intro-side-flare intro-side-flare-right" />
+          </div>
+          <div
+            className={`intro-door intro-door-left ${
+              introDoorsOpen ? "intro-door-left-open" : ""
+            }`}
+          />
+          <div
+            className={`intro-door intro-door-right ${
+              introDoorsOpen ? "intro-door-right-open" : ""
+            }`}
+          />
 
           <div
-            className={`relative z-10 flex h-full items-center justify-center transition-[opacity,transform] duration-280 ease-out ${
-              introLogoVisible
-                ? "opacity-100 scale-100 translate-y-0"
-                : "opacity-0 scale-75 translate-y-3"
+            className={`relative z-10 flex h-full flex-col items-center justify-center px-6 text-center transition-[opacity,transform,filter] duration-[720ms] ease-[cubic-bezier(0.22,0.78,0.24,1)] ${
+              introExit
+                ? "translate-y-1 opacity-0 scale-[0.985] blur-[2px]"
+                : "opacity-100 scale-100 blur-0"
             }`}
           >
-            <div className="intro-logo-shell">
-              <Image
-                src="/logo.png"
-                alt="Wence logo"
-                width={150}
-                height={150}
-                priority
-                className="h-auto w-[120px] sm:w-[140px] md:w-[150px] intro-logo-mark"
-              />
+            <div
+              className={`transition-[opacity,transform] duration-[560ms] ease-[cubic-bezier(0.2,0.82,0.24,1)] ${
+                introLogoVisible
+                  ? "opacity-100 scale-100 translate-y-0"
+                  : "opacity-0 scale-75 translate-y-3"
+              }`}
+            >
+              <div className="intro-logo-stage">
+                <span className="intro-logo-burst intro-logo-burst-outer" />
+                <span className="intro-logo-burst intro-logo-burst-inner" />
+                <span className="intro-logo-sidewash intro-logo-sidewash-left" />
+                <span className="intro-logo-sidewash intro-logo-sidewash-right" />
+                <span className="intro-logo-sidebeam intro-logo-sidebeam-left" />
+                <span className="intro-logo-sidebeam intro-logo-sidebeam-right" />
+                <span className="intro-logo-aura intro-logo-aura-back" />
+                <span className="intro-logo-aura intro-logo-aura-front" />
+                <span className="intro-logo-ring intro-logo-ring-outer" />
+                <span className="intro-logo-ring intro-logo-ring-inner" />
+                <span className="intro-logo-shard intro-logo-shard-a" />
+                <span className="intro-logo-shard intro-logo-shard-b" />
+                <span className="intro-logo-shard intro-logo-shard-c" />
+                <span className="intro-logo-shard intro-logo-shard-d" />
+                <span className="intro-logo-spark intro-logo-spark-a" />
+                <span className="intro-logo-spark intro-logo-spark-b" />
+                <span className="intro-logo-spark intro-logo-spark-c" />
+                <span className="intro-logo-spark intro-logo-spark-d" />
+                <span className="intro-logo-ground" />
+                <div className="intro-logo-shell">
+                  <span className="intro-logo-shell-gloss" />
+                  <span className="intro-logo-shell-edge" />
+                  <Image
+                    src="/logo.png"
+                    alt="Wence logo"
+                    width={150}
+                    height={150}
+                    priority
+                    className="h-auto w-[120px] sm:w-[140px] md:w-[150px] intro-logo-mark"
+                  />
+                </div>
+              </div>
             </div>
+            <p
+              className={`intro-welcome ${
+                introWelcomeVisible ? "intro-welcome-visible" : ""
+              }`}
+            >
+              Welcome to my creative space.
+            </p>
           </div>
         </div>
       )}
@@ -3800,7 +3979,6 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
       {/* NAVBAR */}
       <div className="relative z-50 px-2 pt-3 sm:px-4 lg:px-5">
         <nav
-         ref={navbarRef}
           className="sticky top-3 mx-auto w-full max-w-[1520px] overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,8,14,0.88),rgba(5,10,18,0.8))] px-3 py-3.5 font-semibold tracking-[0.02em] shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-2xl lg:px-5"
         >
           <div className="pointer-events-none absolute inset-0">
@@ -3880,9 +4058,15 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
       <div ref={heroRef} className="relative z-10 mt-0 w-full">
         <AuroraBackgroundDemo
-          isVisible={introDone}
+          isVisible={introDone || introDoorsOpen}
           onViewPortfolio={() => scrollToSection(portfolioRef)}
           onContact={() => scrollToSection(contactRef)}
+          motionLite={isMotionLite}
+        />
+        <div
+          ref={sideNavTriggerRef}
+          className="pointer-events-none absolute bottom-0 left-0 h-px w-px opacity-0"
+          aria-hidden="true"
         />
         <div className="pointer-events-none absolute inset-x-[-8%] bottom-[-8.5rem] z-0 h-80 bg-[radial-gradient(ellipse_at_center,rgba(62,122,177,0.18)_0%,rgba(31,64,96,0.14)_30%,rgba(10,18,28,0.08)_56%,rgba(9,14,21,0)_82%)] blur-[72px] opacity-100" />
         <div className="pointer-events-none absolute inset-x-[8%] bottom-[-5.5rem] z-0 h-40 bg-[linear-gradient(180deg,rgba(92,180,232,0)_0%,rgba(92,180,232,0.1)_34%,rgba(46,96,140,0.08)_58%,rgba(11,20,30,0.04)_78%,rgba(92,180,232,0)_100%)] blur-[40px] opacity-92" />
@@ -5858,104 +6042,819 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         </div>
       </div>
       <style>{`
+        .intro-backdrop {
+          position: absolute;
+          inset: 0;
+          will-change: opacity;
+          transition: opacity ${INTRO_BACKDROP_FADE_MS}ms ease-out;
+        }
         .intro-backdrop-idle {
-          background: radial-gradient(circle at 50% 50%, rgba(10, 10, 10, 0.92) 0%, rgba(0, 0, 0, 1) 72%);
-          opacity: 1;
+          background: #000;
         }
         .intro-backdrop-active {
-          background: radial-gradient(circle at 50% 42%, rgba(0, 153, 255, 0.16) 0%, rgba(0, 0, 0, 0.98) 58%, #000 100%);
-          animation: introBackdrop 1.5s ease-out forwards;
+          background: radial-gradient(circle at 50% 44%, rgba(0, 153, 255, 0.09) 0%, rgba(0, 0, 0, 0.98) 34%, #000 74%);
+          animation: introBackdropGlow 1.2s ease-out forwards;
         }
-        .intro-scanline {
+        .intro-backdrop-open {
+          opacity: 0 !important;
+          animation: none !important;
+        }
+        .intro-atmosphere {
           position: absolute;
-          inset: -30% -10%;
-          background: linear-gradient(110deg, transparent 0%, rgba(0, 153, 255, 0.18) 40%, rgba(255, 255, 255, 0.5) 50%, rgba(0, 153, 255, 0.18) 60%, transparent 100%);
-          transform: translateX(-65%) skewX(-12deg);
+          inset: 0;
+          overflow: hidden;
+          opacity: 1;
+          will-change: opacity, transform, filter;
+          transition:
+            opacity ${INTRO_ATMOSPHERE_FADE_MS}ms cubic-bezier(0.22, 0.78, 0.24, 1),
+            transform ${INTRO_ATMOSPHERE_FADE_MS}ms cubic-bezier(0.22, 0.78, 0.24, 1),
+            filter ${INTRO_ATMOSPHERE_FADE_MS}ms cubic-bezier(0.22, 0.78, 0.24, 1);
+        }
+        .intro-atmosphere-exit {
+          opacity: 0.42;
+          transform: scale(1.015);
+          filter: blur(1.5px);
+        }
+        .intro-atmosphere-open {
           opacity: 0;
+          transform: scale(1.04);
+          filter: blur(6px);
         }
-        .intro-scanline-active {
-          animation: introScan 0.86s ease-out forwards;
+        .intro-atmosphere-grid,
+        .intro-atmosphere-haze,
+        .intro-atmosphere-beam,
+        .intro-side-rail,
+        .intro-side-flare,
+        .intro-logo-burst,
+        .intro-logo-shard,
+        .intro-logo-spark {
+          pointer-events: none;
         }
-        .intro-burst {
+        .intro-atmosphere-grid {
+          position: absolute;
+          inset: 0;
+          opacity: 0.12;
+          background-image:
+            linear-gradient(rgba(160, 228, 255, 0.12) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(160, 228, 255, 0.1) 1px, transparent 1px);
+          background-size: 46px 46px;
+          mask-image: radial-gradient(circle at 50% 46%, black 18%, rgba(0, 0, 0, 0.82) 44%, transparent 74%);
+          animation: introGridShift 12s linear infinite;
+        }
+        .intro-atmosphere-haze {
+          position: absolute;
+          top: 50%;
+          width: 28rem;
+          height: 28rem;
+          border-radius: 9999px;
+          transform: translateY(-50%);
+          filter: blur(34px);
+          mix-blend-mode: screen;
+          opacity: 0.48;
+        }
+        .intro-atmosphere-haze-left {
+          left: -8rem;
+          background: radial-gradient(circle, rgba(88, 192, 255, 0.26) 0%, rgba(88, 192, 255, 0.08) 34%, transparent 68%);
+          animation: introHazeDriftLeft 8.8s ease-in-out infinite;
+        }
+        .intro-atmosphere-haze-right {
+          right: -9rem;
+          background: radial-gradient(circle, rgba(148, 236, 255, 0.18) 0%, rgba(99, 170, 255, 0.08) 32%, transparent 68%);
+          animation: introHazeDriftRight 9.4s ease-in-out infinite;
+        }
+        .intro-atmosphere-beam {
           position: absolute;
           left: 50%;
           top: 50%;
-          width: 22rem;
-          height: 22rem;
-          border-radius: 9999px;
-          border: 1px solid rgba(143, 211, 255, 0.45);
-          transform: translate(-50%, -50%) scale(0.2);
-          opacity: 0;
-          box-shadow: 0 0 36px rgba(0, 153, 255, 0.18);
+          width: min(70vw, 48rem);
+          height: 2px;
+          transform-origin: center;
+          background: linear-gradient(90deg, transparent, rgba(196, 242, 255, 0.86), rgba(110, 206, 255, 0.34), transparent);
+          filter: blur(1.2px);
+          mix-blend-mode: screen;
+          opacity: 0.48;
         }
-        .intro-burst-active {
-          animation: introBurst 1.3s cubic-bezier(0.2, 0.9, 0.25, 1) forwards;
+        .intro-atmosphere-beam-a {
+          transform: translate(-50%, -50%) rotate(16deg);
+          animation: introBeamSweepA 4.8s ease-in-out infinite;
+        }
+        .intro-atmosphere-beam-b {
+          width: min(64vw, 42rem);
+          transform: translate(-50%, -50%) rotate(-28deg);
+          opacity: 0.34;
+          animation: introBeamSweepB 4.2s ease-in-out infinite;
+        }
+        .intro-atmosphere-beam-c {
+          width: min(52vw, 34rem);
+          transform: translate(-50%, -50%) rotate(86deg);
+          opacity: 0.22;
+          animation: introBeamSweepC 5.2s ease-in-out infinite;
+        }
+        .intro-side-rail {
+          position: absolute;
+          top: 9%;
+          bottom: 9%;
+          width: 2px;
+          border-radius: 9999px;
+          background: linear-gradient(180deg, transparent, rgba(196, 242, 255, 0.74), rgba(110, 206, 255, 0.34), transparent);
+          box-shadow: 0 0 16px rgba(102, 204, 255, 0.18);
+          mix-blend-mode: screen;
+        }
+        .intro-side-rail-left {
+          left: clamp(1.1rem, 3vw, 2.4rem);
+          animation: introSideRailLeft 4.8s ease-in-out infinite;
+        }
+        .intro-side-rail-right {
+          right: clamp(1.1rem, 3vw, 2.4rem);
+          animation: introSideRailRight 4.8s ease-in-out infinite;
+        }
+        .intro-side-flare {
+          position: absolute;
+          top: 12%;
+          bottom: 12%;
+          width: clamp(7rem, 16vw, 11rem);
+          opacity: 0.38;
+          filter: blur(34px);
+          mix-blend-mode: screen;
+        }
+        .intro-side-flare-left {
+          left: -2rem;
+          background: linear-gradient(90deg, rgba(104, 190, 255, 0.26) 0%, rgba(104, 190, 255, 0.08) 38%, transparent 86%);
+          animation: introSideFlareLeft 5.6s ease-in-out infinite;
+        }
+        .intro-side-flare-right {
+          right: -2rem;
+          background: linear-gradient(270deg, rgba(156, 238, 255, 0.2) 0%, rgba(104, 190, 255, 0.08) 36%, transparent 84%);
+          animation: introSideFlareRight 6.2s ease-in-out infinite;
+        }
+        .intro-door {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: 50.5%;
+          background: linear-gradient(180deg, rgba(0, 0, 0, 0.995) 0%, rgba(3, 7, 12, 0.995) 52%, rgba(0, 0, 0, 0.995) 100%);
+          box-shadow: inset 0 0 42px rgba(255, 255, 255, 0.03);
+          will-change: transform;
+        }
+        .intro-door-left {
+          left: 0;
+        }
+        .intro-door-right {
+          right: 0;
+        }
+        .intro-door-left-open {
+          animation: introDoorLeft ${INTRO_DOOR_OPEN_MS}ms cubic-bezier(0.22, 0.76, 0.24, 1) forwards;
+        }
+        .intro-door-right-open {
+          animation: introDoorRight ${INTRO_DOOR_OPEN_MS}ms cubic-bezier(0.22, 0.76, 0.24, 1) forwards;
+        }
+        .intro-logo-stage {
+          position: relative;
+          display: grid;
+          place-items: center;
+          padding: 2.3rem 2.7rem 3rem;
+          margin-bottom: 0.35rem;
+          perspective: 1200px;
+          transform-style: preserve-3d;
+          isolation: isolate;
+        }
+        .intro-logo-aura,
+        .intro-logo-ring,
+        .intro-logo-ground,
+        .intro-logo-shell-gloss,
+        .intro-logo-shell-edge,
+        .intro-logo-sidewash,
+        .intro-logo-sidebeam,
+        .intro-logo-burst,
+        .intro-logo-shard,
+        .intro-logo-spark {
+          pointer-events: none;
+        }
+        .intro-logo-sidewash {
+          position: absolute;
+          top: 50%;
+          width: clamp(4.8rem, 12vw, 7rem);
+          height: clamp(10rem, 26vw, 15rem);
+          border-radius: 9999px;
+          transform: translateY(-50%);
+          filter: blur(18px);
+          mix-blend-mode: screen;
+          opacity: 0.62;
+          z-index: 1;
+        }
+        .intro-logo-sidewash-left {
+          left: clamp(0.9rem, 3vw, 1.8rem);
+          background:
+            radial-gradient(circle at 72% 50%, rgba(196, 242, 255, 0.88) 0%, rgba(103, 205, 255, 0.36) 24%, rgba(103, 205, 255, 0.08) 52%, transparent 78%),
+            linear-gradient(90deg, rgba(84, 184, 255, 0.06), rgba(84, 184, 255, 0.22), transparent 76%);
+          animation: introLogoSideWashLeft 3.1s ease-in-out infinite;
+        }
+        .intro-logo-sidewash-right {
+          right: clamp(0.9rem, 3vw, 1.8rem);
+          background:
+            radial-gradient(circle at 28% 50%, rgba(210, 248, 255, 0.82) 0%, rgba(132, 223, 255, 0.34) 22%, rgba(132, 223, 255, 0.08) 52%, transparent 78%),
+            linear-gradient(270deg, rgba(84, 184, 255, 0.06), rgba(84, 184, 255, 0.2), transparent 76%);
+          animation: introLogoSideWashRight 3.25s ease-in-out infinite;
+        }
+        .intro-logo-sidebeam {
+          position: absolute;
+          top: 50%;
+          width: clamp(3.8rem, 10vw, 5.4rem);
+          height: 2px;
+          border-radius: 9999px;
+          filter: blur(0.4px);
+          mix-blend-mode: screen;
+          opacity: 0.72;
+          z-index: 2;
+        }
+        .intro-logo-sidebeam-left {
+          left: clamp(1.7rem, 4.5vw, 3rem);
+          transform-origin: left center;
+          background: linear-gradient(90deg, rgba(218, 249, 255, 0.94), rgba(118, 220, 255, 0.48), transparent);
+          box-shadow: 0 0 14px rgba(118, 220, 255, 0.24);
+          animation: introLogoSideBeamLeft 2.5s ease-in-out infinite;
+        }
+        .intro-logo-sidebeam-right {
+          right: clamp(1.7rem, 4.5vw, 3rem);
+          transform-origin: right center;
+          background: linear-gradient(270deg, rgba(218, 249, 255, 0.94), rgba(118, 220, 255, 0.48), transparent);
+          box-shadow: 0 0 14px rgba(118, 220, 255, 0.24);
+          animation: introLogoSideBeamRight 2.65s ease-in-out infinite;
+        }
+        .intro-logo-burst {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          border-radius: 9999px;
+          transform: translate(-50%, -50%);
+          opacity: 0.88;
+          mix-blend-mode: screen;
+        }
+        .intro-logo-burst-outer {
+          width: clamp(14rem, 40vw, 22rem);
+          height: clamp(14rem, 40vw, 22rem);
+          background: radial-gradient(circle, rgba(166, 241, 255, 0.22) 0%, rgba(77, 190, 255, 0.08) 26%, transparent 66%);
+          filter: blur(14px);
+          animation: introBurstPulse 4.8s ease-in-out infinite;
+        }
+        .intro-logo-burst-inner {
+          width: clamp(10rem, 26vw, 14rem);
+          height: clamp(10rem, 26vw, 14rem);
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, rgba(143, 220, 255, 0.16) 24%, transparent 64%);
+          filter: blur(10px);
+          animation: introBurstPulseInner 3.4s ease-in-out infinite;
+        }
+        .intro-logo-aura {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          border-radius: 9999px;
+          mix-blend-mode: screen;
+        }
+        .intro-logo-aura-back {
+          width: clamp(12rem, 36vw, 19rem);
+          height: clamp(12rem, 36vw, 19rem);
+          background: radial-gradient(circle, rgba(144, 234, 255, 0.28) 0%, rgba(49, 155, 255, 0.2) 28%, rgba(0, 153, 255, 0.08) 52%, transparent 74%);
+          filter: blur(22px);
+          opacity: 0.92;
+          animation: introLogoAuraPulse 4.4s ease-in-out infinite;
+        }
+        .intro-logo-aura-front {
+          width: clamp(9rem, 24vw, 13rem);
+          height: clamp(4rem, 12vw, 6.4rem);
+          top: 66%;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.28) 0%, rgba(143, 220, 255, 0.16) 48%, transparent 74%);
+          filter: blur(15px);
+          opacity: 0.76;
+        }
+        .intro-logo-ring {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          border-radius: 9999px;
+          opacity: 0.82;
+          filter: drop-shadow(0 0 10px rgba(102, 204, 255, 0.22));
+        }
+        .intro-logo-ring-outer {
+          width: clamp(14rem, 42vw, 20rem);
+          height: clamp(5.8rem, 18vw, 8.8rem);
+          transform: translate(-50%, -50%) rotateX(74deg);
+          background: conic-gradient(from 18deg, transparent 0deg, transparent 60deg, rgba(132, 231, 255, 0.94) 96deg, rgba(255, 255, 255, 0.22) 126deg, transparent 164deg, transparent 256deg, rgba(104, 190, 255, 0.5) 292deg, transparent 340deg);
+          -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+          animation: introOrbitSpin 8.8s linear infinite;
+        }
+        .intro-logo-ring-inner {
+          width: clamp(11rem, 34vw, 16rem);
+          height: clamp(4rem, 14vw, 6.4rem);
+          transform: translate(-50%, -50%) rotateX(74deg) rotateZ(22deg);
+          background: conic-gradient(from 180deg, transparent 0deg, transparent 48deg, rgba(255, 255, 255, 0.12) 92deg, rgba(121, 223, 255, 0.84) 126deg, transparent 168deg, transparent 262deg, rgba(173, 240, 255, 0.44) 314deg, transparent 360deg);
+          -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+          animation: introOrbitSpinReverse 7.2s linear infinite;
+        }
+        .intro-logo-ground {
+          position: absolute;
+          left: 50%;
+          bottom: 0.7rem;
+          width: 72%;
+          height: 1rem;
+          transform: translateX(-50%);
+          border-radius: 9999px;
+          background: radial-gradient(ellipse at center, rgba(143, 220, 255, 0.54) 0%, rgba(0, 153, 255, 0.2) 42%, transparent 78%);
+          filter: blur(16px);
+          opacity: 0.9;
+          animation: introGroundPulse 4.4s ease-in-out infinite;
+        }
+        .intro-logo-shard {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 7.2rem;
+          height: 1px;
+          transform-origin: left center;
+          background: linear-gradient(90deg, rgba(196, 242, 255, 0.92), rgba(102, 204, 255, 0.32), transparent);
+          filter: blur(0.6px);
+          opacity: 0.48;
+        }
+        .intro-logo-shard-a {
+          transform: translate(1.6rem, -4.2rem) rotate(-20deg);
+          animation: introShardDriftA 4.1s ease-in-out infinite;
+        }
+        .intro-logo-shard-b {
+          transform: translate(-7.8rem, -1.6rem) rotate(198deg);
+          opacity: 0.38;
+          animation: introShardDriftB 3.8s ease-in-out infinite;
+        }
+        .intro-logo-shard-c {
+          transform: translate(2.8rem, 5.4rem) rotate(32deg);
+          width: 5.8rem;
+          opacity: 0.36;
+          animation: introShardDriftC 4.5s ease-in-out infinite;
+        }
+        .intro-logo-shard-d {
+          transform: translate(-6.6rem, 4.1rem) rotate(152deg);
+          width: 6.4rem;
+          opacity: 0.34;
+          animation: introShardDriftD 4.3s ease-in-out infinite;
+        }
+        .intro-logo-spark {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 0.45rem;
+          height: 0.45rem;
+          border-radius: 9999px;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.98) 0%, rgba(143, 220, 255, 0.88) 46%, rgba(143, 220, 255, 0) 74%);
+          box-shadow: 0 0 12px rgba(143, 220, 255, 0.42);
+          opacity: 0;
+        }
+        .intro-logo-spark-a {
+          animation: introSparkOrbitA 2.8s ease-in-out 0.2s infinite;
+        }
+        .intro-logo-spark-b {
+          animation: introSparkOrbitB 3.2s ease-in-out 0.6s infinite;
+        }
+        .intro-logo-spark-c {
+          animation: introSparkOrbitC 3.4s ease-in-out 0.1s infinite;
+        }
+        .intro-logo-spark-d {
+          animation: introSparkOrbitD 2.9s ease-in-out 0.9s infinite;
         }
         .intro-logo-shell {
           position: relative;
-          padding: 1rem;
-          border-radius: 9999px;
-          background: radial-gradient(circle, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.03) 62%, transparent 100%);
-          border: 1px solid rgba(255, 255, 255, 0.24);
-          box-shadow: 0 0 36px rgba(0, 153, 255, 0.3), inset 0 0 24px rgba(255, 255, 255, 0.1);
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1.25rem 1.45rem;
+          border-radius: 2.35rem;
+          overflow: hidden;
+          transform-style: preserve-3d;
+          transform: rotateX(12deg) rotateY(-14deg);
+          background: linear-gradient(155deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 32%, rgba(9, 18, 28, 0.84) 100%);
+          border: 1px solid rgba(232, 247, 255, 0.22);
+          box-shadow: 0 28px 58px rgba(0, 0, 0, 0.38), 0 0 34px rgba(0, 153, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -18px 28px rgba(3, 9, 16, 0.34);
+          backdrop-filter: blur(14px);
+          animation: introLogoFloat 4.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+        }
+        .intro-logo-shell::after {
+          content: "";
+          position: absolute;
+          inset: -26% -14%;
+          background: linear-gradient(115deg, transparent 34%, rgba(255, 255, 255, 0.76) 48%, rgba(143, 220, 255, 0.32) 54%, transparent 68%);
+          transform: translate3d(-56%, 0, 28px) rotate(8deg);
+          filter: blur(6px);
+          opacity: 0;
+          animation: introLogoSheen 4.4s ease-in-out 0.55s infinite;
+        }
+        .intro-logo-shell-gloss {
+          position: absolute;
+          inset: 10px;
+          border-radius: 1.8rem;
+          background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.02) 38%, rgba(84, 184, 255, 0.1) 100%), radial-gradient(circle at 24% 16%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.08) 34%, transparent 52%);
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 0 24px rgba(84, 184, 255, 0.08);
+          transform: translateZ(12px);
+        }
+        .intro-logo-shell-edge {
+          position: absolute;
+          left: 16%;
+          right: 16%;
+          bottom: 14px;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(143, 220, 255, 0.82), transparent);
+          box-shadow: 0 0 14px rgba(84, 184, 255, 0.24);
+          opacity: 0.82;
+          transform: translateZ(22px);
         }
         .intro-logo-mark {
-          filter: drop-shadow(0 0 18px rgba(0, 153, 255, 0.7));
-          animation: introLogoPulse 1.3s ease-out;
+          position: relative;
+          z-index: 2;
+          transform: translateZ(42px) scale(1.01);
+          filter: drop-shadow(0 0 14px rgba(0, 153, 255, 0.52));
+          animation: introLogoPulse ${INTRO_LOGO_PULSE_MS}ms ease-out, introLogoHover 4.8s ease-in-out ${INTRO_LOGO_PULSE_MS}ms infinite;
         }
-        @keyframes introBackdrop {
+        .intro-welcome {
+          margin-top: 1.1rem;
+          font-size: 0.72rem;
+          font-weight: 600;
+          letter-spacing: 0.32em;
+          text-transform: uppercase;
+          color: rgba(214, 244, 255, 0.76);
+          opacity: 0;
+          transform: translateY(10px);
+          transition: opacity 320ms ease-out, transform 320ms ease-out;
+          text-shadow: 0 0 14px rgba(84, 184, 255, 0.16);
+        }
+        .intro-welcome-visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        @keyframes introBackdropGlow {
           0% {
             opacity: 1;
-            transform: scale(1.03);
+            filter: brightness(1);
           }
-          60% {
+          45% {
             opacity: 1;
           }
           100% {
+            opacity: 1;
+            filter: brightness(0.96);
+          }
+        }
+        @keyframes introGridShift {
+          0% {
+            transform: translate3d(0, 0, 0);
+          }
+          100% {
+            transform: translate3d(46px, 46px, 0);
+          }
+        }
+        @keyframes introHazeDriftLeft {
+          0%, 100% {
+            transform: translateY(-50%) translateX(0) scale(0.96);
+            opacity: 0.34;
+          }
+          50% {
+            transform: translateY(-50%) translateX(3rem) scale(1.04);
+            opacity: 0.58;
+          }
+        }
+        @keyframes introHazeDriftRight {
+          0%, 100% {
+            transform: translateY(-50%) translateX(0) scale(0.98);
+            opacity: 0.28;
+          }
+          50% {
+            transform: translateY(-50%) translateX(-2.4rem) scale(1.06);
+            opacity: 0.5;
+          }
+        }
+        @keyframes introBeamSweepA {
+          0%, 100% {
+            opacity: 0.26;
+            transform: translate(-50%, -50%) rotate(12deg) scaleX(0.84);
+          }
+          50% {
+            opacity: 0.62;
+            transform: translate(-50%, -50%) rotate(20deg) scaleX(1.06);
+          }
+        }
+        @keyframes introBeamSweepB {
+          0%, 100% {
+            opacity: 0.2;
+            transform: translate(-50%, -50%) rotate(-30deg) scaleX(0.76);
+          }
+          50% {
+            opacity: 0.46;
+            transform: translate(-50%, -50%) rotate(-24deg) scaleX(1);
+          }
+        }
+        @keyframes introBeamSweepC {
+          0%, 100% {
+            opacity: 0.12;
+            transform: translate(-50%, -50%) rotate(84deg) scaleX(0.78);
+          }
+          50% {
+            opacity: 0.34;
+            transform: translate(-50%, -50%) rotate(90deg) scaleX(1.08);
+          }
+        }
+        @keyframes introLogoSideWashLeft {
+          0%, 100% {
+            opacity: 0.32;
+            transform: translateY(-50%) translateX(-6px) scaleY(0.92) scaleX(0.9);
+          }
+          50% {
             opacity: 0.84;
-            transform: scale(1);
+            transform: translateY(-50%) translateX(3px) scaleY(1.04) scaleX(1.06);
           }
         }
-        @keyframes introScan {
-          0% {
-            opacity: 0;
-            transform: translateX(-65%) skewX(-12deg);
+        @keyframes introLogoSideWashRight {
+          0%, 100% {
+            opacity: 0.3;
+            transform: translateY(-50%) translateX(6px) scaleY(0.92) scaleX(0.9);
           }
-          20% {
-            opacity: 1;
-          }
-          100% {
-            opacity: 0;
-            transform: translateX(65%) skewX(-12deg);
+          50% {
+            opacity: 0.82;
+            transform: translateY(-50%) translateX(-3px) scaleY(1.04) scaleX(1.06);
           }
         }
-        @keyframes introBurst {
-          0% {
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0.2);
+        @keyframes introLogoSideBeamLeft {
+          0%, 100% {
+            opacity: 0.28;
+            transform: translateY(-1.9rem) rotate(-18deg) scaleX(0.54);
           }
-          35% {
-            opacity: 1;
+          50% {
+            opacity: 0.96;
+            transform: translateY(-0.4rem) rotate(-8deg) scaleX(1);
+          }
+        }
+        @keyframes introLogoSideBeamRight {
+          0%, 100% {
+            opacity: 0.26;
+            transform: translateY(1.9rem) rotate(18deg) scaleX(0.54);
+          }
+          50% {
+            opacity: 0.94;
+            transform: translateY(0.4rem) rotate(8deg) scaleX(1);
+          }
+        }
+        @keyframes introSideRailLeft {
+          0%, 100% {
+            opacity: 0.18;
+            transform: translateX(0) scaleY(0.92);
+          }
+          50% {
+            opacity: 0.48;
+            transform: translateX(3px) scaleY(1.02);
+          }
+        }
+        @keyframes introSideRailRight {
+          0%, 100% {
+            opacity: 0.16;
+            transform: translateX(0) scaleY(0.9);
+          }
+          50% {
+            opacity: 0.42;
+            transform: translateX(-3px) scaleY(1.02);
+          }
+        }
+        @keyframes introSideFlareLeft {
+          0%, 100% {
+            opacity: 0.18;
+            transform: translateX(0) scaleX(0.88);
+          }
+          50% {
+            opacity: 0.42;
+            transform: translateX(0.8rem) scaleX(1.04);
+          }
+        }
+        @keyframes introSideFlareRight {
+          0%, 100% {
+            opacity: 0.14;
+            transform: translateX(0) scaleX(0.86);
+          }
+          50% {
+            opacity: 0.36;
+            transform: translateX(-0.9rem) scaleX(1.04);
+          }
+        }
+        @keyframes introDoorLeft {
+          0% {
+            transform: translateX(0);
           }
           100% {
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(1.7);
+            transform: translateX(-104%);
+          }
+        }
+        @keyframes introDoorRight {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(104%);
           }
         }
         @keyframes introLogoPulse {
           0% {
             opacity: 0;
-            transform: scale(0.7);
-            filter: blur(8px) drop-shadow(0 0 0 rgba(0, 153, 255, 0));
+            transform: translateZ(6px) scale(0.78) rotate(-5deg);
+            filter: blur(4px) drop-shadow(0 0 0 rgba(0, 153, 255, 0));
           }
           65% {
             opacity: 1;
-            transform: scale(1.08);
-            filter: blur(0) drop-shadow(0 0 22px rgba(0, 153, 255, 0.9));
+            transform: translateZ(48px) scale(1.06) rotate(1deg);
+            filter: blur(0) drop-shadow(0 0 16px rgba(0, 153, 255, 0.68));
           }
           100% {
-            transform: scale(1);
-            filter: blur(0) drop-shadow(0 0 16px rgba(0, 153, 255, 0.75));
+            transform: translateZ(42px) scale(1.01);
+            filter: blur(0) drop-shadow(0 0 12px rgba(0, 153, 255, 0.52));
+          }
+        }
+        @keyframes introLogoHover {
+          0%, 100% {
+            transform: translateZ(42px) translateY(0) scale(1.01);
+            filter: drop-shadow(0 0 12px rgba(0, 153, 255, 0.52));
+          }
+          50% {
+            transform: translateZ(50px) translateY(-4px) scale(1.03);
+            filter: drop-shadow(0 0 18px rgba(102, 219, 255, 0.68));
+          }
+        }
+        @keyframes introLogoFloat {
+          0%, 100% {
+            transform: rotateX(12deg) rotateY(-14deg) translateY(0);
+          }
+          50% {
+            transform: rotateX(8deg) rotateY(12deg) translateY(-8px);
+          }
+        }
+        @keyframes introLogoAuraPulse {
+          0%, 100% {
+            transform: translate(-50%, -50%) scale(0.94);
+            opacity: 0.72;
+          }
+          50% {
+            transform: translate(-50%, -50%) scale(1.06);
+            opacity: 1;
+          }
+        }
+        @keyframes introBurstPulse {
+          0%, 100% {
+            transform: translate(-50%, -50%) scale(0.86);
+            opacity: 0.42;
+          }
+          50% {
+            transform: translate(-50%, -50%) scale(1.06);
+            opacity: 0.84;
+          }
+        }
+        @keyframes introBurstPulseInner {
+          0%, 100% {
+            transform: translate(-50%, -50%) scale(0.92);
+            opacity: 0.38;
+          }
+          50% {
+            transform: translate(-50%, -50%) scale(1.08);
+            opacity: 0.76;
+          }
+        }
+        @keyframes introGroundPulse {
+          0%, 100% {
+            transform: translateX(-50%) scaleX(0.88);
+            opacity: 0.74;
+          }
+          50% {
+            transform: translateX(-50%) scaleX(1.02);
+            opacity: 1;
+          }
+        }
+        @keyframes introShardDriftA {
+          0%, 100% {
+            transform: translate(1.6rem, -4.2rem) rotate(-20deg) scaleX(0.86);
+            opacity: 0.26;
+          }
+          50% {
+            transform: translate(2.4rem, -4.9rem) rotate(-12deg) scaleX(1.12);
+            opacity: 0.58;
+          }
+        }
+        @keyframes introShardDriftB {
+          0%, 100% {
+            transform: translate(-7.8rem, -1.6rem) rotate(198deg) scaleX(0.82);
+            opacity: 0.18;
+          }
+          50% {
+            transform: translate(-8.5rem, -2.3rem) rotate(206deg) scaleX(1.08);
+            opacity: 0.48;
+          }
+        }
+        @keyframes introShardDriftC {
+          0%, 100% {
+            transform: translate(2.8rem, 5.4rem) rotate(32deg) scaleX(0.86);
+            opacity: 0.18;
+          }
+          50% {
+            transform: translate(3.4rem, 6rem) rotate(38deg) scaleX(1.08);
+            opacity: 0.44;
+          }
+        }
+        @keyframes introShardDriftD {
+          0%, 100% {
+            transform: translate(-6.6rem, 4.1rem) rotate(152deg) scaleX(0.8);
+            opacity: 0.16;
+          }
+          50% {
+            transform: translate(-7.2rem, 4.8rem) rotate(160deg) scaleX(1.04);
+            opacity: 0.42;
+          }
+        }
+        @keyframes introOrbitSpin {
+          0% {
+            transform: translate(-50%, -50%) rotateX(74deg) rotateZ(0deg);
+          }
+          100% {
+            transform: translate(-50%, -50%) rotateX(74deg) rotateZ(360deg);
+          }
+        }
+        @keyframes introOrbitSpinReverse {
+          0% {
+            transform: translate(-50%, -50%) rotateX(74deg) rotateZ(22deg);
+          }
+          100% {
+            transform: translate(-50%, -50%) rotateX(74deg) rotateZ(-338deg);
+          }
+        }
+        @keyframes introLogoSheen {
+          0% {
+            opacity: 0;
+            transform: translate3d(-56%, 0, 28px) rotate(8deg);
+          }
+          18% {
+            opacity: 0.88;
+          }
+          52% {
+            opacity: 0;
+            transform: translate3d(56%, 0, 28px) rotate(8deg);
+          }
+          100% {
+            opacity: 0;
+            transform: translate3d(56%, 0, 28px) rotate(8deg);
+          }
+        }
+        @keyframes introSparkOrbitA {
+          0% {
+            transform: translate(-1rem, 0.2rem) scale(0.2);
+            opacity: 0;
+          }
+          18% {
+            opacity: 1;
+          }
+          100% {
+            transform: translate(7rem, -4.6rem) scale(1);
+            opacity: 0;
+          }
+        }
+        @keyframes introSparkOrbitB {
+          0% {
+            transform: translate(0.4rem, -0.8rem) scale(0.2);
+            opacity: 0;
+          }
+          16% {
+            opacity: 1;
+          }
+          100% {
+            transform: translate(-6.2rem, -5.4rem) scale(0.9);
+            opacity: 0;
+          }
+        }
+        @keyframes introSparkOrbitC {
+          0% {
+            transform: translate(-0.2rem, 0.6rem) scale(0.2);
+            opacity: 0;
+          }
+          20% {
+            opacity: 1;
+          }
+          100% {
+            transform: translate(6rem, 5.4rem) scale(1);
+            opacity: 0;
+          }
+        }
+        @keyframes introSparkOrbitD {
+          0% {
+            transform: translate(0.2rem, 0.2rem) scale(0.2);
+            opacity: 0;
+          }
+          18% {
+            opacity: 1;
+          }
+          100% {
+            transform: translate(-5.8rem, 5rem) scale(0.95);
+            opacity: 0;
           }
         }
         @keyframes blink {
@@ -6065,6 +6964,73 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         .video-carousel-meta-switch--from-left-a,
         .video-carousel-meta-switch--from-left-b {
           animation: videoCarouselMetaFromLeft 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .motion-lite .intro-door-left-open,
+        .motion-lite .intro-door-right-open {
+          animation-duration: ${INTRO_DOOR_OPEN_MOTION_LITE_MS}ms;
+        }
+        .motion-lite .intro-logo-mark {
+          animation: introLogoPulse ${INTRO_LOGO_PULSE_MOTION_LITE_MS}ms ease-out forwards !important;
+          filter: drop-shadow(0 0 10px rgba(0, 153, 255, 0.38));
+        }
+        .motion-lite .intro-logo-shell {
+          animation: none !important;
+          transform: rotateX(8deg) rotateY(-10deg);
+          box-shadow: 0 18px 34px rgba(0, 0, 0, 0.3), 0 0 18px rgba(0, 153, 255, 0.14), inset 0 0 12px rgba(255, 255, 255, 0.05);
+        }
+        .motion-lite .intro-logo-aura-back,
+        .motion-lite .intro-logo-aura-front,
+        .motion-lite .intro-logo-ground,
+        .motion-lite .intro-logo-ring,
+        .motion-lite .intro-logo-sidewash,
+        .motion-lite .intro-logo-sidebeam,
+        .motion-lite .intro-logo-burst,
+        .motion-lite .intro-logo-shard,
+        .motion-lite .intro-logo-spark,
+        .motion-lite .intro-atmosphere-grid,
+        .motion-lite .intro-atmosphere-haze,
+        .motion-lite .intro-atmosphere-beam,
+        .motion-lite .intro-side-rail,
+        .motion-lite .intro-side-flare {
+          animation: none !important;
+        }
+        .motion-lite .intro-logo-shell::after {
+          animation: none !important;
+          opacity: 0.18;
+        }
+        .motion-lite .intro-atmosphere-grid {
+          opacity: 0.06;
+        }
+        .motion-lite .intro-logo-burst-outer,
+        .motion-lite .intro-logo-burst-inner,
+        .motion-lite .intro-logo-sidewash,
+        .motion-lite .intro-logo-sidebeam,
+        .motion-lite .intro-logo-shard,
+        .motion-lite .intro-logo-spark,
+        .motion-lite .intro-atmosphere-beam,
+        .motion-lite .intro-side-rail,
+        .motion-lite .intro-side-flare {
+          opacity: 0.12;
+        }
+        .motion-lite .video-carousel-stage-sweep,
+        .motion-lite .video-carousel-stage-sweep--from-right-a,
+        .motion-lite .video-carousel-stage-sweep--from-right-b,
+        .motion-lite .video-carousel-stage-sweep--from-left-a,
+        .motion-lite .video-carousel-stage-sweep--from-left-b,
+        .motion-lite .video-carousel-track-shift--to-left-a,
+        .motion-lite .video-carousel-track-shift--to-left-b,
+        .motion-lite .video-carousel-track-shift--to-right-a,
+        .motion-lite .video-carousel-track-shift--to-right-b,
+        .motion-lite .video-carousel-card-active--from-right,
+        .motion-lite .video-carousel-card-active--from-left,
+        .motion-lite .video-carousel-card-glow,
+        .motion-lite .video-carousel-meta-switch--from-right-a,
+        .motion-lite .video-carousel-meta-switch--from-right-b,
+        .motion-lite .video-carousel-meta-switch--from-left-a,
+        .motion-lite .video-carousel-meta-switch--from-left-b,
+        .motion-lite .video-carousel-meta-switch--from-right,
+        .motion-lite .video-carousel-meta-switch--from-left {
+          animation: none !important;
         }
         @keyframes videoCarouselSweepFromRight {
           0% {

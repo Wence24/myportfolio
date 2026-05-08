@@ -10,16 +10,17 @@ type AuroraBackgroundDemoProps = {
   isVisible?: boolean;
   onViewPortfolio: () => void;
   onContact: () => void;
+  motionLite?: boolean;
 };
 
 const heroRoles = [
   {
-    title: "Video Editor",
-    gradient: "from-[#97efff] via-[#67b8ff] to-[#8e82ff]",
-  },
-  {
     title: "Graphic Designer",
     gradient: "from-[#b7f6ff] via-[#72c4ff] to-[#6784ff]",
+  },
+  {
+    title: "Video Editor",
+    gradient: "from-[#97efff] via-[#67b8ff] to-[#8e82ff]",
   },
   {
     title: "Website Developer",
@@ -37,38 +38,62 @@ export default function AuroraBackgroundDemo({
   isVisible = true,
   onViewPortfolio,
   onContact,
+  motionLite = false,
 }: AuroraBackgroundDemoProps) {
   const [roleIndex, setRoleIndex] = useState(0);
 
   useEffect(() => {
+    if (!isVisible) return;
+
     const intervalId = window.setInterval(() => {
       setRoleIndex((currentIndex) => (currentIndex + 1) % heroRoles.length);
-    }, 2200);
+    }, motionLite ? 3600 : 2800);
 
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [isVisible, motionLite]);
 
   const activeRole = heroRoles[roleIndex];
   return (
-    <AuroraBackground className="min-h-[100vh] sm:min-h-[102vh] lg:min-h-[104vh]">
+    <AuroraBackground
+      className="min-h-[100vh] sm:min-h-[102vh] lg:min-h-[104vh]"
+      motionLite={motionLite}
+    >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(116,228,255,0.16),transparent_24%),radial-gradient(circle_at_20%_32%,rgba(82,169,255,0.1),transparent_20%),radial-gradient(circle_at_82%_28%,rgba(124,132,255,0.12),transparent_22%)]" />
-      <div className="pointer-events-none absolute left-[12%] top-[18%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(118,233,255,0.24)_0%,transparent_72%)] blur-3xl" />
-      <div className="pointer-events-none absolute right-[10%] top-[22%] h-24 w-24 rounded-full bg-[radial-gradient(circle,rgba(116,126,255,0.18)_0%,transparent_74%)] blur-3xl" />
-      <div className="pointer-events-none absolute inset-x-[-4%] bottom-[-6rem] h-[28rem] bg-[linear-gradient(180deg,rgba(7,12,18,0)_0%,rgba(7,12,18,0.06)_18%,rgba(9,16,25,0.15)_38%,rgba(28,64,95,0.16)_58%,rgba(8,13,20,0.1)_78%,rgba(9,14,21,0)_100%)] blur-3xl" />
-      <div className="pointer-events-none absolute inset-x-[5%] bottom-[-5.5rem] h-52 bg-[radial-gradient(ellipse_at_center,rgba(70,145,192,0.16)_0%,rgba(70,145,192,0.08)_32%,rgba(10,18,28,0.1)_56%,transparent_82%)] blur-[56px] opacity-100" />
-      <div className="pointer-events-none absolute inset-x-[14%] bottom-[8%] h-[3px] rounded-full bg-[linear-gradient(90deg,rgba(100,120,255,0),rgba(84,184,255,0.3),rgba(132,240,255,0.5),rgba(84,184,255,0.3),rgba(100,120,255,0))] opacity-34 shadow-[0_0_18px_rgba(84,184,255,0.12)]" />
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-0",
+          motionLite
+            ? "bg-[radial-gradient(circle_at_50%_18%,rgba(116,228,255,0.12),transparent_22%),radial-gradient(circle_at_20%_32%,rgba(82,169,255,0.07),transparent_18%),radial-gradient(circle_at_82%_28%,rgba(124,132,255,0.08),transparent_20%)]"
+            : "bg-[radial-gradient(circle_at_50%_18%,rgba(116,228,255,0.16),transparent_24%),radial-gradient(circle_at_20%_32%,rgba(82,169,255,0.1),transparent_20%),radial-gradient(circle_at_82%_28%,rgba(124,132,255,0.12),transparent_22%)]"
+        )}
+      />
+      {!motionLite && (
+        <>
+          <div className="pointer-events-none absolute left-[12%] top-[18%] h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(118,233,255,0.24)_0%,transparent_72%)] blur-3xl" />
+          <div className="pointer-events-none absolute right-[10%] top-[22%] h-24 w-24 rounded-full bg-[radial-gradient(circle,rgba(116,126,255,0.18)_0%,transparent_74%)] blur-3xl" />
+          <div className="pointer-events-none absolute inset-x-[-4%] bottom-[-6rem] h-[28rem] bg-[linear-gradient(180deg,rgba(7,12,18,0)_0%,rgba(7,12,18,0.06)_18%,rgba(9,16,25,0.15)_38%,rgba(28,64,95,0.16)_58%,rgba(8,13,20,0.1)_78%,rgba(9,14,21,0)_100%)] blur-3xl" />
+          <div className="pointer-events-none absolute inset-x-[5%] bottom-[-5.5rem] h-52 bg-[radial-gradient(ellipse_at_center,rgba(70,145,192,0.16)_0%,rgba(70,145,192,0.08)_32%,rgba(10,18,28,0.1)_56%,transparent_82%)] blur-[56px] opacity-100" />
+        </>
+      )}
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-x-[14%] bottom-[8%] h-[3px] rounded-full bg-[linear-gradient(90deg,rgba(100,120,255,0),rgba(84,184,255,0.3),rgba(132,240,255,0.5),rgba(84,184,255,0.3),rgba(100,120,255,0))]",
+          motionLite
+            ? "opacity-24 shadow-[0_0_12px_rgba(84,184,255,0.08)]"
+            : "opacity-34 shadow-[0_0_18px_rgba(84,184,255,0.12)]"
+        )}
+      />
 
       <motion.div
         initial={false}
         animate={isVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 32 }}
-        transition={{ duration: 0.76, ease: "easeOut" }}
+        transition={{ duration: motionLite ? 0.46 : 0.76, ease: "easeOut" }}
         className="relative flex min-h-[100vh] flex-col items-center justify-start px-5 pt-[8vh] pb-16 text-center sm:min-h-[102vh] sm:px-8 sm:pt-[9vh] sm:pb-20 lg:min-h-[104vh] lg:px-12 lg:pt-[10vh] lg:pb-24"
       >
         <motion.div
           initial={false}
           animate={isVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 18 }}
-          transition={{ duration: 0.56, delay: 0.1, ease: "easeOut" }}
+          transition={{ duration: motionLite ? 0.34 : 0.56, delay: 0.1, ease: "easeOut" }}
           className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#c8f3ff]"
         >
           <Sparkles className="h-3.5 w-3.5" />
@@ -87,10 +112,18 @@ export default function AuroraBackgroundDemo({
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
                 key={activeRole.title}
-                initial={{ opacity: 0, y: 18, filter: "blur(10px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                exit={{ opacity: 0, y: -18, filter: "blur(10px)" }}
-                transition={{ duration: 0.42, ease: "easeInOut" }}
+                initial={{
+                  opacity: 0,
+                  y: motionLite ? 10 : 18,
+                  scale: motionLite ? 0.99 : 0.985,
+                }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{
+                  opacity: 0,
+                  y: motionLite ? -10 : -18,
+                  scale: motionLite ? 0.99 : 0.985,
+                }}
+                transition={{ duration: motionLite ? 0.26 : 0.38, ease: "easeInOut" }}
                 className={cn(
                   "block bg-gradient-to-r bg-clip-text text-transparent",
                   activeRole.gradient
@@ -106,7 +139,7 @@ export default function AuroraBackgroundDemo({
         <motion.p
           initial={false}
           animate={isVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 18 }}
-          transition={{ duration: 0.62, delay: 0.2, ease: "easeOut" }}
+          transition={{ duration: motionLite ? 0.38 : 0.62, delay: 0.18, ease: "easeOut" }}
           className="mx-auto mt-10 max-w-3xl text-sm leading-7 text-white/68 sm:text-base lg:text-[1.08rem]"
         >
           Clean edits, stronger visuals, and modern WordPress-style website builds for
@@ -116,7 +149,7 @@ export default function AuroraBackgroundDemo({
         <motion.div
           initial={false}
           animate={isVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
-          transition={{ duration: 0.62, delay: 0.28, ease: "easeOut" }}
+          transition={{ duration: motionLite ? 0.4 : 0.62, delay: 0.24, ease: "easeOut" }}
           className="mt-8 flex flex-wrap items-center justify-center gap-3"
         >
           <button
@@ -140,7 +173,7 @@ export default function AuroraBackgroundDemo({
         <motion.div
           initial={false}
           animate={isVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.62, delay: 0.36, ease: "easeOut" }}
+          transition={{ duration: motionLite ? 0.42 : 0.62, delay: 0.3, ease: "easeOut" }}
           className="mt-10 flex max-w-3xl flex-wrap items-center justify-center gap-3"
         >
           {servicePills.map((pill) => (
