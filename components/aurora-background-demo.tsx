@@ -15,12 +15,12 @@ type AuroraBackgroundDemoProps = {
 
 const heroRoles = [
   {
-    title: "Graphic Designer",
-    gradient: "from-[#b7f6ff] via-[#72c4ff] to-[#6784ff]",
-  },
-  {
     title: "Video Editor",
     gradient: "from-[#97efff] via-[#67b8ff] to-[#8e82ff]",
+  },
+  {
+    title: "Graphic Designer",
+    gradient: "from-[#b7f6ff] via-[#72c4ff] to-[#6784ff]",
   },
   {
     title: "Website Developer",

@@ -11,6 +11,7 @@ import {
   EXPERIENCE_UPDATED_EVENT,
   normalizeExperienceEntries,
   parseExperienceEntries,
+  sanitizeExperienceImage,
   ensureSupabaseConfigured,
   PORTFOLIO_CONTENT_UPDATED_AT_KEY,
   PORTFOLIO_SYNC_CHANNEL_NAME,
@@ -44,7 +45,7 @@ type PortfolioProject = {
   };
 };
 
-type PortfolioCategory = "Graphic Design" | "Video Edit" | "Certificates";
+type PortfolioCategory = "Graphic Design" | "Video Edit" | "Websites";
 type PortfolioProjects = Record<PortfolioCategory, PortfolioProject[]>;
 
 type ProjectForm = {
@@ -83,7 +84,7 @@ type VideoProjectAspectRatio = "landscape" | "portrait";
 const categories: PortfolioCategory[] = [
   "Graphic Design",
   "Video Edit",
-  "Certificates",
+  "Websites",
 ];
 
 const STUDIO_AUTH_KEY = "portfolio-studio-auth";
@@ -348,7 +349,7 @@ const fallbackProjects: PortfolioProjects = {
     },
   ],
   "Video Edit": [],
-  Certificates: [],
+  Websites: [],
 };
 
 const fallbackTestimonials: Testimonial[] = [
@@ -451,9 +452,11 @@ function normalizeProjects(value: unknown): PortfolioProjects {
     "Video Edit": Array.isArray(raw["Video Edit"])
       ? (raw["Video Edit"] as PortfolioProject[])
       : [],
-    Certificates: Array.isArray(raw.Certificates)
-      ? (raw.Certificates as PortfolioProject[])
-      : [],
+    Websites: Array.isArray(raw.Websites)
+      ? (raw.Websites as PortfolioProject[])
+      : Array.isArray(raw.Certificates)
+        ? (raw.Certificates as PortfolioProject[])
+        : [],
   };
 }
 
@@ -1255,23 +1258,28 @@ export default function StudioPage() {
   const persistExperienceEntries = async (
     nextExperienceEntries: CreativeExperienceEntry[]
   ) => {
-    setExperienceEntries(nextExperienceEntries);
-    setSavedExperienceEntries(nextExperienceEntries);
-    experienceEntriesRef.current = nextExperienceEntries;
+    const sanitizedExperienceEntries = nextExperienceEntries.map((entry) => ({
+      ...entry,
+      image: sanitizeExperienceImage(entry.image),
+    }));
+
+    setExperienceEntries(sanitizedExperienceEntries);
+    setSavedExperienceEntries(sanitizedExperienceEntries);
+    experienceEntriesRef.current = sanitizedExperienceEntries;
     if (typeof window === "undefined") return;
     const updatedAt = new Date().toISOString();
     persistPortfolioUpdatedAt(updatedAt);
     persistExperienceUpdatedAt(updatedAt);
     window.localStorage.setItem(
       EXPERIENCE_STORAGE_KEY,
-      JSON.stringify(nextExperienceEntries)
+      JSON.stringify(sanitizedExperienceEntries)
     );
     window.dispatchEvent(new Event(EXPERIENCE_UPDATED_EVENT));
     if (typeof BroadcastChannel !== "undefined") {
       const channel = new BroadcastChannel(PORTFOLIO_SYNC_CHANNEL_NAME);
       channel.postMessage({
         type: "experience-updated",
-        experienceEntries: nextExperienceEntries,
+        experienceEntries: sanitizedExperienceEntries,
         updatedAt,
       });
       channel.close();
@@ -1279,7 +1287,7 @@ export default function StudioPage() {
     return savePortfolioContentToSupabase({
       projects,
       testimonials,
-      experienceEntries: nextExperienceEntries,
+      experienceEntries: sanitizedExperienceEntries,
     });
   };
 
@@ -1287,7 +1295,7 @@ export default function StudioPage() {
     setExperienceEntries((currentEntries) =>
       {
         const nextEntries = currentEntries.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, image: value } : item
+        itemIndex === index ? { ...item, image: sanitizeExperienceImage(value) } : item
         );
         experienceEntriesRef.current = nextEntries;
         return nextEntries;

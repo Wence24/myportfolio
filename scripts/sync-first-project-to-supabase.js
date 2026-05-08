@@ -69,7 +69,7 @@ async function run() {
       },
     ],
     "Video Edit": [],
-    Certificates: [],
+    Websites: [],
   };
 
   const { data: existingRow, error: readError } = await supabase

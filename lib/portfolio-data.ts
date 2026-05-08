@@ -20,7 +20,7 @@ export type PortfolioProject = {
   };
 };
 
-export type PortfolioCategory = "Graphic Design" | "Video Edit" | "Certificates";
+export type PortfolioCategory = "Graphic Design" | "Video Edit" | "Websites";
 export type PortfolioProjects = Record<PortfolioCategory, PortfolioProject[]>;
 
 export type Testimonial = {
@@ -37,6 +37,24 @@ export type CreativeExperienceEntry = {
   summary: string;
   tags: string[];
   image: string;
+};
+
+const BLOCKED_EXPERIENCE_IMAGE_BASENAMES = new Set(["wenshe.png"]);
+
+export const sanitizeExperienceImage = (value: string) => {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return "";
+  }
+
+  const normalizedValue = trimmedValue
+    .replace(/\\/g, "/")
+    .split("#")[0]
+    .split("?")[0]
+    .toLowerCase();
+  const basename = normalizedValue.slice(normalizedValue.lastIndexOf("/") + 1);
+
+  return BLOCKED_EXPERIENCE_IMAGE_BASENAMES.has(basename) ? "" : trimmedValue;
 };
 
 export type PortfolioContent = {
@@ -88,7 +106,7 @@ export const defaultPortfolioProjects: PortfolioProjects = {
     },
   ],
   "Video Edit": [],
-  Certificates: [],
+  Websites: [],
 };
 
 export const defaultTestimonials: Testimonial[] = [
@@ -299,9 +317,11 @@ export const normalizeProjects = (value: unknown): PortfolioProjects => {
     "Video Edit": Array.isArray(raw["Video Edit"])
       ? (raw["Video Edit"] as PortfolioProject[])
       : [],
-    Certificates: Array.isArray(raw.Certificates)
-      ? (raw.Certificates as PortfolioProject[])
-      : [],
+    Websites: Array.isArray(raw.Websites)
+      ? (raw.Websites as PortfolioProject[])
+      : Array.isArray(raw.Certificates)
+        ? (raw.Certificates as PortfolioProject[])
+        : [],
   };
 };
 
@@ -381,7 +401,7 @@ export const parseExperienceEntries = (
         client: raw.client,
         period: raw.period,
         summary: raw.summary,
-        image: raw.image,
+        image: sanitizeExperienceImage(raw.image),
         tags,
       };
     })

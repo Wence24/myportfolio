@@ -65,7 +65,7 @@ const INTRO_BACKDROP_FADE_MS = 420;
 const INTRO_ATMOSPHERE_FADE_MS = 320;
 const INTRO_LOGO_PULSE_MS = 1480;
 const INTRO_LOGO_PULSE_MOTION_LITE_MS = 1080;
-type PortfolioCategoryName = "Graphic Design" | "Video Edit" | "Certificates";
+type PortfolioCategoryName = "Graphic Design" | "Video Edit" | "Websites";
 
 type AboutExperienceSectionProps = {
   aboutRef: React.RefObject<HTMLDivElement | null>;
@@ -1202,7 +1202,7 @@ const [selectedCategoryProjectIndexes, setSelectedCategoryProjectIndexes] = useS
 >({
   "Video Edit": 0,
   "Graphic Design": 0,
-  Certificates: 0,
+  Websites: 0,
 });
 
 const portfolioCategories = [
@@ -1217,9 +1217,9 @@ const portfolioCategories = [
     description: "Poster systems, visual branding, and polished design work.",
   },
   {
-    name: "Certificates",
-    icon: Medal,
-    description: "Proof of learning, milestones, and validated skill growth.",
+    name: "Websites",
+    icon: Globe,
+    description: "Landing pages, web builds, and polished interactive experiences.",
   },
 ] as const;
 
@@ -2161,7 +2161,7 @@ const initialPortfolioProjects: Record<string, PortfolioProject[]> = {
     },
   ],
   "Video Edit": [],
-  Certificates: [],
+  Websites: [],
 };
 
 const [portfolioProjects, setPortfolioProjects] = useState<Record<string, PortfolioProject[]>>(
@@ -2202,7 +2202,11 @@ const normalizeStoredProjects = (value: unknown): Record<string, PortfolioProjec
       ? (raw["Graphic Design"] as PortfolioProject[])
       : [],
     "Video Edit": Array.isArray(raw["Video Edit"]) ? (raw["Video Edit"] as PortfolioProject[]) : [],
-    Certificates: Array.isArray(raw.Certificates) ? (raw.Certificates as PortfolioProject[]) : [],
+    Websites: Array.isArray(raw.Websites)
+      ? (raw.Websites as PortfolioProject[])
+      : Array.isArray(raw.Certificates)
+        ? (raw.Certificates as PortfolioProject[])
+        : [],
   };
 };
 
@@ -3148,7 +3152,7 @@ useEffect(() => {
 useEffect(() => {
   if (!isContactFormVisible || !shouldFocusContactMessageRef.current) return;
 
-  const focusTimer = setTimeout(() => {
+  const focusContactMessage = () => {
     contactMessageCardRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "center",
@@ -3157,7 +3161,9 @@ useEffect(() => {
     const messageLength = contactMessageRef.current?.value.length ?? 0;
     contactMessageRef.current?.setSelectionRange(messageLength, messageLength);
     shouldFocusContactMessageRef.current = false;
-  }, 180);
+  };
+
+  const focusTimer = setTimeout(focusContactMessage, 180);
 
   return () => clearTimeout(focusTimer);
 }, [isContactFormVisible]);
@@ -3351,7 +3357,9 @@ const updateContactField = (field: keyof ContactFormState, value: string) => {
 };
 
 const openContactFormPanel = (options?: { focusMessage?: boolean }) => {
-  if (options?.focusMessage) {
+  const shouldFocusMessage = options?.focusMessage === true;
+
+  if (shouldFocusMessage) {
     shouldFocusContactMessageRef.current = true;
   }
 
@@ -3361,6 +3369,17 @@ const openContactFormPanel = (options?: { focusMessage?: boolean }) => {
   });
   setShowRates(false);
   setShowContactForm(true);
+
+  if (shouldFocusMessage && isContactFormVisible) {
+    contactMessageCardRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    contactMessageRef.current?.focus();
+    const messageLength = contactMessageRef.current?.value.length ?? 0;
+    contactMessageRef.current?.setSelectionRange(messageLength, messageLength);
+    shouldFocusContactMessageRef.current = false;
+  }
 };
 
 const closeContactFormPanel = () => {
@@ -3397,6 +3416,11 @@ const toggleRatesPanel = () => {
     setActiveRateCategory("video-edit");
   }
   setShowRates(true);
+};
+
+const openContactMessageForm = () => {
+  scrollToSection(contactRef);
+  openContactFormPanel({ focusMessage: true });
 };
 
 const inferVideoEditTypeFromRateLabel = (label: string) => {
@@ -3521,11 +3545,11 @@ const selectedCategoryProjectIndex = !isVideoEditShowcase
 const spotlightCategoryProject = !isVideoEditShowcase
   ? activeProjects[selectedCategoryProjectIndex] ?? null
   : null;
-const totalCertificates = portfolioProjects.Certificates?.length || 0;
+const totalWebsites = portfolioProjects.Websites?.length || 0;
 const categoryProjectCounts = {
   "Video Edit": videoProjectGroups.length,
   "Graphic Design": portfolioProjects["Graphic Design"]?.length || 0,
-  Certificates: totalCertificates,
+  Websites: totalWebsites,
 } as const;
 const activeCategoryMeta =
   portfolioCategories.find((item) => item.name === activeBox) ?? portfolioCategories[0];
@@ -3669,68 +3693,139 @@ const activeRateSections =
 const creativeTools = [
   {
     name: "Adobe Premiere Pro",
+    shortName: "Premiere Pro",
+    description: "Main timeline for cuts, pacing, captions, and polished final exports.",
     icon: SiAdobepremierepro,
-    description:
-      "My main workspace for pacing, story cuts, transitions, audio cleanup, and polished final exports.",
-    accent: "#a78bfa",
-    glow: "rgba(126, 34, 206, 0.18)",
+    featured: true,
+    accent: "#b895ff",
+    iconBrandColor: "#9999FF",
+    glow: "rgba(124, 58, 237, 0.28)",
     badgeBackground:
-      "linear-gradient(135deg, rgba(32, 10, 58, 0.98), rgba(95, 38, 181, 0.96))",
-    badgeBorder: "rgba(201, 168, 255, 0.34)",
+      "linear-gradient(145deg, rgba(35, 12, 70, 0.98), rgba(113, 72, 228, 0.96))",
+    badgeBorder: "rgba(224, 206, 255, 0.34)",
     panelBackground:
-      "linear-gradient(135deg, rgba(72, 31, 128, 0.26), rgba(8, 11, 20, 0.88) 64%)",
+      "linear-gradient(160deg, rgba(71, 28, 131, 0.44) 0%, rgba(19, 17, 38, 0.9) 42%, rgba(6, 12, 22, 0.98) 100%)",
+    accentBeam:
+      "radial-gradient(circle at 50% 12%, rgba(184, 149, 255, 0.18) 0%, rgba(184, 149, 255, 0.06) 24%, transparent 58%), linear-gradient(145deg, rgba(255, 255, 255, 0.08), transparent 38%, rgba(184, 149, 255, 0.14) 82%, transparent 100%)",
+    layoutClassName:
+      "sm:col-span-2 xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:place-self-center xl:-translate-x-46 xl:w-full xl:max-w-[30rem]",
+    shellClassName: "min-h-[250px] rounded-[32px] xl:min-h-[18rem]",
+    iconFrameClassName: "h-20 w-20 rounded-[24px] sm:h-[5.6rem] sm:w-[5.6rem]",
+    iconClassName: "h-10 w-10 sm:h-11 sm:w-11",
+    watermarkClassName: "h-28 w-28 sm:h-32 sm:w-32",
+    iconLaneClassName: "items-center justify-center",
+    footerClassName: "justify-center",
+    lift: "0px",
+    rotate: "0deg",
+    hoverRotate: "0deg",
   },
   {
     name: "Adobe Photoshop",
+    shortName: "Photoshop",
+    description: "Thumbnails, retouching, composites, and sharper visual finishing.",
     icon: SiAdobephotoshop,
-    description:
-      "Used for retouching, poster visuals, thumbnails, compositing, and sharpening the final look of a frame.",
+    featured: false,
     accent: "#6ee7ff",
-    glow: "rgba(14, 165, 233, 0.14)",
+    iconBrandColor: "#31A8FF",
+    glow: "rgba(14, 165, 233, 0.22)",
     badgeBackground:
-      "linear-gradient(135deg, rgba(3, 31, 54, 0.98), rgba(14, 116, 144, 0.96))",
+      "linear-gradient(145deg, rgba(5, 34, 58, 0.98), rgba(20, 127, 162, 0.96))",
     badgeBorder: "rgba(125, 233, 255, 0.3)",
     panelBackground:
-      "linear-gradient(135deg, rgba(10, 72, 108, 0.24), rgba(8, 11, 20, 0.88) 66%)",
+      "linear-gradient(155deg, rgba(8, 68, 108, 0.32) 0%, rgba(9, 22, 36, 0.92) 52%, rgba(5, 11, 21, 0.98) 100%)",
+    accentBeam:
+      "radial-gradient(circle at 22% 18%, rgba(110, 231, 255, 0.18) 0%, rgba(110, 231, 255, 0.06) 22%, transparent 54%), linear-gradient(155deg, rgba(255, 255, 255, 0.06), transparent 34%, rgba(110, 231, 255, 0.1) 84%, transparent 100%)",
+    layoutClassName: "xl:col-start-1 xl:row-start-1",
+    shellClassName: "min-h-[250px] rounded-[32px] xl:min-h-[18rem]",
+    iconFrameClassName: "h-20 w-20 rounded-[24px] sm:h-[5.6rem] sm:w-[5.6rem]",
+    iconClassName: "h-10 w-10 sm:h-11 sm:w-11",
+    watermarkClassName: "h-28 w-28 sm:h-32 sm:w-32",
+    iconLaneClassName: "items-start justify-start",
+    footerClassName: "justify-between",
+    lift: "-6px",
+    rotate: "-4.8deg",
+    hoverRotate: "-2deg",
   },
   {
     name: "Adobe After Effects",
+    shortName: "After Effects",
+    description: "Motion graphics, transitions, and layered animation for extra impact.",
     icon: SiAdobeaftereffects,
-    description:
-      "For motion graphics, transitions, layered animation, and adding cinematic movement that elevates an edit.",
-    accent: "#d8b4fe",
-    glow: "rgba(168, 85, 247, 0.14)",
+    featured: false,
+    accent: "#e2b7ff",
+    iconBrandColor: "#CF96FD",
+    glow: "rgba(168, 85, 247, 0.22)",
     badgeBackground:
-      "linear-gradient(135deg, rgba(28, 14, 56, 0.98), rgba(107, 55, 176, 0.96))",
-    badgeBorder: "rgba(227, 197, 255, 0.28)",
+      "linear-gradient(145deg, rgba(29, 13, 60, 0.98), rgba(121, 60, 196, 0.96))",
+    badgeBorder: "rgba(233, 206, 255, 0.3)",
     panelBackground:
-      "linear-gradient(135deg, rgba(73, 35, 123, 0.24), rgba(8, 11, 20, 0.88) 66%)",
+      "linear-gradient(160deg, rgba(74, 31, 124, 0.32) 0%, rgba(22, 16, 38, 0.9) 48%, rgba(7, 12, 21, 0.98) 100%)",
+    accentBeam:
+      "radial-gradient(circle at 78% 18%, rgba(226, 183, 255, 0.16) 0%, rgba(226, 183, 255, 0.04) 24%, transparent 54%), linear-gradient(145deg, rgba(255, 255, 255, 0.05), transparent 34%, rgba(226, 183, 255, 0.12) 86%, transparent 100%)",
+    layoutClassName: "xl:col-start-3 xl:row-start-1",
+    shellClassName: "min-h-[250px] rounded-[32px] xl:min-h-[18rem]",
+    iconFrameClassName: "h-20 w-20 rounded-[24px] sm:h-[5.6rem] sm:w-[5.6rem]",
+    iconClassName: "h-10 w-10 sm:h-11 sm:w-11",
+    watermarkClassName: "h-28 w-28 sm:h-32 sm:w-32",
+    iconLaneClassName: "items-end justify-end",
+    footerClassName: "flex-row-reverse justify-between",
+    lift: "-2px",
+    rotate: "4.2deg",
+    hoverRotate: "1.5deg",
   },
   {
     name: "Canva",
     icon: SiCanva,
-    description:
-      "Great for rapid social graphics, clean layouts, client-ready mockups, and quick-turn visual concepts.",
+    shortName: "Canva",
+    description: "Fast layouts, social graphics, and quick client-ready concepts.",
+    featured: false,
     accent: "#7df9ff",
-    glow: "rgba(34, 211, 238, 0.13)",
+    iconBrandColor: "#00C4CC",
+    glow: "rgba(34, 211, 238, 0.2)",
     badgeBackground:
-      "linear-gradient(135deg, rgba(8, 58, 72, 0.98), rgba(9, 118, 138, 0.96))",
+      "linear-gradient(145deg, rgba(9, 63, 74, 0.98), rgba(12, 143, 162, 0.96))",
     badgeBorder: "rgba(154, 246, 255, 0.28)",
     panelBackground:
-      "linear-gradient(135deg, rgba(12, 88, 104, 0.22), rgba(8, 11, 20, 0.88) 68%)",
+      "linear-gradient(156deg, rgba(10, 92, 109, 0.28) 0%, rgba(10, 28, 35, 0.9) 52%, rgba(5, 12, 20, 0.98) 100%)",
+    accentBeam:
+      "radial-gradient(circle at 24% 80%, rgba(125, 249, 255, 0.16) 0%, rgba(125, 249, 255, 0.04) 24%, transparent 56%), linear-gradient(150deg, rgba(255, 255, 255, 0.05), transparent 30%, rgba(125, 249, 255, 0.12) 82%, transparent 100%)",
+    layoutClassName: "xl:col-start-1 xl:row-start-2",
+    shellClassName: "min-h-[235px] rounded-[30px] xl:min-h-[16.5rem]",
+    iconFrameClassName: "h-[4.8rem] w-[4.8rem] rounded-[22px] sm:h-[5.25rem] sm:w-[5.25rem]",
+    iconClassName: "h-9 w-9 sm:h-10 sm:w-10",
+    watermarkClassName: "h-24 w-24 sm:h-28 sm:w-28",
+    iconLaneClassName: "items-start justify-start",
+    footerClassName: "justify-between",
+    lift: "4px",
+    rotate: "-2.8deg",
+    hoverRotate: "-0.8deg",
   },
   {
     name: "Adobe Illustrator",
+    shortName: "Illustrator",
+    description: "Vector logos, icons, and clean scalable brand details.",
     icon: SiAdobeillustrator,
-    description:
-      "Used when a project needs crisp vector marks, icon work, title treatments, or scalable layout details.",
+    featured: false,
     accent: "#fdba74",
-    glow: "rgba(249, 115, 22, 0.13)",
+    iconBrandColor: "#FF9A00",
+    glow: "rgba(249, 115, 22, 0.2)",
     badgeBackground:
-      "linear-gradient(135deg, rgba(72, 29, 8, 0.98), rgba(154, 73, 12, 0.96))",
+      "linear-gradient(145deg, rgba(77, 31, 7, 0.98), rgba(168, 80, 12, 0.96))",
     badgeBorder: "rgba(255, 191, 116, 0.28)",
     panelBackground:
-      "linear-gradient(135deg, rgba(107, 51, 16, 0.22), rgba(8, 11, 20, 0.88) 68%)",
+      "linear-gradient(156deg, rgba(108, 50, 14, 0.28) 0%, rgba(34, 18, 11, 0.9) 52%, rgba(7, 11, 18, 0.98) 100%)",
+    accentBeam:
+      "radial-gradient(circle at 78% 78%, rgba(253, 186, 116, 0.16) 0%, rgba(253, 186, 116, 0.04) 24%, transparent 56%), linear-gradient(150deg, rgba(255, 255, 255, 0.05), transparent 30%, rgba(253, 186, 116, 0.12) 82%, transparent 100%)",
+    layoutClassName: "xl:col-start-3 xl:row-start-2",
+    shellClassName: "min-h-[235px] rounded-[30px] xl:min-h-[16.5rem]",
+    iconFrameClassName: "h-[4.8rem] w-[4.8rem] rounded-[22px] sm:h-[5.25rem] sm:w-[5.25rem]",
+    iconClassName: "h-9 w-9 sm:h-10 sm:w-10",
+    watermarkClassName: "h-24 w-24 sm:h-28 sm:w-28",
+    iconLaneClassName: "items-end justify-end",
+    footerClassName: "flex-row-reverse justify-between",
+    lift: "8px",
+    rotate: "3.1deg",
+    hoverRotate: "1deg",
   },
 ] as const;
 const creativeExperienceEntries = [
@@ -4060,7 +4155,7 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
         <AuroraBackgroundDemo
           isVisible={introDone || introDoorsOpen}
           onViewPortfolio={() => scrollToSection(portfolioRef)}
-          onContact={() => scrollToSection(contactRef)}
+          onContact={openContactMessageForm}
           motionLite={isMotionLite}
         />
         <div
@@ -4332,113 +4427,211 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
 
 <div className="relative mt-16 flex flex-col items-center overflow-visible transition-all duration-700 ease-out lg:mt-20">
   <div className="pointer-events-none absolute inset-0">
-    <div className="absolute left-[6%] top-[8%] h-52 w-52 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.1)_0%,transparent_72%)] blur-3xl" />
-    <div className="absolute right-[7%] bottom-[12%] h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(255,145,72,0.07)_0%,transparent_74%)] blur-3xl" />
+    <div className="absolute left-[4%] top-[8%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.12)_0%,transparent_72%)] blur-3xl" />
+    <div className="absolute right-[6%] bottom-[10%] h-60 w-60 rounded-full bg-[radial-gradient(circle,rgba(187,132,255,0.08)_0%,transparent_74%)] blur-3xl" />
     <div className="absolute inset-x-[14%] top-1/2 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
   </div>
 
-  <div
-    className={`${glassSectionClass} z-10 transition-[opacity,transform] duration-420 ease-out ${
-      showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-    }`}
-    style={{ transitionDelay: showAbout ? "0.2s" : "0s" }}
+  <section
+    aria-labelledby="creative-stack-heading"
+    className="relative z-10 mx-auto w-full max-w-7xl px-2 sm:px-4 lg:px-6"
   >
-    <GlowingEffect {...mainSectionGlowProps} className="z-[2]" />
-    <div className={glassSectionPanelClass}>
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        <div className="absolute right-[10%] top-[14%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,transparent_74%)] blur-3xl" />
+    <div className="space-y-8">
+      <div
+        className={`mx-auto max-w-3xl text-center transition-[opacity,transform] duration-500 ease-out ${
+          showAbout ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-5"
+        }`}
+      >
+        <span className="inline-flex items-center rounded-full border border-white/14 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#c7efff]">
+          Creative Stack
+        </span>
+        <h2
+          id="creative-stack-heading"
+          className="mt-6 text-3xl font-bold text-white sm:text-4xl lg:text-[3.15rem]"
+          style={{
+            fontFamily: "'CreatoDisplay', sans-serif",
+            letterSpacing: "0.03em",
+            textShadow: "0 0 18px rgba(0,153,255,0.14)",
+          }}
+        >
+          Tools behind the work.
+        </h2>
+        <div className="mx-auto mt-4 h-[4px] w-24 rounded-full bg-[linear-gradient(90deg,#6677ff_0%,#54b8ff_52%,#74ebff_100%)] shadow-[0_0_18px_rgba(84,184,255,0.42)]" />
+        <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-white/68 sm:text-base">
+          A small creative stack with a clear role for every part of the process,
+          from editing and motion to thumbnails, layouts, and vector detail.
+        </p>
       </div>
 
-      <div className={glassSectionInnerClass}>
-        <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-5 sm:p-6 lg:p-7">
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/16 to-transparent" />
-            <div className="absolute left-[12%] top-[14%] h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(0,153,255,0.08)_0%,transparent_72%)] blur-3xl" />
-            <div className="absolute right-[10%] bottom-[10%] h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(255,145,72,0.06)_0%,transparent_74%)] blur-3xl" />
-          </div>
+      <div
+        className={`creative-stack-showcase relative px-1 pb-4 pt-1 transition-[opacity,transform] duration-500 ease-out sm:px-2 sm:pb-6 lg:px-4 ${
+          showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+        } ${isMotionLite ? "creative-stack-showcase-lite" : ""}`}
+        style={{ transitionDelay: showAbout ? "0.1s" : "0s" }}
+      >
+        <div className="creative-stack-stage-noise absolute inset-0" />
+        <div className="creative-stack-stage-grid absolute inset-0" />
+        <div className="creative-stack-stage-glow creative-stack-stage-glow-left" />
+        <div className="creative-stack-stage-glow creative-stack-stage-glow-right" />
+        <div className="creative-stack-stage-beam creative-stack-stage-beam-a" />
+        <div className="creative-stack-stage-beam creative-stack-stage-beam-b" />
+        <div className="creative-stack-stage-arc creative-stack-stage-arc-top hidden xl:block" />
+        <div className="creative-stack-stage-arc creative-stack-stage-arc-bottom hidden xl:block" />
+        <div className="creative-stack-core pointer-events-none absolute inset-0 hidden xl:block">
+          <span className="creative-stack-core-bloom" />
+          <span className="creative-stack-core-orbit creative-stack-core-orbit-a" />
+          <span className="creative-stack-core-orbit creative-stack-core-orbit-b" />
+          <span className="creative-stack-core-orbit creative-stack-core-orbit-c" />
+          <span className="creative-stack-core-pillar" />
+        </div>
 
-          <div className="relative z-10">
-            <p className="text-xs uppercase tracking-[0.32em] text-[#8fdcff]">Creative Stack</p>
-            <h2
-              className="mt-4 text-3xl font-bold text-white sm:text-4xl"
-              style={{
-                fontFamily: "'CreatoDisplay', sans-serif",
-                letterSpacing: "0.03em",
-                textShadow: "0 0 10px rgba(0,153,255,0.11)",
-              }}
-            >
-              Creative tools I use.
-            </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/70 sm:text-base">
-              A small creative stack, but each tool has a clear role in how I cut, design,
-              animate, and finish a project.
-            </p>
+        <div className="relative z-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-[0.92fr_minmax(0,1.16fr)_0.92fr] xl:grid-rows-[minmax(15rem,1fr)_minmax(15rem,1fr)]">
+          {creativeTools.map((tool, index) => {
+            const ToolIcon = tool.icon;
+            const shellStyle = {
+              ["--creative-tool-lift" as string]: isMotionLite ? "0px" : tool.lift,
+              ["--creative-tool-rotate" as string]: isMotionLite ? "0deg" : tool.rotate,
+              ["--creative-tool-hover-rotate" as string]: isMotionLite ? "0deg" : tool.hoverRotate,
+              boxShadow: `0 24px 56px ${tool.glow}`,
+            } as React.CSSProperties;
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              {creativeTools.map((tool) => {
-                const ToolIcon = tool.icon;
-
-                return (
+            return (
+              <article
+                key={tool.name}
+                aria-label={tool.name}
+                className={`${tool.layoutClassName} transition-[opacity,transform] duration-500 ease-out ${
+                  showAbout ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+                }`}
+                style={{ transitionDelay: showAbout ? `${0.12 + index * 0.07}s` : "0s" }}
+              >
+                <div
+                  className={`creative-tool-shell group relative overflow-hidden border border-white/12 bg-[#060b14]/78 p-4 backdrop-blur-xl sm:p-5 ${tool.shellClassName} ${
+                    tool.featured ? "creative-tool-shell-featured xl:h-auto" : "h-full"
+                  }`}
+                  style={shellStyle}
+                >
                   <div
-                    key={tool.name}
-                    className="group relative min-h-[280px] overflow-hidden rounded-[28px] border border-white/12 p-5 backdrop-blur-xl transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:border-white/22"
+                    className="pointer-events-none absolute inset-0 opacity-95"
+                    style={{ background: tool.panelBackground }}
+                  />
+                  <div
+                    className="creative-tool-shell-beam pointer-events-none absolute inset-0"
+                    style={{ background: tool.accentBeam }}
+                  />
+                  <div className="creative-tool-shell-grid pointer-events-none absolute inset-0" />
+                  <div
+                    className="pointer-events-none absolute inset-x-0 top-0 h-px"
                     style={{
-                      background: tool.panelBackground,
-                      boxShadow: `0 18px 42px ${tool.glow}`,
+                      background: `linear-gradient(90deg, transparent, ${tool.badgeBorder}, transparent)`,
                     }}
-                  >
-                    <div className="pointer-events-none absolute inset-0">
-                      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/16 to-transparent" />
-                      <div
-                        className="absolute left-1/2 top-4 h-24 w-24 -translate-x-1/2 rounded-full blur-3xl opacity-90"
-                        style={{
-                          background: `radial-gradient(circle, ${tool.glow} 0%, transparent 72%)`,
-                        }}
-                      />
-                      <div
-                        className="absolute bottom-[-8%] right-[-6%] h-24 w-24 rounded-full border border-white/8"
-                        style={{ opacity: 0.5 }}
-                      />
-                      <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(rgba(255,255,255,0.14)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:20px_20px]" />
+                  />
+                  <div
+                    className="pointer-events-none absolute left-1/2 top-2 h-28 w-28 -translate-x-1/2 rounded-full blur-3xl"
+                    style={{
+                      background: `radial-gradient(circle, ${tool.glow} 0%, transparent 72%)`,
+                    }}
+                  />
+                  <div className="pointer-events-none absolute -bottom-8 right-[-8%] h-24 w-24 rounded-full border border-white/8 opacity-60" />
+
+                  {tool.featured ? (
+                    <div className="creative-tool-feature pointer-events-none absolute inset-0 hidden xl:block">
+                      <span className="creative-tool-feature-ring creative-tool-feature-ring-a" />
+                      <span className="creative-tool-feature-ring creative-tool-feature-ring-b" />
+                      <span className="creative-tool-feature-sheen" />
+                    </div>
+                  ) : null}
+
+                  <div className="relative z-10 flex h-full flex-col">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-white/44" />
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{
+                            backgroundColor: tool.accent,
+                            boxShadow: `0 0 12px ${tool.glow}`,
+                          }}
+                        />
+                      </div>
+                      <span className="rounded-full border border-white/12 bg-black/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/78 backdrop-blur-md">
+                        {tool.shortName}
+                      </span>
                     </div>
 
-                    <div className="relative z-10 flex h-full flex-col items-center text-center">
+                    <div
+                      className={`mt-6 flex ${tool.featured ? "flex-1 items-center justify-center pb-2" : tool.iconLaneClassName}`}
+                    >
+                        <div className="relative flex items-center justify-center">
+                          <div
+                            className={`relative flex items-center justify-center border ${tool.iconFrameClassName}`}
+                            style={{
+                              background:
+                                "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.09), rgba(7,15,26,0.76) 58%, rgba(3,8,14,0.94) 100%)",
+                              borderColor: "rgba(255,255,255,0.08)",
+                              boxShadow:
+                                "inset 0 1px 0 rgba(255,255,255,0.06), 0 16px 28px rgba(0,0,0,0.24)",
+                            }}
+                          >
+                          <ToolIcon
+                            className={tool.iconClassName}
+                            style={{
+                              color: tool.iconBrandColor,
+                              filter: `drop-shadow(0 0 12px ${tool.glow})`,
+                            }}
+                          />
+                          <div className="pointer-events-none absolute inset-[10px] rounded-[inherit] border border-white/10" />
+                        </div>
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.12]">
+                          <ToolIcon
+                            className={tool.watermarkClassName}
+                            style={{ color: tool.iconBrandColor }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={`mt-auto ${tool.featured ? "mx-auto max-w-md text-center" : ""}`}>
+                      <h3 className="text-lg font-semibold text-white sm:text-xl">
+                        {tool.name}
+                      </h3>
+                      <p className="mt-3 text-sm leading-relaxed text-white/68">
+                        {tool.description}
+                      </p>
+
                       <div
-                        className="flex h-16 w-16 items-center justify-center rounded-[20px] border sm:h-[72px] sm:w-[72px]"
-                        style={{
-                          background: tool.badgeBackground,
-                          borderColor: tool.badgeBorder,
-                          color: tool.accent,
-                          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 22px ${tool.glow}`,
-                        }}
+                        className={`mt-5 flex items-center gap-4 ${
+                          tool.featured ? "justify-center" : tool.footerClassName
+                        }`}
                       >
-                        <ToolIcon className="h-8 w-8 sm:h-9 sm:w-9" />
-                      </div>
-
-                      <div className="mt-6 min-w-0">
-                        <h3 className="text-lg font-semibold text-white sm:text-xl">{tool.name}</h3>
-                        <p className="mt-3 text-sm leading-relaxed text-white/72">
-                          {tool.description}
-                        </p>
-                      </div>
-
-                      <div className="mt-auto pt-8">
-                        <ToolIcon
-                          className="h-14 w-14 opacity-[0.12]"
-                          style={{ color: tool.accent }}
+                        <span
+                          className={`h-[2px] rounded-full ${
+                            tool.featured ? "w-14 sm:w-20" : "flex-1"
+                          }`}
+                          style={{
+                            background: `linear-gradient(90deg, rgba(255,255,255,0), ${tool.accent}, rgba(255,255,255,0))`,
+                            boxShadow: `0 0 16px ${tool.glow}`,
+                          }}
                         />
+                        {tool.featured ? (
+                          <span
+                            className="h-[2px] w-14 rounded-full sm:w-20"
+                            style={{
+                              background: `linear-gradient(90deg, rgba(255,255,255,0), ${tool.accent}, rgba(255,255,255,0))`,
+                              boxShadow: `0 0 16px ${tool.glow}`,
+                            }}
+                          />
+                        ) : null}
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </div>
-  </div>
-</div>
+    </div>
+  </section>
 </div>
 
 {/* ===== PORTFOLIO SHOWCASE SECTION ===== */}
@@ -7147,7 +7340,331 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
             transform: translate3d(0, 0, 0);
           }
         }
+        .creative-stack-showcase {
+          isolation: isolate;
+          overflow: visible;
+        }
+        .creative-stack-stage-noise {
+          inset: 3% 2% 7%;
+          border-radius: 2.4rem;
+          opacity: 0.1;
+          background:
+            radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.16) 0%, transparent 14%),
+            radial-gradient(circle at 78% 76%, rgba(255, 255, 255, 0.12) 0%, transparent 12%),
+            radial-gradient(circle at 50% 48%, rgba(255, 255, 255, 0.08) 0%, transparent 8%),
+            radial-gradient(circle at 50% 50%, rgba(10, 22, 38, 0.72) 0%, rgba(8, 14, 24, 0.32) 42%, transparent 78%);
+          pointer-events: none;
+        }
+        .creative-stack-stage-grid {
+          inset: 4% 3% 8%;
+          border-radius: 2.4rem;
+          opacity: 0.06;
+          background-image:
+            linear-gradient(rgba(196, 242, 255, 0.12) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(196, 242, 255, 0.08) 1px, transparent 1px);
+          background-size: 32px 32px;
+          mask-image: radial-gradient(circle at 50% 48%, black 24%, rgba(0, 0, 0, 0.9) 54%, transparent 88%);
+          pointer-events: none;
+        }
+        .creative-stack-stage-glow {
+          position: absolute;
+          top: 12%;
+          bottom: 12%;
+          width: clamp(6.5rem, 16vw, 11rem);
+          opacity: 0.26;
+          filter: blur(32px);
+          mix-blend-mode: screen;
+          will-change: transform, opacity;
+        }
+        .creative-stack-stage-glow-left {
+          left: -2rem;
+          background: linear-gradient(90deg, rgba(102, 204, 255, 0.24), rgba(102, 204, 255, 0.08), transparent);
+          animation: creativeStackGlowLeft 8.8s ease-in-out infinite;
+        }
+        .creative-stack-stage-glow-right {
+          right: -2rem;
+          background: linear-gradient(270deg, rgba(184, 149, 255, 0.2), rgba(184, 149, 255, 0.06), transparent);
+          animation: creativeStackGlowRight 9.2s ease-in-out infinite;
+        }
+        .creative-stack-stage-beam {
+          position: absolute;
+          left: 50%;
+          height: 1px;
+          border-radius: 9999px;
+          background: linear-gradient(90deg, transparent, rgba(214, 248, 255, 0.9), rgba(102, 204, 255, 0.24), transparent);
+          mix-blend-mode: screen;
+          opacity: 0.3;
+          will-change: transform, opacity;
+        }
+        .creative-stack-stage-beam-a {
+          top: 24%;
+          width: min(74vw, 46rem);
+          transform: translateX(-50%) rotate(16deg);
+          animation: creativeStackBeamA 6.8s ease-in-out infinite;
+        }
+        .creative-stack-stage-beam-b {
+          bottom: 22%;
+          width: min(70vw, 42rem);
+          transform: translateX(-50%) rotate(-12deg);
+          opacity: 0.22;
+          animation: creativeStackBeamB 7.4s ease-in-out infinite;
+        }
+        .creative-stack-stage-arc {
+          position: absolute;
+          left: 50%;
+          width: min(82%, 48rem);
+          height: 12.5rem;
+          border-radius: 9999px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          filter: drop-shadow(0 0 16px rgba(102, 204, 255, 0.1));
+          opacity: 0.48;
+          transform: translateX(-50%);
+        }
+        .creative-stack-stage-arc-top {
+          top: -8.2rem;
+        }
+        .creative-stack-stage-arc-bottom {
+          bottom: -8rem;
+        }
+        .creative-stack-core-bloom,
+        .creative-stack-core-orbit,
+        .creative-stack-core-pillar,
+        .creative-tool-feature-ring,
+        .creative-tool-feature-sheen {
+          pointer-events: none;
+        }
+        .creative-stack-core-bloom {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 22rem;
+          height: 22rem;
+          transform: translate(-50%, -50%);
+          border-radius: 9999px;
+          background: radial-gradient(circle, rgba(136, 230, 255, 0.16) 0%, rgba(70, 165, 255, 0.08) 34%, transparent 74%);
+          filter: blur(30px);
+          opacity: 0.9;
+        }
+        .creative-stack-core-orbit {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          border-radius: 9999px;
+          will-change: transform;
+        }
+        .creative-stack-core-orbit-a {
+          width: min(36rem, 68vw);
+          height: 9rem;
+          border: 1px solid rgba(166, 241, 255, 0.16);
+          box-shadow: inset 0 0 20px rgba(102, 204, 255, 0.08);
+          transform: translate(-50%, -50%) rotateX(76deg);
+          animation: creativeStackOrbit 11s linear infinite;
+        }
+        .creative-stack-core-orbit-b {
+          width: min(30rem, 56vw);
+          height: 6.8rem;
+          border: 1px solid rgba(184, 149, 255, 0.14);
+          transform: translate(-50%, -50%) rotateX(76deg) rotateZ(18deg);
+          animation: creativeStackOrbitReverse 8.4s linear infinite;
+        }
+        .creative-stack-core-orbit-c {
+          width: 14rem;
+          height: 14rem;
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          transform: translate(-50%, -50%);
+          opacity: 0.36;
+          animation: creativeStackOrbitCircle 12.8s linear infinite;
+        }
+        .creative-stack-core-pillar {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 7.25rem;
+          height: 7.25rem;
+          transform: translate(-50%, -50%) rotate(45deg);
+          border-radius: 2rem;
+          border: 1px solid rgba(232, 247, 255, 0.14);
+          background:
+            linear-gradient(155deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 40%, rgba(6, 12, 22, 0.5) 100%),
+            radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.22), transparent 54%);
+          box-shadow:
+            0 16px 36px rgba(0, 0, 0, 0.2),
+            0 0 28px rgba(102, 204, 255, 0.12);
+          backdrop-filter: blur(10px);
+          opacity: 0.72;
+        }
+        .creative-tool-shell {
+          transform: translate3d(0, var(--creative-tool-lift, 0px), 0) rotate(var(--creative-tool-rotate, 0deg));
+          transition:
+            transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+            border-color 240ms ease,
+            filter 240ms ease;
+          will-change: transform;
+          filter: saturate(1);
+        }
+        .creative-tool-shell:hover {
+          transform: translate3d(0, calc(var(--creative-tool-lift, 0px) - 10px), 0) rotate(var(--creative-tool-hover-rotate, 0deg));
+          border-color: rgba(255, 255, 255, 0.22);
+          filter: brightness(1.05) saturate(1.05);
+        }
+        .creative-tool-shell-featured {
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            0 0 0 1px rgba(255, 255, 255, 0.03);
+        }
+        .creative-tool-shell-grid {
+          opacity: 0.06;
+          background-image:
+            linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+          background-size: 24px 24px;
+          mask-image: linear-gradient(180deg, black 0%, rgba(0, 0, 0, 0.76) 48%, transparent 100%);
+        }
+        .creative-tool-shell-beam {
+          mix-blend-mode: screen;
+          opacity: 0.82;
+        }
+        .creative-tool-feature-ring {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          border-radius: 9999px;
+          opacity: 0.56;
+          filter: drop-shadow(0 0 12px rgba(102, 204, 255, 0.16));
+          will-change: transform;
+        }
+        .creative-tool-feature-ring-a {
+          width: 82%;
+          height: 22%;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          transform: translate(-50%, -50%) rotateX(76deg);
+          animation: creativeStackOrbit 9s linear infinite;
+        }
+        .creative-tool-feature-ring-b {
+          width: 68%;
+          height: 18%;
+          border: 1px solid rgba(184, 149, 255, 0.16);
+          transform: translate(-50%, -50%) rotateX(76deg) rotateZ(18deg);
+          animation: creativeStackOrbitReverse 6.8s linear infinite;
+        }
+        .creative-tool-feature-sheen {
+          position: absolute;
+          inset: -16% -12%;
+          background: linear-gradient(112deg, transparent 34%, rgba(255, 255, 255, 0.52) 48%, rgba(184, 149, 255, 0.18) 54%, transparent 68%);
+          transform: translateX(-58%) rotate(8deg);
+          filter: blur(6px);
+          opacity: 0;
+          animation: creativeToolFeaturedSheen 4.8s ease-in-out 0.5s infinite;
+        }
+        .creative-stack-showcase-lite .creative-stack-stage-glow,
+        .creative-stack-showcase-lite .creative-stack-stage-beam,
+        .creative-stack-showcase-lite .creative-stack-core-orbit,
+        .creative-stack-showcase-lite .creative-tool-feature-ring,
+        .creative-stack-showcase-lite .creative-tool-feature-sheen {
+          animation: none !important;
+        }
+        .creative-stack-showcase-lite .creative-stack-stage-glow {
+          opacity: 0.18;
+        }
+        @keyframes creativeStackGlowLeft {
+          0%, 100% {
+            opacity: 0.16;
+            transform: translateX(0) scaleX(0.9);
+          }
+          50% {
+            opacity: 0.42;
+            transform: translateX(1rem) scaleX(1.06);
+          }
+        }
+        @keyframes creativeStackGlowRight {
+          0%, 100% {
+            opacity: 0.14;
+            transform: translateX(0) scaleX(0.88);
+          }
+          50% {
+            opacity: 0.38;
+            transform: translateX(-1rem) scaleX(1.04);
+          }
+        }
+        @keyframes creativeStackBeamA {
+          0%, 100% {
+            opacity: 0.18;
+            transform: translateX(-50%) rotate(12deg) scaleX(0.82);
+          }
+          50% {
+            opacity: 0.52;
+            transform: translateX(-50%) rotate(18deg) scaleX(1.04);
+          }
+        }
+        @keyframes creativeStackBeamB {
+          0%, 100% {
+            opacity: 0.14;
+            transform: translateX(-50%) rotate(-16deg) scaleX(0.76);
+          }
+          50% {
+            opacity: 0.38;
+            transform: translateX(-50%) rotate(-8deg) scaleX(1);
+          }
+        }
+        @keyframes creativeStackOrbit {
+          0% {
+            transform: translate(-50%, -50%) rotateX(76deg) rotateZ(0deg);
+          }
+          100% {
+            transform: translate(-50%, -50%) rotateX(76deg) rotateZ(360deg);
+          }
+        }
+        @keyframes creativeStackOrbitReverse {
+          0% {
+            transform: translate(-50%, -50%) rotateX(76deg) rotateZ(18deg);
+          }
+          100% {
+            transform: translate(-50%, -50%) rotateX(76deg) rotateZ(-342deg);
+          }
+        }
+        @keyframes creativeStackOrbitCircle {
+          0% {
+            transform: translate(-50%, -50%) scale(0.94) rotate(0deg);
+            opacity: 0.22;
+          }
+          50% {
+            transform: translate(-50%, -50%) scale(1.04) rotate(180deg);
+            opacity: 0.4;
+          }
+          100% {
+            transform: translate(-50%, -50%) scale(0.94) rotate(360deg);
+            opacity: 0.22;
+          }
+        }
+        @keyframes creativeToolFeaturedSheen {
+          0% {
+            opacity: 0;
+            transform: translateX(-58%) rotate(8deg);
+          }
+          20% {
+            opacity: 0.72;
+          }
+          56% {
+            opacity: 0;
+            transform: translateX(58%) rotate(8deg);
+          }
+          100% {
+            opacity: 0;
+            transform: translateX(58%) rotate(8deg);
+          }
+        }
         @media (prefers-reduced-motion: reduce) {
+          .creative-stack-stage-glow,
+          .creative-stack-stage-beam,
+          .creative-stack-core-orbit,
+          .creative-tool-feature-ring,
+          .creative-tool-feature-sheen {
+            animation: none !important;
+          }
+          .creative-tool-shell,
+          .creative-tool-shell:hover {
+            transform: none !important;
+          }
           .video-carousel-stage-sweep,
           .video-carousel-stage-sweep--from-right-a,
           .video-carousel-stage-sweep--from-right-b,
