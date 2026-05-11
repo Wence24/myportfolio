@@ -1338,6 +1338,36 @@ export default function StudioPage() {
     setExperienceSaveNotice(null);
   };
 
+  const handleExperienceFieldChange = (index: number, field: "client" | "role" | "period" | "summary", value: string) => {
+    const nextEntries = experienceEntriesRef.current.map((item, itemIndex) =>
+      itemIndex === index ? { ...item, [field]: value } : item
+    );
+
+    experienceEntriesRef.current = nextEntries;
+    setExperienceEntries(nextEntries);
+    persistExperienceDraftLocally(nextEntries);
+    setExperienceSaveNotice(null);
+  };
+
+  const handleExperienceTagsChange = (index: number, commaSeparatedTags: string) => {
+    const nextEntries = experienceEntriesRef.current.map((item, itemIndex) =>
+      itemIndex === index
+        ? {
+            ...item,
+            tags: commaSeparatedTags
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter((tag) => tag.length > 0),
+          }
+        : item
+    );
+
+    experienceEntriesRef.current = nextEntries;
+    setExperienceEntries(nextEntries);
+    persistExperienceDraftLocally(nextEntries);
+    setExperienceSaveNotice(null);
+  };
+
   const handleSaveExperience = async () => {
     setIsSavingExperience(true);
     setExperienceSaveNotice(null);
@@ -1402,8 +1432,8 @@ export default function StudioPage() {
         <div>
           <h2 className="text-lg font-semibold">Experience</h2>
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/65">
-            Update the image shown on each homepage experience card. Save when
-            you&apos;re done so the About section uses the latest thumbnails.
+            Edit all experience card fields - client name, role, period, summary, tags, and image. Save
+            when you're done so the About section uses the latest content.
           </p>
         </div>
 
@@ -1458,11 +1488,29 @@ export default function StudioPage() {
               <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">
                 Experience {index + 1}
               </p>
-              <h3 className="mt-2 text-base font-semibold text-white">{entry.client}</h3>
-              <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#8cdfff]">
-                {entry.role}
-              </p>
-              <p className="mt-2 text-xs text-white/55">{entry.period}</p>
+              <div className="mt-2 space-y-2">
+                <input
+                  type="text"
+                  value={entry.client}
+                  onChange={(e) => handleExperienceFieldChange(index, "client", e.target.value)}
+                  placeholder="Client name"
+                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-[#0099ff]"
+                />
+                <input
+                  type="text"
+                  value={entry.role}
+                  onChange={(e) => handleExperienceFieldChange(index, "role", e.target.value)}
+                  placeholder="Role (e.g. Video Editor)"
+                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-xs uppercase tracking-[0.16em] text-[#8cdfff] outline-none focus:border-[#0099ff]"
+                />
+                <input
+                  type="text"
+                  value={entry.period}
+                  onChange={(e) => handleExperienceFieldChange(index, "period", e.target.value)}
+                  placeholder="Period (e.g. 2024 - Present)"
+                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-xs text-white/55 outline-none focus:border-[#0099ff]"
+                />
+              </div>
             </div>
 
             <ImageField
@@ -1474,17 +1522,22 @@ export default function StudioPage() {
               previewHeightClassName="h-40"
             />
 
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-              <p className="text-xs leading-relaxed text-white/68">{entry.summary}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {entry.tags.map((tag) => (
-                  <span
-                    key={`${entry.client}-${tag}`}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58"
-                  >
-                    {tag}
-                  </span>
-                ))}
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3">
+              <textarea
+                value={entry.summary}
+                onChange={(e) => handleExperienceFieldChange(index, "summary", e.target.value)}
+                placeholder="Brief summary of this experience..."
+                className="w-full min-h-[60px] rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-xs leading-relaxed text-white/68 outline-none focus:border-[#0099ff] resize-y"
+              />
+              <div>
+                <p className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-white/38">Tags (comma-separated)</p>
+                <input
+                  type="text"
+                  value={entry.tags.join(", ")}
+                  onChange={(e) => handleExperienceTagsChange(index, e.target.value)}
+                  placeholder="e.g. Premiere Pro, After Effects, DaVinci"
+                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-white/58 outline-none focus:border-[#0099ff]"
+                />
               </div>
             </div>
           </div>
