@@ -60,71 +60,58 @@ export const sanitizeExperienceImage = (value: string) => {
 };
 
 export const countUsableExperienceImages = (
-  entries: ReadonlyArray<Pick<CreativeExperienceEntry, "image">> | null | undefined
-) =>
-  Array.isArray(entries)
-    ? entries.reduce((count, entry) => {
-        if (!entry || typeof entry.image !== "string") {
-          return count;
-        }
-
-        return sanitizeExperienceImage(entry.image).trim().length > 0 ? count + 1 : count;
-      }, 0)
-    : 0;
-
-export type PortfolioContent = {
-  projects: PortfolioProjects;
-  testimonials: Testimonial[];
-  experienceEntries?: CreativeExperienceEntry[];
-  updatedAt?: string;
-  experienceEntriesSyncSupported?: boolean;
+  entries: ReadonlyArray<CreativeExperienceEntry>
+) => {
+  let count = 0;
+  for (const entry of entries) {
+    if (sanitizeExperienceImage(entry.image)) {
+      count++;
+    }
+  }
+  return count;
 };
 
-export const PORTFOLIO_STORAGE_KEY = "portfolio-projects-v1";
-export const PORTFOLIO_UPDATED_EVENT = "portfolio-projects-updated";
-export const TESTIMONIALS_STORAGE_KEY = "portfolio-testimonials-v1";
-export const TESTIMONIALS_UPDATED_EVENT = "portfolio-testimonials-updated";
-export const EXPERIENCE_STORAGE_KEY = "portfolio-experience-v1";
-export const EXPERIENCE_UPDATED_EVENT = "portfolio-experience-updated";
-export const EXPERIENCE_CONTENT_UPDATED_AT_KEY = "portfolio-experience-updated-at-v1";
-export const PORTFOLIO_CONTENT_UPDATED_AT_KEY = "portfolio-content-updated-at-v1";
-export const PORTFOLIO_SYNC_CHANNEL_NAME = "portfolio-sync-v1";
+export const normalizeExperienceEntries = (
+  raw: unknown
+): CreativeExperienceEntry[] => {
+  if (!Array.isArray(raw)) {
+    return defaultExperienceEntries;
+  }
 
-export const defaultPortfolioProjects: PortfolioProjects = {
-  "Graphic Design": [
-    {
-      title: "COMRADZ Sessions",
-      description:
-        "A weekly poster designed to showcase the details of our Sunday dance sessions. Each poster highlights the schedule, theme, and key information for the day's session, making it easy for participants to stay informed and join in. The design aims to be clear, engaging, and consistent, creating a recognizable visual identity for COMRADZ's weekly gatherings.",
-      image: "/comradz.png",
-      designLink: "#",
-      showDetailsModal: true,
-      details: {
-        title: "COMRADZ Sessions",
-        description:
-          "A weekly poster designed to showcase the details of our Sunday dance sessions. Each poster highlights the schedule, theme, and key information for the day's session, making it easy for participants to stay informed and join in. The design aims to be clear, engaging, and consistent, creating a recognizable visual identity for COMRADZ's weekly gatherings.",
-        heroImage: "/comradz2.png",
-        galleryImages: ["/image1.png", "/image2.png", "/image3.png", "/image4.png"],
-      },
-    },
-    {
-      title: "Project Two",
-      description: "Description of Project Two",
-      image: "/comradz.png",
-      designLink: "#",
-    },
-    {
-      title: "Project Three",
-      description: "Description of Project Three",
-      image: "/comradz.png",
-      designLink: "#",
-    },
-  ],
-  "Video Edit": [],
-  Websites: [],
+  return raw
+    .map((item, index) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const entry = item as Record<string, unknown>;
+
+      return {
+        role: typeof entry.role === "string" ? entry.role : "",
+        client: typeof entry.client === "string" ? entry.client : "",
+        period: typeof entry.period === "string" ? entry.period : "",
+        summary: typeof entry.summary === "string" ? entry.summary : "",
+        tags: Array.isArray(entry.tags)
+          ? entry.tags.filter((tag): tag is string => typeof tag === "string")
+          : [],
+        image: sanitizeExperienceImage(
+          typeof entry.image === "string" ? entry.image : ""
+        ),
+      };
+    })
+    .filter((entry): entry is CreativeExperienceEntry => entry !== null);
 };
 
-export const defaultTestimonials: Testimonial[] = [
+export const parseExperienceEntries = (value: string): CreativeExperienceEntry[] => {
+  try {
+    const parsed = JSON.parse(value);
+    return normalizeExperienceEntries(parsed);
+  } catch {
+    return defaultExperienceEntries;
+  }
+};
+
+export const fallbackTestimonials: Testimonial[] = [
   {
     quote:
       "The attention to detail and innovative features have completely transformed our workflow. This is exactly what we've been looking for.",
@@ -162,180 +149,11 @@ export const defaultTestimonials: Testimonial[] = [
   },
 ];
 
-export const defaultExperienceEntries: CreativeExperienceEntry[] = [
-  {
-    role: "Short-Form Video Editing",
-    client: "Kayla",
-    period: "2024",
-    summary:
-      "Business-focused short-form edits built around clarity, captions, and message-first storytelling.",
-    tags: ["Short-form", "Captions", "Business"],
-    image: "/v2.png",
-  },
-  {
-    role: "Short-Form and Long-Form Video Editing",
-    client: "Vast Professionals",
-    period: "2025-2026",
-    summary:
-      "Delivered both short-form and long-form client content with motion, polish, and brand-consistent finishing.",
-    tags: ["Long-form", "Motion", "Branding"],
-    image: "/v3.png",
-  },
-  {
-    role: "Long-Form Video Editor",
-    client: "Henry Sims",
-    period: "2026-Present",
-    summary:
-      "Produced retention-focused long-form edits with stronger hooks, cleaner pacing, and polished sound design.",
-    tags: ["Retention", "Hooks", "Storytelling"],
-    image: "/v4.png",
-  },
-];
-
-type PortfolioContentRow = {
-  id: string;
-  projects: unknown;
-  testimonials: unknown;
-  experience_entries?: unknown;
-  updated_at?: string;
-};
-
-const SUPABASE_CONTENT_TABLE = "portfolio_content";
-const DEFAULT_SUPABASE_CONTENT_ROW_ID = "main";
-
-type PublicSupabaseConfig = {
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-  supabaseContentRowId: string;
-};
-
-let supabaseClient: SupabaseClient | null | undefined;
-let supabaseConfig: PublicSupabaseConfig | null | undefined;
-let supabaseConfigPromise: Promise<PublicSupabaseConfig | null> | null = null;
-
-const readSupabaseConfigFromEnv = (): PublicSupabaseConfig | null => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return null;
-  }
-
-  return {
-    supabaseUrl,
-    supabaseAnonKey,
-    supabaseContentRowId:
-      process.env.NEXT_PUBLIC_SUPABASE_CONTENT_ROW_ID ||
-      DEFAULT_SUPABASE_CONTENT_ROW_ID,
-  };
-};
-
-const readSupabaseConfigFromRuntime = async (): Promise<PublicSupabaseConfig | null> => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const response = await fetch("/api/public-config", {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const payload = (await response.json()) as Partial<PublicSupabaseConfig>;
-    if (!payload.supabaseUrl || !payload.supabaseAnonKey) {
-      return null;
-    }
-
-    return {
-      supabaseUrl: payload.supabaseUrl,
-      supabaseAnonKey: payload.supabaseAnonKey,
-      supabaseContentRowId:
-        payload.supabaseContentRowId || DEFAULT_SUPABASE_CONTENT_ROW_ID,
-    };
-  } catch {
-    return null;
-  }
-};
-
-const getSupabaseConfig = async (): Promise<PublicSupabaseConfig | null> => {
-  if (supabaseConfig !== undefined) {
-    return supabaseConfig;
-  }
-
-  const envConfig = readSupabaseConfigFromEnv();
-  if (envConfig) {
-    supabaseConfig = envConfig;
-    return supabaseConfig;
-  }
-
-  if (!supabaseConfigPromise) {
-    supabaseConfigPromise = readSupabaseConfigFromRuntime().then((runtimeConfig) => {
-      supabaseConfig = runtimeConfig;
-      supabaseConfigPromise = null;
-      return runtimeConfig;
-    });
-  }
-
-  return supabaseConfigPromise;
-};
-
-const getSupabaseClient = async (): Promise<SupabaseClient | null> => {
-  if (supabaseClient !== undefined) {
-    return supabaseClient;
-  }
-
-  const config = await getSupabaseConfig();
-  if (!config) {
-    supabaseClient = null;
-    return supabaseClient;
-  }
-
-  supabaseClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-    },
-  });
-  return supabaseClient;
-};
-
-export const isSupabaseConfigured = (): boolean => {
-  if (readSupabaseConfigFromEnv()) {
-    return true;
-  }
-
-  return supabaseConfig !== undefined && supabaseConfig !== null;
-};
-
-export const ensureSupabaseConfigured = async (): Promise<boolean> =>
-  (await getSupabaseConfig()) !== null;
-
-export const normalizeProjects = (value: unknown): PortfolioProjects => {
-  if (!value || typeof value !== "object") {
-    return defaultPortfolioProjects;
-  }
-
-  const raw = value as Record<string, unknown>;
-  return {
-    "Graphic Design": Array.isArray(raw["Graphic Design"])
-      ? (raw["Graphic Design"] as PortfolioProject[])
-      : [],
-    "Video Edit": Array.isArray(raw["Video Edit"])
-      ? (raw["Video Edit"] as PortfolioProject[])
-      : [],
-    Websites: Array.isArray(raw.Websites)
-      ? (raw.Websites as PortfolioProject[])
-      : Array.isArray(raw.Certificates)
-        ? (raw.Certificates as PortfolioProject[])
-        : [],
-  };
-};
+export const defaultTestimonials = fallbackTestimonials;
 
 export const normalizeTestimonials = (value: unknown): Testimonial[] => {
   if (!Array.isArray(value)) {
-    return defaultTestimonials;
+    return fallbackTestimonials;
   }
 
   const normalized = value
@@ -343,7 +161,6 @@ export const normalizeTestimonials = (value: unknown): Testimonial[] => {
       if (!entry || typeof entry !== "object") {
         return null;
       }
-
       const raw = entry as Record<string, unknown>;
       if (
         typeof raw.quote !== "string" ||
@@ -363,177 +180,113 @@ export const normalizeTestimonials = (value: unknown): Testimonial[] => {
     })
     .filter((entry): entry is Testimonial => entry !== null);
 
-  return normalized.length > 0 ? normalized : defaultTestimonials;
+  return normalized.length > 0 ? normalized : fallbackTestimonials;
 };
 
-export const parseExperienceEntries = (
-  value: unknown
-): CreativeExperienceEntry[] | null => {
-  if (typeof value === "string") {
-    try {
-      return parseExperienceEntries(JSON.parse(value));
-    } catch {
-      return null;
-    }
-  }
+export const defaultExperienceEntries: CreativeExperienceEntry[] = [
+  {
+    role: "Video Editor & Motion Designer",
+    client: "Freelance Clients",
+    period: "2024 - Present",
+    summary:
+      "Edit YouTube content, short-form reels, and promotional clips. Handle color work, pacing, captions, and clean audio.",
+    tags: ["Premiere Pro", "After Effects", "DaVinci"],
+    image: "",
+  },
+  {
+    role: "Graphic Design & Social Assets",
+    client: "Freelance Clients",
+    period: "2024 - Present",
+    summary:
+      "Design thumbnails, banners, posters, and social media graphics with consistent brand identity.",
+    tags: ["Photoshop", "Illustrator", "Canva"],
+    image: "",
+  },
+  {
+    role: "WordPress Site Builds",
+    client: "Freelance Clients",
+    period: "2024 - Present",
+    summary:
+      "Build lightweight, responsive WordPress sites with Elementor. Handle hosting setup, theme customization, and basic SEO.",
+    tags: ["WordPress", "Elementor", "SEO"],
+    image: "",
+  },
+];
 
-  if (!Array.isArray(value)) {
+export const EXPERIENCE_STORAGE_KEY = "portfolio-experience-entries";
+export const EXPERIENCE_UPDATED_EVENT = "portfolio-experience-updated";
+export const EXPERIENCE_CONTENT_UPDATED_AT_KEY = "portfolio-experience-updated-at";
+
+export const PORTFOLIO_STORAGE_KEY = "portfolio-projects";
+export const PORTFOLIO_UPDATED_EVENT = "portfolio-projects-updated";
+export const PORTFOLIO_CONTENT_UPDATED_AT_KEY = "portfolio-content-updated-at";
+
+export const TESTIMONIALS_STORAGE_KEY = "portfolio-testimonials";
+export const TESTIMONIALS_UPDATED_EVENT = "portfolio-testimonials-updated";
+
+export const PORTFOLIO_SYNC_CHANNEL_NAME = "portfolio-sync-channel";
+export const PORTFOLIO_SYNC_REQUEST_EVENT = "request-sync";
+export const PORTFOLIO_SYNC_RESPONSE_EVENT = "sync-response";
+
+let supabaseInstance: SupabaseClient | null = null;
+
+export const getSupabaseClient = () => {
+  if (supabaseInstance) return supabaseInstance;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
     return null;
   }
 
-  const normalized = value
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") {
-        return null;
-      }
+  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false },
+  });
 
-      const raw = entry as Record<string, unknown>;
-      if (
-        typeof raw.role !== "string" ||
-        typeof raw.client !== "string" ||
-        typeof raw.period !== "string" ||
-        typeof raw.summary !== "string" ||
-        typeof raw.image !== "string" ||
-        !Array.isArray(raw.tags)
-      ) {
-        return null;
-      }
-
-      const tags = raw.tags.filter((tag): tag is string => typeof tag === "string");
-      if (tags.length === 0) {
-        return null;
-      }
-
-      return {
-        role: raw.role,
-        client: raw.client,
-        period: raw.period,
-        summary: raw.summary,
-        image: sanitizeExperienceImage(raw.image),
-        tags,
-      };
-    })
-    .filter((entry): entry is CreativeExperienceEntry => entry !== null);
-
-  return normalized.length > 0 ? normalized : null;
+  return supabaseInstance;
 };
 
-export const normalizeExperienceEntries = (value: unknown): CreativeExperienceEntry[] => {
-  return parseExperienceEntries(value) ?? defaultExperienceEntries;
+const supabaseConfiguredRef = { current: false };
+
+export const ensureSupabaseConfigured = () => {
+  const client = getSupabaseClient();
+  if (client) {
+    supabaseConfiguredRef.current = true;
+  }
+  return supabaseConfiguredRef.current;
 };
 
-export const fetchPortfolioContentFromSupabase = async (): Promise<PortfolioContent | null> => {
-  const client = await getSupabaseClient();
-  if (!client) {
-    return null;
+export const isSupabaseConfigured = () => {
+  if (supabaseConfiguredRef.current) return true;
+  const client = getSupabaseClient();
+  if (client) {
+    supabaseConfiguredRef.current = true;
+    return true;
+  }
+  return false;
+};
+
+const getCloudinaryUploadConfig = () => {
+  if (typeof window === "undefined") {
+    return { cloudName: "", uploadPreset: "", isConfigured: false };
   }
 
-  const config = await getSupabaseConfig();
-  const contentRowId =
-    config?.supabaseContentRowId || DEFAULT_SUPABASE_CONTENT_ROW_ID;
-  let experienceEntriesSyncSupported = true;
-
-  let { data, error } = await client
-    .from(SUPABASE_CONTENT_TABLE)
-    .select("id, projects, testimonials, experience_entries, updated_at")
-    .eq("id", contentRowId)
-    .maybeSingle<PortfolioContentRow>();
-
-  if (
-    error &&
-    /experience_entries/i.test(error.message) &&
-    /column/i.test(error.message)
-  ) {
-    experienceEntriesSyncSupported = false;
-    const fallbackResponse = await client
-      .from(SUPABASE_CONTENT_TABLE)
-      .select("id, projects, testimonials, updated_at")
-      .eq("id", contentRowId)
-      .maybeSingle<PortfolioContentRow>();
-
-    data = fallbackResponse.data;
-    error = fallbackResponse.error;
-  }
-
-  if (error) {
-    console.error("Failed to fetch portfolio content from Supabase:", error.message);
-    return null;
-  }
-
-  if (!data) {
-    return null;
-  }
+  const cloudName =
+    (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME) || "";
+  const uploadPreset =
+    (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET) || "";
 
   return {
-    projects: normalizeProjects(data.projects),
-    testimonials: normalizeTestimonials(data.testimonials),
-    experienceEntries: parseExperienceEntries(data.experience_entries) ?? undefined,
-    updatedAt: typeof data.updated_at === "string" ? data.updated_at : undefined,
-    experienceEntriesSyncSupported,
+    cloudName: cloudName || "",
+    uploadPreset: uploadPreset || "",
+    isConfigured: !!(cloudName && uploadPreset),
   };
 };
-
-export const savePortfolioContentToSupabase = async (
-  content: PortfolioContent
-): Promise<boolean> => {
-  const client = await getSupabaseClient();
-  if (!client) {
-    return false;
-  }
-
-  const config = await getSupabaseConfig();
-  const contentRowId =
-    config?.supabaseContentRowId || DEFAULT_SUPABASE_CONTENT_ROW_ID;
-
-  const payload: PortfolioContentRow = {
-    id: contentRowId,
-    projects: content.projects,
-    testimonials: content.testimonials,
-    experience_entries: content.experienceEntries ?? defaultExperienceEntries,
-    updated_at: new Date().toISOString(),
-  };
-
-  let { error } = await client
-    .from(SUPABASE_CONTENT_TABLE)
-    .upsert(payload, { onConflict: "id" });
-
-  if (
-    error &&
-    /experience_entries/i.test(error.message) &&
-    /column/i.test(error.message)
-  ) {
-    const fallbackPayload = {
-      id: contentRowId,
-      projects: content.projects,
-      testimonials: content.testimonials,
-      updated_at: payload.updated_at,
-    };
-
-    const fallbackResponse = await client
-      .from(SUPABASE_CONTENT_TABLE)
-      .upsert(fallbackPayload, { onConflict: "id" });
-
-    error = fallbackResponse.error;
-
-    if (!error) {
-      return false;
-    }
-  }
-
-  if (error) {
-    console.error("Failed to save portfolio content to Supabase:", error.message);
-    return false;
-  }
-
-  return true;
-};
-
-export type PortfolioAssetKind = "images" | "videos";
 
 export type PortfolioAssetUploadProgress = {
   bytesUploaded: number;
-  bytesTotal: number;
-  percentage: number;
+  totalBytes: number;
 };
 
 type PortfolioAssetUploadOptions = {
@@ -542,56 +295,163 @@ type PortfolioAssetUploadOptions = {
 
 export const uploadPortfolioAssetToCloudinary = async (
   file: File,
-  kind: PortfolioAssetKind,
+  folder: string,
   options?: PortfolioAssetUploadOptions
-): Promise<{ url: string; path: string; format?: string }> => {
-  const folder = `portfolio/${kind}`;
-  const resourceType = kind === "videos" ? "video" : "image";
+): Promise<{ url: string; publicId: string }> => {
+  const { cloudName, uploadPreset, isConfigured } = getCloudinaryUploadConfig();
+
+  if (!isConfigured) {
+    throw new Error(
+      "Cloudinary is not configured. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET in your environment."
+    );
+  }
+
+  const isVideo = file.type.startsWith("video/");
+  const resourceType = isVideo ? "video" : "image";
 
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
   formData.append("folder", folder);
-  formData.append("resourceType", resourceType);
+  formData.append("use_filename", "1");
+  formData.append("unique_filename", "1");
+
+  // For direct browser upload, use XMLHttpRequest to track upload progress
+  return new Promise<{ url: string; publicId: string }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable && options?.onProgress) {
+        options.onProgress({
+          bytesUploaded: event.loaded,
+          totalBytes: event.total,
+        });
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result = JSON.parse(xhr.responseText);
+          if (result.secure_url || result.url) {
+            resolve({
+              url: result.secure_url || result.url,
+              publicId: result.public_id,
+            });
+          } else {
+            reject(new Error("Cloudinary upload returned no URL."));
+          }
+        } catch {
+          reject(new Error("Cloudinary upload returned an invalid response."));
+        }
+      } else {
+        let errorMessage = `Cloudinary upload failed with status ${xhr.status}.`;
+        try {
+          const errorResult = JSON.parse(xhr.responseText);
+          errorMessage = errorResult.error?.message || errorMessage;
+        } catch {
+          // use default error message
+        }
+        reject(new Error(errorMessage));
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(
+        new Error(
+          "Cloudinary upload failed because the server could not be reached. Check your network connection."
+        )
+      );
+    });
+
+    xhr.addEventListener("abort", () => {
+      reject(new Error("Cloudinary upload was aborted."));
+    });
+
+    xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`);
+    xhr.send(formData);
+  });
+};
+
+export const fetchPortfolioContentFromSupabase = async () => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.error("Portfolio data: Supabase is not configured.");
+    return null;
+  }
 
   try {
-    const response = await fetch("/api/cloudinary-upload", {
-      method: "POST",
-      body: formData,
-    });
+    const contentRowId =
+      process.env.NEXT_PUBLIC_SUPABASE_CONTENT_ROW_ID || "main";
 
-    if (!response.ok) {
-      const errorPayload = (await response.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      throw new Error(
-        errorPayload?.error || `Cloudinary upload failed with status ${response.status}.`
-      );
+    const { data, error } = await supabase
+      .from("portfolio_content")
+      .select("*")
+      .eq("id", contentRowId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Portfolio data: Could not fetch content from Supabase.", error);
+      return null;
     }
 
-    const result = (await response.json()) as {
-      url: string;
-      publicId: string;
-      format?: string;
-    };
+    if (!data) {
+      console.warn("Portfolio data: No content row found in Supabase.");
+      return null;
+    }
 
-    options?.onProgress?.({
-      bytesUploaded: file.size,
-      bytesTotal: file.size,
-      percentage: 100,
-    });
+    const rawExperience = data.experience || data.experience_entries || null;
+    const hasExperienceColumn = "experience" in data || "experience_entries" in data;
 
     return {
-      url: result.url,
-      path: result.publicId,
-      format: result.format,
+      projects: data.projects || null,
+      testimonials: data.testimonials || null,
+      experience: data.experience || null,
+      experienceEntries: rawExperience,
+      experienceEntriesSyncSupported: hasExperienceColumn,
+      updatedAt: data.updated_at || null,
     };
   } catch (error) {
-    if (error instanceof TypeError && error.message === "Failed to fetch") {
-      throw new Error(
-        "Cloudinary upload failed because the server could not be reached. Make sure the server is running and Cloudinary environment variables are set."
-      );
+    console.error("Portfolio data: Failed to fetch from Supabase:", error);
+    return null;
+  }
+};
+
+export const savePortfolioContentToSupabase = async (payload: {
+  projects: PortfolioProjects;
+  testimonials: Testimonial[];
+  experienceEntries: CreativeExperienceEntry[];
+}) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.error("Portfolio data: Cannot save to Supabase.");
+    return false;
+  }
+
+  try {
+    const contentRowId =
+      process.env.NEXT_PUBLIC_SUPABASE_CONTENT_ROW_ID || "main";
+    const now = new Date().toISOString();
+
+    const { error } = await supabase.from("portfolio_content").upsert(
+      {
+        id: contentRowId,
+        projects: payload.projects,
+        testimonials: payload.testimonials,
+        experience: payload.experienceEntries,
+        updated_at: now,
+      },
+      { onConflict: "id" }
+    );
+
+    if (error) {
+      console.error("Portfolio data: Could not save to Supabase.", error);
+      return false;
     }
 
-    throw error;
+    return true;
+  } catch (error) {
+    console.error("Portfolio data: Failed to save to Supabase:", error);
+    return false;
   }
 };

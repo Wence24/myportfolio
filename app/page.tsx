@@ -2523,7 +2523,7 @@ useEffect(() => {
       localExperienceEntries = defaultExperienceEntries;
     }
 
-    const remoteExperienceImageCount = countUsableExperienceImages(remoteExperienceEntries);
+    const remoteExperienceImageCount = countUsableExperienceImages(remoteExperienceEntries ?? []);
     const localExperienceImageCount = countUsableExperienceImages(localExperienceEntries);
     const shouldKeepLocalExperienceImages =
       remoteExperienceEntries !== null &&

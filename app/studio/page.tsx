@@ -94,8 +94,8 @@ const STUDIO_EMAIL_STORAGE_KEY = "portfolio-studio-email";
 const STUDIO_PASSWORD_STORAGE_KEY = "portfolio-studio-password";
 const DEFAULT_STUDIO_EMAIL = "aiakosedt@gmail.com";
 const DEFAULT_STUDIO_PASSWORD = "Wence_dante24";
-const MAX_IMAGE_UPLOAD_SIZE = 2 * 1024 * 1024;
-const MAX_VIDEO_UPLOAD_SIZE = 256 * 1024 * 1024;
+const MAX_IMAGE_UPLOAD_SIZE = 5 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_SIZE = 100 * 1024 * 1024;
 const MAX_VIDEO_UPLOAD_SIZE_MB = Math.floor(MAX_VIDEO_UPLOAD_SIZE / (1024 * 1024));
 const VIDEO_METADATA_TIMEOUT_MS = 12000;
 
@@ -651,14 +651,14 @@ function ImageField({
     }
 
     if (file.size > MAX_IMAGE_UPLOAD_SIZE) {
-      setUploadError("Please keep image uploads under 2 MB for smoother saving.");
+      setUploadError("Please keep image uploads under 5 MB for smoother saving.");
       return;
     }
 
     setIsUploading(true);
 
     try {
-      const asset = await uploadPortfolioAssetToCloudinary(file, "images");
+      const asset = await uploadPortfolioAssetToCloudinary(file, "portfolio/images");
       onChange(asset.url);
       setUploadError("");
     } catch (error) {
@@ -811,7 +811,7 @@ function VideoField({
     setUploadProgress(50);
 
     try {
-      const asset = await uploadPortfolioAssetToCloudinary(file, "videos");
+      const asset = await uploadPortfolioAssetToCloudinary(file, "portfolio/videos");
       onChange(asset.url);
       setUploadProgress(100);
       setUploadError("");
@@ -1110,7 +1110,7 @@ export default function StudioPage() {
         remoteContent.experienceEntriesSyncSupported !== false
           ? parseExperienceEntries(remoteContent.experienceEntries)
           : null;
-      const remoteExperienceImageCount = countUsableExperienceImages(remoteExperienceEntries);
+      const remoteExperienceImageCount = countUsableExperienceImages(remoteExperienceEntries ?? []);
       const localExperienceImageCount = countUsableExperienceImages(experienceEntriesRef.current);
       const shouldKeepLocalExperienceImages =
         remoteExperienceEntries !== null &&
@@ -1732,7 +1732,7 @@ export default function StudioPage() {
             : `Uploading clip ${index + 1} of ${nextFiles.length}`
         );
 
-        const asset = await uploadPortfolioAssetToCloudinary(file, "videos");
+        const asset = await uploadPortfolioAssetToCloudinary(file, "portfolio/videos");
         currentFileUploadedBytes = file.size;
 
         uploadedBytes += file.size;
