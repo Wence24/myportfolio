@@ -2,6 +2,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const cloudinaryCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
+  const cloudinaryUploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "";
+
   return Response.json(
     {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -14,6 +17,9 @@ export async function GET() {
         process.env.NEXT_PUBLIC_SUPABASE_URL &&
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       ),
+      cloudinaryCloudName,
+      cloudinaryUploadPreset,
+      cloudinaryConfigured: Boolean(cloudinaryCloudName && cloudinaryUploadPreset),
     },
     {
       headers: {

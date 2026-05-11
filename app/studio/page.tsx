@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowLeft, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 import {
+  countUsableExperienceImages,
   type CreativeExperienceEntry,
   defaultExperienceEntries,
   EXPERIENCE_CONTENT_UPDATED_AT_KEY,
@@ -22,8 +23,9 @@ import {
   fetchPortfolioContentFromSupabase,
   isSupabaseConfigured,
   savePortfolioContentToSupabase,
-  uploadPortfolioAssetToSupabase,
+  uploadPortfolioAssetToCloudinary,
 } from "@/lib/portfolio-data";
+import { getCloudinaryConfig } from "@/lib/cloudinary-config";
 
 type PortfolioProject = {
   title: string;
@@ -656,7 +658,7 @@ function ImageField({
     setIsUploading(true);
 
     try {
-      const asset = await uploadPortfolioAssetToSupabase(file, "images");
+      const asset = await uploadPortfolioAssetToCloudinary(file, "images");
       onChange(asset.url);
       setUploadError("");
     } catch (error) {
@@ -721,7 +723,7 @@ function ImageField({
           {isUploading ? "Uploading image..." : "Drag an image here or click to upload"}
         </span>
         <span className="mt-1 text-xs text-white/55">
-          Uploaded images are saved to Supabase Storage. You can still paste a path or URL above.
+          Uploaded images are saved to Cloudinary. You can still paste a path or URL above.
         </span>
       </label>
 
@@ -806,14 +808,10 @@ function VideoField({
     }
 
     setIsUploading(true);
-    setUploadProgress(1);
+    setUploadProgress(50);
 
     try {
-      const asset = await uploadPortfolioAssetToSupabase(file, "videos", {
-        onProgress: ({ percentage }) => {
-          setUploadProgress(Math.max(1, Math.min(100, Math.round(percentage))));
-        },
-      });
+      const asset = await uploadPortfolioAssetToCloudinary(file, "videos");
       onChange(asset.url);
       setUploadProgress(100);
       setUploadError("");
@@ -885,7 +883,7 @@ function VideoField({
           {isUploading ? "Uploading MP4..." : "Drag an MP4 here or click to upload"}
         </span>
         <span className="mt-1 text-xs text-white/55">
-          Uploaded videos are saved to Supabase Storage. Max {MAX_VIDEO_UPLOAD_SIZE_MB} MB.
+          Uploaded videos are saved to Cloudinary. Max {MAX_VIDEO_UPLOAD_SIZE_MB} MB.
         </span>
       </label>
 
@@ -895,7 +893,7 @@ function VideoField({
         <div className="rounded-xl border border-[#8fdcff]/18 bg-[#071722]/80 px-3 py-3">
           <div className="flex items-center justify-between gap-3 text-xs">
             <span className="font-medium text-white/82">
-              {isUploading ? "Uploading to Supabase" : "Upload complete"}
+              {isUploading ? "Uploading to Cloudinary" : "Upload complete"}
             </span>
             <span className="font-semibold text-[#8fdcff]">{uploadProgress}%</span>
           </div>
@@ -951,6 +949,9 @@ export default function StudioPage() {
   const [supabaseStatus, setSupabaseStatus] = useState<
     "checking" | "enabled" | "disabled"
   >(() => (isSupabaseConfigured() ? "enabled" : "checking"));
+  const [cloudinaryStatus, setCloudinaryStatus] = useState<
+    "checking" | "connected" | "disconnected"
+  >("checking");
   const [studioCredentials, setStudioCredentials] = useState<StudioCredentials>(() =>
     getStoredStudioCredentials()
   );
@@ -1109,8 +1110,14 @@ export default function StudioPage() {
         remoteContent.experienceEntriesSyncSupported !== false
           ? parseExperienceEntries(remoteContent.experienceEntries)
           : null;
+      const remoteExperienceImageCount = countUsableExperienceImages(remoteExperienceEntries);
+      const localExperienceImageCount = countUsableExperienceImages(experienceEntriesRef.current);
+      const shouldKeepLocalExperienceImages =
+        remoteExperienceEntries !== null &&
+        remoteExperienceImageCount < localExperienceImageCount;
       const shouldApplyRemoteExperience =
         remoteExperienceEntries !== null &&
+        !shouldKeepLocalExperienceImages &&
         (hasRemoteUpdatedAt
           ? !hasLocalExperienceUpdatedAt || remoteUpdatedAt >= localExperienceUpdatedAt
           : !hasLocalExperienceUpdatedAt);
@@ -1181,6 +1188,11 @@ export default function StudioPage() {
     }
   }, [testimonials]);
 
+  useEffect(() => {
+    const config = getCloudinaryConfig();
+    setCloudinaryStatus(config.isConfigured ? "connected" : "disconnected");
+  }, []);
+
   const activeProjects = useMemo(
     () => projects[activeCategory] || [],
     [projects, activeCategory]
@@ -1235,7 +1247,7 @@ export default function StudioPage() {
     void savePortfolioContentToSupabase({
       projects: nextProjects,
       testimonials,
-      experienceEntries: savedExperienceEntries,
+      experienceEntries: experienceEntriesRef.current,
     });
   };
 
@@ -1251,8 +1263,32 @@ export default function StudioPage() {
     void savePortfolioContentToSupabase({
       projects,
       testimonials: nextTestimonials,
-      experienceEntries: savedExperienceEntries,
+      experienceEntries: experienceEntriesRef.current,
     });
+  };
+
+  const persistExperienceDraftLocally = (
+    nextExperienceEntries: CreativeExperienceEntry[],
+    updatedAt = new Date().toISOString()
+  ) => {
+    if (typeof window === "undefined") return;
+
+    persistExperienceUpdatedAt(updatedAt);
+    window.localStorage.setItem(
+      EXPERIENCE_STORAGE_KEY,
+      JSON.stringify(nextExperienceEntries)
+    );
+    window.dispatchEvent(new Event(EXPERIENCE_UPDATED_EVENT));
+
+    if (typeof BroadcastChannel !== "undefined") {
+      const channel = new BroadcastChannel(PORTFOLIO_SYNC_CHANNEL_NAME);
+      channel.postMessage({
+        type: "experience-updated",
+        experienceEntries: nextExperienceEntries,
+        updatedAt,
+      });
+      channel.close();
+    }
   };
 
   const persistExperienceEntries = async (
@@ -1292,15 +1328,13 @@ export default function StudioPage() {
   };
 
   const handleExperienceImageChange = (index: number, value: string) => {
-    setExperienceEntries((currentEntries) =>
-      {
-        const nextEntries = currentEntries.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, image: sanitizeExperienceImage(value) } : item
-        );
-        experienceEntriesRef.current = nextEntries;
-        return nextEntries;
-      }
+    const nextEntries = experienceEntriesRef.current.map((item, itemIndex) =>
+      itemIndex === index ? { ...item, image: sanitizeExperienceImage(value) } : item
     );
+
+    experienceEntriesRef.current = nextEntries;
+    setExperienceEntries(nextEntries);
+    persistExperienceDraftLocally(nextEntries);
     setExperienceSaveNotice(null);
   };
 
@@ -1408,7 +1442,7 @@ export default function StudioPage() {
             </p>
           ) : (
             <p className="text-xs text-white/45">
-              Make your changes, then click save.
+              Image changes update locally right away. Click save to sync them everywhere.
             </p>
           )}
         </div>
@@ -1698,17 +1732,8 @@ export default function StudioPage() {
             : `Uploading clip ${index + 1} of ${nextFiles.length}`
         );
 
-        const asset = await uploadPortfolioAssetToSupabase(file, "videos", {
-          onProgress: ({ bytesUploaded }) => {
-            currentFileUploadedBytes = bytesUploaded;
-            const percentage =
-              totalBytes > 0
-                ? ((uploadedBytes + currentFileUploadedBytes) / totalBytes) * 100
-                : 0;
-
-            setBulkVideoUploadProgress(Math.max(1, Math.min(100, Math.round(percentage))));
-          },
-        });
+        const asset = await uploadPortfolioAssetToCloudinary(file, "videos");
+        currentFileUploadedBytes = file.size;
 
         uploadedBytes += file.size;
         appendVideoUrlsToForm([asset.url]);
@@ -2046,6 +2071,19 @@ export default function StudioPage() {
                   ? "Checking Supabase connection..."
                   : "Supabase env not set: using local storage fallback"}
             </p>
+            <p
+              className={`mt-0.5 text-xs ${
+                cloudinaryStatus === "connected"
+                  ? "text-emerald-300"
+                  : "text-amber-300"
+              }`}
+            >
+              {cloudinaryStatus === "connected"
+                ? "Cloudinary connected"
+                : cloudinaryStatus === "checking"
+                  ? "Checking Cloudinary..."
+                  : "Cloudinary not configured"}
+            </p>
           </div>
           <button
             type="button"
@@ -2164,7 +2202,7 @@ export default function StudioPage() {
                             : "Drag MP4 clips here or click to upload many"}
                         </span>
                         <span className="mt-1 text-xs text-white/55">
-                          Uploaded videos are saved to Supabase Storage and appended to this
+                          Uploaded videos are saved to Cloudinary and appended to this
                           project.
                         </span>
                       </label>

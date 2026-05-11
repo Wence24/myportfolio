@@ -20,6 +20,7 @@ import { Lens } from "@/components/ui/lens";
 import AnimatedTestimonialsDemo from "@/components/animated-testimonials-demo";
 import AuroraBackgroundDemo from "@/components/aurora-background-demo";
 import {
+  countUsableExperienceImages,
   type CreativeExperienceEntry,
   defaultExperienceEntries,
   EXPERIENCE_CONTENT_UPDATED_AT_KEY,
@@ -2511,8 +2512,25 @@ useEffect(() => {
       remoteContent.experienceEntriesSyncSupported !== false
         ? parseExperienceEntries(remoteContent.experienceEntries)
         : null;
+    let localExperienceEntries = defaultExperienceEntries;
+
+    try {
+      const storedExperienceEntries = window.localStorage.getItem(EXPERIENCE_STORAGE_KEY);
+      if (storedExperienceEntries) {
+        localExperienceEntries = normalizeExperienceEntries(JSON.parse(storedExperienceEntries));
+      }
+    } catch {
+      localExperienceEntries = defaultExperienceEntries;
+    }
+
+    const remoteExperienceImageCount = countUsableExperienceImages(remoteExperienceEntries);
+    const localExperienceImageCount = countUsableExperienceImages(localExperienceEntries);
+    const shouldKeepLocalExperienceImages =
+      remoteExperienceEntries !== null &&
+      remoteExperienceImageCount < localExperienceImageCount;
     const shouldApplyRemoteExperience =
       remoteExperienceEntries !== null &&
+      !shouldKeepLocalExperienceImages &&
       (hasRemoteUpdatedAt
         ? !hasLocalExperienceUpdatedAt || remoteUpdatedAt >= localExperienceUpdatedAt
         : !hasLocalExperienceUpdatedAt);
