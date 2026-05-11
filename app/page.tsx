@@ -5142,19 +5142,27 @@ const sideNavDockItems: FloatingDockItem[] = sideNavButtons.map((item) => {
                                       : "border-white/10 bg-white/[0.04] hover:-translate-y-0.5 hover:border-white/18 hover:bg-white/[0.07]"
                                   }`}
                                 >
-                                  <div className="relative aspect-[16/10] overflow-hidden">
-                                    {previewImage ? (
-                                      <img
-                                        src={previewImage}
-                                        alt={`${selectedVideoProjectGroup.name} clip ${clipIndex + 1}`}
-                                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
-                                        loading="lazy"
-                                      />
-                                    ) : (
-                                      <div className="h-full w-full bg-[linear-gradient(135deg,rgba(8,16,24,0.98),rgba(5,9,15,0.94))]" />
-                                    )}
-                                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,11,18,0.08),rgba(5,8,13,0.72)_100%)]" />
-                                  </div>
+                              <div className="relative aspect-[16/10] overflow-hidden bg-black/40">
+                                {clip.videoUrl.trim().length > 0 ? (
+                                  <video
+                                    src={clip.videoUrl}
+                                    className="h-full w-full object-cover"
+                                    muted
+                                    playsInline
+                                    preload="metadata"
+                                  />
+                                ) : previewImage ? (
+                                  <img
+                                    src={previewImage}
+                                    alt={`${selectedVideoProjectGroup.name} clip ${clipIndex + 1}`}
+                                    className="h-full w-full object-cover"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="h-full w-full bg-[linear-gradient(135deg,rgba(8,16,24,0.98),rgba(5,9,15,0.94))]" />
+                                )}
+                                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,11,18,0.08),rgba(5,8,13,0.72)_100%)]" />
+                              </div>
                                   <div className="px-3 py-3">
                                     <p className="text-sm font-semibold text-white">
                                       Clip {String(clipIndex + 1).padStart(2, "0")}
