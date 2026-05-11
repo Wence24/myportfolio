@@ -1476,7 +1476,7 @@ export default function StudioPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         {experienceEntries.map((entry, index) => (
           <div
-            key={`${entry.client}-${entry.role}`}
+            key={`experience-card-${index}`}
             className="rounded-2xl border border-white/15 bg-black/25 p-4 space-y-4"
           >
             <div>
