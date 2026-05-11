@@ -437,7 +437,7 @@ export const savePortfolioContentToSupabase = async (payload: {
         id: contentRowId,
         projects: payload.projects,
         testimonials: payload.testimonials,
-        experience: payload.experienceEntries,
+        experience_entries: payload.experienceEntries,
         updated_at: now,
       },
       { onConflict: "id" }

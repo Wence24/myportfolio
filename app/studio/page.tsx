@@ -1332,39 +1332,34 @@ export default function StudioPage() {
       itemIndex === index ? { ...item, image: sanitizeExperienceImage(value) } : item
     );
 
-    experienceEntriesRef.current = nextEntries;
     setExperienceEntries(nextEntries);
-    persistExperienceDraftLocally(nextEntries);
     setExperienceSaveNotice(null);
   };
 
   const handleExperienceFieldChange = (index: number, field: "client" | "role" | "period" | "summary", value: string) => {
-    const nextEntries = experienceEntriesRef.current.map((item, itemIndex) =>
-      itemIndex === index ? { ...item, [field]: value } : item
-    );
-
-    experienceEntriesRef.current = nextEntries;
-    setExperienceEntries(nextEntries);
-    persistExperienceDraftLocally(nextEntries);
+    setExperienceEntries((prev) => {
+      const next = prev.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      );
+      return next;
+    });
     setExperienceSaveNotice(null);
   };
 
   const handleExperienceTagsChange = (index: number, commaSeparatedTags: string) => {
-    const nextEntries = experienceEntriesRef.current.map((item, itemIndex) =>
-      itemIndex === index
-        ? {
-            ...item,
-            tags: commaSeparatedTags
-              .split(",")
-              .map((tag) => tag.trim())
-              .filter((tag) => tag.length > 0),
-          }
-        : item
+    setExperienceEntries((prev) =>
+      prev.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              tags: commaSeparatedTags
+                .split(",")
+                .map((tag) => tag.trim())
+                .filter((tag) => tag.length > 0),
+            }
+          : item
+      )
     );
-
-    experienceEntriesRef.current = nextEntries;
-    setExperienceEntries(nextEntries);
-    persistExperienceDraftLocally(nextEntries);
     setExperienceSaveNotice(null);
   };
 
@@ -1372,7 +1367,7 @@ export default function StudioPage() {
     setIsSavingExperience(true);
     setExperienceSaveNotice(null);
 
-    const nextExperienceEntries = experienceEntriesRef.current;
+    const nextExperienceEntries = experienceEntries;
     const didSyncToSupabase = await persistExperienceEntries(nextExperienceEntries);
     let didVerifyRemoteExperience = didSyncToSupabase;
     let didVerifyLocalExperience = false;
