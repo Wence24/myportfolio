@@ -313,8 +313,7 @@ export const uploadPortfolioAssetToCloudinary = async (
   formData.append("file", file);
   formData.append("upload_preset", uploadPreset);
   formData.append("folder", folder);
-  formData.append("use_filename", "1");
-  formData.append("unique_filename", "1");
+  formData.append("filename_override", file.name);
 
   // For direct browser upload, use XMLHttpRequest to track upload progress
   return new Promise<{ url: string; publicId: string }>((resolve, reject) => {
