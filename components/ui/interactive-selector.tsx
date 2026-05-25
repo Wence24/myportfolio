@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Clapperboard, Film, Layers, MonitorPlay, Sparkles } from "lucide-react";
 import { defaultHomeContent, type HomeContent, type HomeFeaturedProject } from "@/lib/portfolio-data";
 
@@ -52,50 +52,14 @@ export default function InteractiveSelector({
   );
   const [activeIndex, setActiveIndex] = useState(0);
   const [animatedOptions, setAnimatedOptions] = useState<number[]>([]);
-  const [sectionProgress, setSectionProgress] = useState(0);
-  const sectionRef = useRef<HTMLElement | null>(null);
 
   const frameCount = Math.max(options.length, 1);
   const maxIndex = Math.max(options.length - 1, 0);
   const safeActiveIndex = clamp(activeIndex, 0, maxIndex);
-  const scrollSteps = Math.max(frameCount, 1);
-  const scrollLengthVh = clamp(
-    featuredContent.scrollLengthVh || defaultHomeContent.featuredProjects.scrollLengthVh,
-    32,
-    110
-  );
   const progress = frameCount > 0 ? ((safeActiveIndex + 1) / frameCount) * 100 : 0;
-  const sectionStyle = {
-    "--featured-scroll-height": `calc(100svh + ${scrollSteps * scrollLengthVh}svh)`,
-  } as React.CSSProperties & { "--featured-scroll-height": string };
-
-  const setActiveOption = useCallback(
-    (index: number, syncScrollPosition = false) => {
-      const nextIndex = clamp(index, 0, Math.max(options.length - 1, 0));
-      setActiveIndex(nextIndex);
-
-      if (!syncScrollPosition || options.length < 2) return;
-
-      const section = sectionRef.current;
-      if (!section) return;
-
-      const scrollableDistance = section.offsetHeight - window.innerHeight;
-      if (scrollableDistance <= 0) return;
-
-      const sectionTop = section.getBoundingClientRect().top + window.scrollY;
-      const targetProgress = nextIndex / options.length;
-      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-      window.scrollTo({
-        top: sectionTop + scrollableDistance * targetProgress,
-        behavior: prefersReducedMotion ? "auto" : "smooth",
-      });
-    },
-    [options.length]
-  );
 
   const handleOptionClick = (index: number) => {
-    setActiveOption(index, true);
+    setActiveIndex(clamp(index, 0, Math.max(options.length - 1, 0)));
   };
 
   useEffect(() => {
@@ -112,61 +76,12 @@ export default function InteractiveSelector({
     };
   }, [options]);
 
-  useEffect(() => {
-    if (options.length < 2) {
-      return;
-    }
-
-    let animationFrame: number | null = null;
-
-    const updateCarouselFromScroll = () => {
-      animationFrame = null;
-      const section = sectionRef.current;
-      if (!section) return;
-
-      const rect = section.getBoundingClientRect();
-      const scrollableDistance = section.offsetHeight - window.innerHeight;
-      if (scrollableDistance <= 0) return;
-
-      const nextProgress = clamp(-rect.top / scrollableDistance, 0, 1);
-      const nextIndex = clamp(
-        Math.floor(nextProgress * options.length),
-        0,
-        options.length - 1
-      );
-
-      setSectionProgress(nextProgress);
-      setActiveIndex((currentIndex) =>
-        currentIndex === nextIndex ? currentIndex : nextIndex
-      );
-    };
-
-    const scheduleCarouselUpdate = () => {
-      if (animationFrame !== null) return;
-      animationFrame = window.requestAnimationFrame(updateCarouselFromScroll);
-    };
-
-    scheduleCarouselUpdate();
-    window.addEventListener("scroll", scheduleCarouselUpdate, { passive: true });
-    window.addEventListener("resize", scheduleCarouselUpdate);
-
-    return () => {
-      window.removeEventListener("scroll", scheduleCarouselUpdate);
-      window.removeEventListener("resize", scheduleCarouselUpdate);
-      if (animationFrame !== null) {
-        window.cancelAnimationFrame(animationFrame);
-      }
-    };
-  }, [options.length]);
-
   return (
     <section
-      ref={sectionRef}
-      className="section-side-glow relative h-[var(--featured-scroll-height)] bg-black text-white"
-      style={sectionStyle}
+      className="section-side-glow relative bg-black px-4 py-16 text-white sm:px-6 sm:py-20 lg:px-8"
       aria-label="Featured projects selector"
     >
-      <div className="sticky top-0 flex h-[100svh] min-h-[100svh] w-full flex-col items-center justify-center overflow-hidden px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="relative flex w-full flex-col items-center justify-center overflow-hidden">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(62,141,255,0.16),transparent_34%),linear-gradient(180deg,#05070b_0%,#000_72%)]" />
           <div className="absolute inset-0 opacity-[0.045] [background-image:linear-gradient(rgba(143,220,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(143,220,255,0.08)_1px,transparent_1px)] [background-size:42px_42px]" />
@@ -207,17 +122,6 @@ export default function InteractiveSelector({
           </div>
 
           <div className="relative mt-5 flex h-[min(460px,50svh)] w-full flex-col gap-2 overflow-hidden sm:mt-7 sm:gap-3 md:h-[min(540px,58vh)] md:flex-row md:items-stretch lg:h-[min(590px,62vh)]">
-            <div
-              aria-hidden="true"
-              className={`pointer-events-none absolute right-3 top-3 z-30 h-1.5 w-28 overflow-hidden rounded-full border border-white/10 bg-black/40 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur-md transition-opacity duration-200 sm:right-4 sm:top-4 sm:w-36 ${
-                sectionProgress > 0 && sectionProgress < 1 ? "opacity-100" : "opacity-0"
-              }`}
-            >
-              <div
-                className="h-full rounded-full bg-[linear-gradient(90deg,#3e8dff,#8fdcff)] shadow-[0_0_18px_rgba(143,220,255,0.45)] transition-[width] duration-180 ease-out"
-                style={{ width: `${sectionProgress * 100}%` }}
-              />
-            </div>
             {options.map((option, index) => {
               const isActive = safeActiveIndex === index;
               const hasAnimated = animatedOptions.includes(index);

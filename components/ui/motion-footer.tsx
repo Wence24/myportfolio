@@ -492,15 +492,15 @@ export function HomeScrollRevealSection() {
           `,
         }}
       />
-      <main className="relative z-10 flex min-h-[24vh] w-full flex-col items-center justify-center bg-black/70 px-4 text-white">
+      <main className="relative z-10 flex min-h-[8vh] w-full flex-col items-center justify-center bg-black/70 px-4 py-6 text-white">
         <div className="pointer-events-none absolute inset-0 opacity-[0.04] [background-image:linear-gradient(rgba(143,220,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(143,220,255,0.05)_1px,transparent_1px)] [background-size:44px_44px]" />
         <div className="relative flex flex-col items-center">
           <div
-            className="h-14 w-14 rounded-full border border-white/10 bg-[radial-gradient(circle,rgba(143,220,255,0.12)_0%,rgba(143,220,255,0.02)_48%,transparent_72%)] sm:h-16 sm:w-16"
+            className="h-9 w-9 rounded-full border border-white/10 bg-[radial-gradient(circle,rgba(143,220,255,0.12)_0%,rgba(143,220,255,0.02)_48%,transparent_72%)] sm:h-10 sm:w-10"
             style={{ animation: "home-reveal-pulse 2.6s ease-in-out infinite" }}
           />
           <div
-            className="mt-5 h-14 w-px bg-gradient-to-b from-[#8fdcff]/80 to-transparent sm:h-16"
+            className="mt-3 h-8 w-px bg-gradient-to-b from-[#8fdcff]/80 to-transparent sm:h-10"
             style={{ animation: "home-reveal-line 2.6s ease-in-out infinite" }}
           />
         </div>
