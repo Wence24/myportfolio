@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Fragment, useEffect, useRef, useState } from "react";
+import React, { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -28,6 +28,8 @@ import {
   countUsableExperienceImages,
   type CreativeExperienceEntry,
   type HomeContent,
+  type HomeFeaturedProject,
+  type PortfolioProject,
   defaultHomeContent,
   defaultExperienceEntries,
   defaultPortfolioProjects,
@@ -81,6 +83,105 @@ const getPortfolioCategoryPath = (categoryName: PortfolioCategoryName) => {
   if (categoryName === "Video Edit") return "/portfolio/video-editing";
   if (categoryName === "Graphic Design") return "/portfolio/graphic-design";
   return "/portfolio/web-development";
+};
+
+const isPortraitPlaceholderImage = (value: string) => {
+  const basename = value
+    .trim()
+    .replace(/\\/g, "/")
+    .split("#")[0]
+    .split("?")[0]
+    .toLowerCase()
+    .split("/")
+    .pop();
+
+  return basename ? /^(wens|wence|v[2-6])\.(jpe?g|png|webp)$/i.test(basename) : false;
+};
+
+const getProjectFeaturedImage = (
+  project: PortfolioProject | undefined,
+  categoryName: PortfolioCategoryName
+) => {
+  const imageCandidates =
+    categoryName === "Video Edit"
+      ? [
+          project?.image,
+          project?.videoPosterUrls?.find((item) => item.trim().length > 0),
+          project?.details?.heroImage,
+        ]
+      : [project?.image, project?.details?.heroImage];
+
+  return imageCandidates
+    .map((value) => value?.trim() || "")
+    .find((value) => value && !isPortraitPlaceholderImage(value)) || "";
+};
+
+const buildFeaturedProjectsFromPortfolio = (
+  homeContent: HomeContent,
+  portfolioProjects: Record<string, PortfolioProject[]>
+): HomeContent["featuredProjects"] => {
+  const featuredProjects = homeContent.featuredProjects.projects;
+  const fallbackFeaturedProjects = defaultHomeContent.featuredProjects.projects;
+  const videoProjects = portfolioProjects["Video Edit"] || [];
+  const graphicProjects = portfolioProjects["Graphic Design"] || [];
+  const websiteProjects = portfolioProjects.Websites || [];
+  const rawVideoLaneImage =
+    homeContent.creativeProfile.lanes.find((lane) => lane.value === "video-editing")
+      ?.imageSrc ||
+    defaultHomeContent.creativeProfile.lanes.find((lane) => lane.value === "video-editing")
+      ?.imageSrc ||
+    "";
+  const videoLaneImage = isPortraitPlaceholderImage(rawVideoLaneImage)
+    ? ""
+    : rawVideoLaneImage;
+  const rawWebLaneImage =
+    homeContent.creativeProfile.lanes.find((lane) => lane.value === "web-development")
+      ?.imageSrc ||
+    defaultHomeContent.creativeProfile.lanes.find(
+      (lane) => lane.value === "web-development"
+    )?.imageSrc ||
+    "";
+  const webLaneImage = isPortraitPlaceholderImage(rawWebLaneImage) ? "" : rawWebLaneImage;
+
+  const sourceProjects = [
+    ...[0, 1, 2].map((index) => ({
+      categoryName: "Video Edit" as const,
+      project: videoProjects[index] || videoProjects[0],
+    })),
+    { categoryName: "Graphic Design" as const, project: graphicProjects[0] },
+    { categoryName: "Websites" as const, project: websiteProjects[0] },
+  ];
+
+  const projects: HomeFeaturedProject[] = sourceProjects.map((source, index) => {
+    const currentProject =
+      featuredProjects[index % Math.max(featuredProjects.length, 1)] ||
+      fallbackFeaturedProjects[index % fallbackFeaturedProjects.length];
+    const fallbackProject = fallbackFeaturedProjects[index % fallbackFeaturedProjects.length];
+    const isWebsiteFrame = index === 4;
+    const fallbackImage = isPortraitPlaceholderImage(fallbackProject.image)
+      ? ""
+      : fallbackProject.image;
+    const image =
+      getProjectFeaturedImage(source.project, source.categoryName) ||
+      (source.categoryName === "Video Edit" ? videoLaneImage : "") ||
+      (isWebsiteFrame ? webLaneImage : "") ||
+      fallbackImage;
+
+    return {
+      title: source.project?.title?.trim() || currentProject?.title || fallbackProject.title,
+      description:
+        source.project?.description?.trim() ||
+        currentProject?.description ||
+        fallbackProject.description,
+      icon: currentProject?.icon || fallbackProject.icon,
+      image,
+    };
+  });
+
+  return {
+    ...homeContent.featuredProjects,
+    projects,
+  };
 };
 
 type AboutExperienceSectionProps = {
@@ -3377,6 +3478,10 @@ const activeCategoryCountText =
         videoProjectGroups.length === 1 ? "project" : "projects"
       } and ${totalVideoClipCount} ${totalVideoClipCount === 1 ? "clip" : "clips"} on standby.`
     : `${activeProjects.length} ${activeProjects.length === 1 ? "item" : "items"} currently showing.`;
+const featuredPortfolioContent = useMemo(
+  () => buildFeaturedProjectsFromPortfolio(homeContent, portfolioProjects),
+  [homeContent, portfolioProjects]
+);
 
 useEffect(() => {
   if (!isVideoEditShowcase) {
@@ -3892,7 +3997,7 @@ const socialLinks: SocialLink[] = [
           homeContent={homeContent}
         />
 
-        <InteractiveSelector content={homeContent.featuredProjects} />
+        <InteractiveSelector content={featuredPortfolioContent} />
 
         <HomeScrollRevealSection />
       </div>

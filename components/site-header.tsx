@@ -132,7 +132,7 @@ export function SiteHeader({
   );
 
   return (
-    <div className="fixed left-0 right-0 top-0 z-50 px-2 pt-3 sm:px-4 lg:px-5">
+    <div className="fixed left-0 right-0 top-0 z-[1000] px-2 pt-3 sm:px-4 lg:px-5">
       <nav
         className={`relative mx-auto w-full transform-gpu origin-top overflow-hidden font-semibold tracking-[0.02em] transition-[max-width,transform,padding,border-color,background-color,box-shadow,border-radius,backdrop-filter] duration-320 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform ${
           isNavScrolled

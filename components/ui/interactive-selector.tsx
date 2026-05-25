@@ -63,6 +63,9 @@ export default function InteractiveSelector({
   };
 
   useEffect(() => {
+    setActiveIndex(0);
+    setAnimatedOptions([]);
+
     const timers = options.map((_, index) =>
       window.setTimeout(() => {
         setAnimatedOptions((currentOptions) =>
@@ -128,7 +131,7 @@ export default function InteractiveSelector({
 
               return (
                 <button
-                  key={option.title}
+                  key={`${option.title}-${index}`}
                   type="button"
                   className="group relative flex min-h-0 flex-col justify-end overflow-hidden border-2 bg-[#111827] text-left outline-none transition-[flex,opacity,transform,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] focus-visible:ring-2 focus-visible:ring-[#8fdcff]/60 md:min-h-[100px]"
                   style={{

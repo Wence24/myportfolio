@@ -11,6 +11,7 @@ export type PortfolioProject = {
   videoUrl?: string;
   videoUrls?: string[];
   videoPosterUrls?: string[];
+  tags?: string[];
   showDetailsModal?: boolean;
   details?: {
     title: string;

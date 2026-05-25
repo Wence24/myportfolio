@@ -365,9 +365,13 @@ export default function PortfolioProjectDetailPage({
 
   if (!entry) {
     return (
-      <main className="min-h-screen bg-[#050706] text-white">
+      <main className="relative min-h-screen overflow-hidden bg-[#050706] text-white">
+        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+          <div className="absolute left-1/2 top-[-18rem] h-[42rem] w-[82rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.18)_0%,rgba(35,117,255,0.075)_38%,transparent_72%)] blur-3xl" />
+          <div className="absolute left-[-18rem] top-[24rem] h-[36rem] w-[36rem] rounded-full bg-[radial-gradient(circle,rgba(64,167,255,0.15)_0%,rgba(64,167,255,0.05)_36%,transparent_72%)] blur-3xl" />
+        </div>
         <SiteHeader activeSection="portfolio" />
-        <section className="mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center px-6 text-center">
+        <section className="relative z-10 mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center px-6 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8fdcff]">
             Project not found
           </p>
@@ -385,13 +389,29 @@ export default function PortfolioProjectDetailPage({
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#050706] text-white">
-      <SiteHeader activeSection="portfolio" />
+    <main className="relative min-h-screen overflow-hidden bg-[#050706] text-white">
+      <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
+        <div className="absolute left-1/2 top-[-18rem] h-[42rem] w-[82rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.18)_0%,rgba(35,117,255,0.075)_38%,transparent_72%)] blur-3xl" />
+        <div className="absolute left-[-18rem] top-[24rem] h-[36rem] w-[36rem] rounded-full bg-[radial-gradient(circle,rgba(64,167,255,0.15)_0%,rgba(64,167,255,0.05)_36%,transparent_72%)] blur-3xl" />
+        <div className="absolute right-[-16rem] bottom-[-12rem] h-[42rem] w-[42rem] rounded-full bg-[radial-gradient(circle,rgba(143,220,255,0.16)_0%,rgba(84,184,255,0.055)_38%,transparent_74%)] blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(84,184,255,0.08),transparent_48%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,16,28,0.2)_0%,rgba(5,7,6,0.54)_48%,rgba(5,7,6,0.86)_100%)]" />
+      </div>
+      <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+        <div className="absolute left-1/2 top-24 h-72 w-[64rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.12)_0%,rgba(84,184,255,0.04)_38%,transparent_74%)] blur-3xl" />
+        <div className="absolute left-[-10%] top-[34rem] h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(47,125,255,0.12)_0%,transparent_72%)] blur-3xl" />
+        <div className="absolute right-[-12rem] top-[62rem] h-[34rem] w-[34rem] rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.14)_0%,rgba(84,184,255,0.045)_38%,transparent_74%)] blur-3xl" />
+        <div className="absolute left-[-14rem] top-[104rem] h-[38rem] w-[38rem] rounded-full bg-[radial-gradient(circle,rgba(47,125,255,0.16)_0%,rgba(47,125,255,0.05)_36%,transparent_72%)] blur-3xl" />
+        <div className="absolute right-[8%] top-[150rem] h-[32rem] w-[46rem] rounded-full bg-[radial-gradient(circle,rgba(143,220,255,0.11)_0%,rgba(84,184,255,0.04)_42%,transparent_74%)] blur-3xl" />
+      </div>
+      <div className="relative z-[1000]">
+        <SiteHeader activeSection="portfolio" />
+      </div>
 
-      <section className="relative mx-auto w-full max-w-[96rem] px-5 pb-24 pt-28 sm:px-8 lg:px-12 xl:px-16">
+      <section className="relative z-10 mx-auto w-full max-w-[96rem] px-5 pb-24 pt-28 sm:px-8 lg:px-12 xl:px-16">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-1/2 top-24 h-72 w-[64rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.12)_0%,rgba(84,184,255,0.04)_38%,transparent_74%)] blur-3xl" />
-          <div className="absolute left-[-10%] top-[34rem] h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(47,125,255,0.12)_0%,transparent_72%)] blur-3xl" />
+          <div className="absolute left-1/2 top-16 h-[26rem] w-[72rem] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(84,184,255,0.16)_0%,rgba(84,184,255,0.055)_38%,transparent_74%)] blur-3xl" />
+          <div className="absolute left-[-10%] top-[34rem] h-96 w-96 rounded-full bg-[radial-gradient(circle,rgba(47,125,255,0.16)_0%,transparent_72%)] blur-3xl" />
         </div>
 
         <div className="relative z-10 grid gap-12 lg:grid-cols-[18rem_minmax(0,1fr)] xl:gap-16">

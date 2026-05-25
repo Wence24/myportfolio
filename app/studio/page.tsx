@@ -106,6 +106,18 @@ const defaultProjectImages: Record<PortfolioCategory, string> = {
     "https://images.unsplash.com/photo-1547658719-da2b51169166?auto=format&fit=crop&w=1200&q=80",
 };
 
+const defaultProjectTags: Record<PortfolioCategory, string[]> = {
+  "Graphic Design": ["Adobe Photoshop", "Adobe Illustrator", "Canva", "Figma"],
+  "Video Edit": ["Adobe Premiere Pro", "After Effects", "CapCut"],
+  Websites: ["Next.js", "React", "TypeScript", "Tailwind CSS"],
+};
+
+const parseTagInput = (value: string) =>
+  value
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+
 const normalizeProjects = (value: unknown): PortfolioProjects => {
   if (!value || typeof value !== "object") return emptyProjects;
   const raw = value as Record<string, unknown>;
@@ -174,11 +186,12 @@ const createProject = (category: PortfolioCategory): PortfolioProject => {
       description: "Describe the edit, style, pacing, and result.",
       image: defaultProjectImages["Video Edit"],
       designLink: "#",
-      videoCategory: "Short-form",
+      videoCategory: "short-form",
       videoParentLabel: "Client project",
       videoAspectRatio: "landscape",
       videoUrls: [""],
       videoPosterUrls: [defaultProjectImages["Video Edit"]],
+      tags: defaultProjectTags["Video Edit"],
       showDetailsModal: false,
     };
   }
@@ -191,6 +204,7 @@ const createProject = (category: PortfolioCategory): PortfolioProject => {
     description: "Describe the project, visual direction, and final delivery.",
     image: defaultImage,
     designLink: "#",
+    tags: defaultProjectTags[category],
     showDetailsModal: true,
     details: {
       title,
@@ -2233,14 +2247,33 @@ export default function StudioPage() {
                             }
                           />
                         </Field>
+                        <Field
+                          label="Tool badges"
+                          hint="Comma-separated badges shown after the video group badge, for example: Adobe Premiere Pro, After Effects, CapCut."
+                        >
+                          <TextInput
+                            value={(project.tags || []).join(", ")}
+                            placeholder={defaultProjectTags[activeCategory].join(", ")}
+                            onChange={(event) =>
+                              updateProjectAt(index, (item) => ({
+                                ...item,
+                                tags: parseTagInput(event.target.value),
+                              }))
+                            }
+                          />
+                        </Field>
                       </div>
 
                       {isVideoCategory(activeCategory) ? (
                         <div className="mt-5 rounded-2xl border border-[#8fdcff]/14 bg-[#8fdcff]/[0.045] p-4">
                           <div className="grid gap-4 md:grid-cols-3">
-                            <Field label="Video group">
+                            <Field
+                              label="First badge / video group"
+                              hint="Type short-form here and the public card shows SHORT REEL."
+                            >
                               <TextInput
                                 value={project.videoCategory || ""}
+                                placeholder="short-form"
                                 onChange={(event) =>
                                   updateProjectAt(index, (item) => ({
                                     ...item,

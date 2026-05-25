@@ -224,6 +224,15 @@ export const getProjectTags = (
   category: PortfolioCategory,
   fallbackTags: string[]
 ) => {
+  const getDisplayTag = (tag: string) => {
+    const normalizedTag = tag.trim().toLowerCase();
+
+    if (normalizedTag === "short-form" || normalizedTag === "short form") {
+      return "SHORT REEL";
+    }
+
+    return tag.trim().toUpperCase();
+  };
   const nonToolTags = new Set([
     "CAPTIONS",
     "RETENTION",
@@ -237,9 +246,13 @@ export const getProjectTags = (
     category === "Video Edit" && project.videoCategory?.trim()
       ? project.videoCategory
       : undefined;
-  const tags = [...fallbackTags, projectFormat]
+  const editableTags =
+    Array.isArray(project.tags) && project.tags.some((tag) => tag.trim())
+      ? project.tags
+      : fallbackTags;
+  const tags = [projectFormat, ...editableTags]
     .filter((tag): tag is string => Boolean(tag?.trim()))
-    .map((tag) => tag.trim().toUpperCase())
+    .map(getDisplayTag)
     .filter((tag) => !nonToolTags.has(tag));
 
   return Array.from(new Set(tags));
