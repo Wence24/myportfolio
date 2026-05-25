@@ -5,7 +5,18 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_CONTACT_EMAIL = "aiakosedt@gmail.com";
 const MAX_MESSAGE_LENGTH = 4000;
-const VALID_SERVICES = ["video-edit", "graphic-design"] as const;
+const VALID_SERVICES = [
+  "video-edit",
+  "graphic-design",
+  "web-development",
+  "creative-package",
+  "branding",
+  "social",
+  "packaging",
+  "motion",
+  "code",
+  "other",
+] as const;
 const VALID_VIDEO_EDIT_TYPES = ["long-form", "short-form"] as const;
 
 const escapeHtml = (value: string): string =>
@@ -25,6 +36,22 @@ const getInquiryLabel = (value: string): string => {
       return "Video edit";
     case "graphic-design":
       return "Graphic design";
+    case "web-development":
+      return "Web development";
+    case "creative-package":
+      return "Creative package";
+    case "branding":
+      return "Branding";
+    case "social":
+      return "Social";
+    case "packaging":
+      return "Packaging";
+    case "motion":
+      return "Motion";
+    case "code":
+      return "Code";
+    case "other":
+      return "Other";
     case "long-form":
       return "Long-form edits";
     case "short-form":
@@ -145,7 +172,7 @@ export async function POST(request: Request) {
         ...(selectedVideoEditType
           ? [`Edit type: ${getInquiryLabel(selectedVideoEditType)}`]
           : []),
-        ...(selectedRateSummary ? [`Selected rate: ${selectedRateSummary}`] : []),
+        ...(selectedRateSummary ? [`Selected needs: ${selectedRateSummary}`] : []),
         "",
         "Message:",
         message,
@@ -167,7 +194,7 @@ export async function POST(request: Request) {
           }
           ${
             selectedRateSummary
-              ? `<p><strong>Selected rate:</strong> ${escapeHtml(selectedRateSummary)}</p>`
+              ? `<p><strong>Selected needs:</strong> ${escapeHtml(selectedRateSummary)}</p>`
               : ""
           }
           <p><strong>Message:</strong></p>

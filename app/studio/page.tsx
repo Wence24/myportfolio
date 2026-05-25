@@ -1,3243 +1,2638 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowLeft, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import {
-  countUsableExperienceImages,
-  type CreativeExperienceEntry,
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  Cloud,
+  Database,
+  Image as ImageIcon,
+  LogOut,
+  Plus,
+  Save,
+  Trash2,
+  UploadCloud,
+  Video,
+} from "lucide-react";
+
+import {
   defaultExperienceEntries,
+  defaultHomeContent,
+  defaultPortfolioProjects,
+  defaultTestimonials,
   EXPERIENCE_CONTENT_UPDATED_AT_KEY,
   EXPERIENCE_STORAGE_KEY,
   EXPERIENCE_UPDATED_EVENT,
+  fetchPublicPortfolioConfig,
+  fetchPortfolioContentFromSupabase,
+  HOME_CONTENT_STORAGE_KEY,
+  HOME_CONTENT_UPDATED_AT_KEY,
+  HOME_CONTENT_UPDATED_EVENT,
   normalizeExperienceEntries,
+  normalizeHomeContent,
+  normalizeTestimonials,
   parseExperienceEntries,
-  sanitizeExperienceImage,
-  ensureSupabaseConfigured,
+  parseHomeContent,
   PORTFOLIO_CONTENT_UPDATED_AT_KEY,
-  PORTFOLIO_SYNC_CHANNEL_NAME,
   PORTFOLIO_STORAGE_KEY,
   PORTFOLIO_UPDATED_EVENT,
-  TESTIMONIALS_STORAGE_KEY,
-  TESTIMONIALS_UPDATED_EVENT,
-  fetchPortfolioContentFromSupabase,
-  isSupabaseConfigured,
   savePortfolioContentToSupabase,
+  sanitizeExperienceImage,
+  TESTIMONIALS_STORAGE_KEY,
   uploadPortfolioAssetToCloudinary,
+  type CreativeExperienceEntry,
+  type FeaturedProjectIcon,
+  type HomeAboutAccordionItem,
+  type HomeContent,
+  type HomeCreativeLane,
+  type HomeExperienceCard,
+  type HomeFeaturedProject,
+  type PortfolioCategory,
+  type PortfolioProject,
+  type PortfolioProjects,
+  type Testimonial,
 } from "@/lib/portfolio-data";
-import { getCloudinaryConfig } from "@/lib/cloudinary-config";
 
-type PortfolioProject = {
-  title: string;
-  description: string;
-  image: string;
-  designLink: string;
-  videoCategory?: string;
-  videoParentLabel?: string;
-  videoAspectRatio?: "landscape" | "portrait";
-  videoUrl?: string;
-  videoUrls?: string[];
-  videoPosterUrls?: string[];
-  showDetailsModal?: boolean;
-  details?: {
-    title: string;
-    description: string;
-    heroImage: string;
-    galleryImages: string[];
-  };
-};
-
-type PortfolioCategory = "Graphic Design" | "Video Edit" | "Websites";
-type PortfolioProjects = Record<PortfolioCategory, PortfolioProject[]>;
-
-type ProjectForm = {
-  title: string;
-  description: string;
-  image: string;
-  designLink: string;
-  videoCategory: string;
-  videoParentLabel: string;
-  videoAspectRatio: "landscape" | "portrait";
-  videoUrls: string[];
-  videoPosterUrls: string[];
-  showDetailsModal: boolean;
-  detailsTitle: string;
-  detailsDescription: string;
-  detailsHeroImage: string;
-  galleryImages: string[];
-};
-
-type Testimonial = {
-  quote: string;
-  name: string;
-  designation: string;
-  src: string;
-};
-
-type TestimonialForm = {
-  quote: string;
-  name: string;
-  designation: string;
-  src: string;
-};
-
-type VideoProjectAspectRatio = "landscape" | "portrait";
-
-const categories: PortfolioCategory[] = [
-  "Graphic Design",
-  "Video Edit",
-  "Websites",
-];
+type StudioTab = "home" | "about" | "lanes" | "experience" | "portfolio" | "stories";
+type VideoAspectRatio = "landscape" | "portrait";
+type ConnectionState = "checking" | "connected" | "missing" | "error";
 
 const STUDIO_AUTH_KEY = "portfolio-studio-auth";
-const STUDIO_EMAIL_STORAGE_KEY = "portfolio-studio-email";
-const STUDIO_PASSWORD_STORAGE_KEY = "portfolio-studio-password";
 const DEFAULT_STUDIO_EMAIL = "aiakosedt@gmail.com";
 const DEFAULT_STUDIO_PASSWORD = "Wence_dante24";
-const MAX_IMAGE_UPLOAD_SIZE = 5 * 1024 * 1024;
-const MAX_VIDEO_UPLOAD_SIZE = 100 * 1024 * 1024;
-const MAX_VIDEO_UPLOAD_SIZE_MB = Math.floor(MAX_VIDEO_UPLOAD_SIZE / (1024 * 1024));
-const VIDEO_METADATA_TIMEOUT_MS = 12000;
 
-type StudioCredentials = {
-  email: string;
-  password: string;
-};
+const emptyProjects: PortfolioProjects = defaultPortfolioProjects;
 
-const DEFAULT_VIDEO_EDIT_GROUP = "Featured Edits";
-const VIDEO_ASPECT_RATIO_OPTIONS: Array<{
-  value: VideoProjectAspectRatio;
+const categories: Array<{
+  key: PortfolioCategory;
   label: string;
-  description: string;
+  note: string;
 }> = [
   {
-    value: "landscape",
-    label: "1920 x 1080",
-    description: "Standard horizontal video for long-form content.",
+    key: "Video Edit",
+    label: "Video Editing",
+    note: "Card image, YouTube or MP4 links, clip thumbnails, and detail text.",
   },
   {
-    value: "portrait",
-    label: "1080 x 1920",
-    description: "Vertical short-form video for reels, shorts, and TikToks.",
+    key: "Graphic Design",
+    label: "Graphic Design",
+    note: "Card image plus 1920x1080 detail frames.",
+  },
+  {
+    key: "Websites",
+    label: "Web Development",
+    note: "Card image plus 1920x1080 website frames.",
   },
 ];
 
-const getVideoProjectCategory = (project: PortfolioProject) =>
-  project.videoCategory?.trim() || project.title?.trim() || DEFAULT_VIDEO_EDIT_GROUP;
-
-const getVideoProjectParentLabel = (project: PortfolioProject) => {
-  const explicitLabel = project.videoParentLabel?.trim() || "";
-  if (explicitLabel) {
-    return explicitLabel;
-  }
-
-  const legacyCategoryLabel = project.videoCategory?.trim() || "";
-  if (legacyCategoryLabel && legacyCategoryLabel !== project.title.trim()) {
-    return legacyCategoryLabel;
-  }
-
-  const legacyDetailsLabel = project.details?.title?.trim() || "";
-  if (
-    legacyDetailsLabel &&
-    legacyDetailsLabel !== project.title.trim() &&
-    legacyDetailsLabel.toLowerCase() !== "project details"
-  ) {
-    return legacyDetailsLabel;
-  }
-
-  return "";
-};
-
-const getVideoProjectAspectRatio = (
-  project: Pick<PortfolioProject, "videoAspectRatio">
-): VideoProjectAspectRatio => {
-  const normalizedValue = project.videoAspectRatio?.trim().toLowerCase();
-  if (
-    normalizedValue === "portrait" ||
-    normalizedValue === "1080x1920" ||
-    normalizedValue === "9:16" ||
-    normalizedValue === "vertical"
-  ) {
-    return "portrait";
-  }
-
-  return "landscape";
-};
-
-const getVideoAspectRatioLabel = (aspectRatio: VideoProjectAspectRatio) =>
-  aspectRatio === "portrait" ? "1080x1920" : "1920x1080";
-
-const detectAspectRatioFromDimensions = (
-  width: number,
-  height: number
-): VideoProjectAspectRatio | null => {
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    return null;
-  }
-
-  return height > width ? "portrait" : "landscape";
-};
-
-const loadVideoMetadata = (src: string) =>
-  new Promise<{ width: number; height: number }>((resolve, reject) => {
-    if (typeof document === "undefined") {
-      reject(new Error("Video metadata can only be checked in the browser."));
-      return;
-    }
-
-    const video = document.createElement("video");
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const cleanup = () => {
-      video.onloadedmetadata = null;
-      video.onerror = null;
-      video.removeAttribute("src");
-      video.load();
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-
-    timeoutId = setTimeout(() => {
-      cleanup();
-      reject(new Error("Timed out while checking the video ratio."));
-    }, VIDEO_METADATA_TIMEOUT_MS);
-
-    video.preload = "metadata";
-    video.muted = true;
-    video.playsInline = true;
-    video.onloadedmetadata = () => {
-      const width = video.videoWidth;
-      const height = video.videoHeight;
-      cleanup();
-      resolve({ width, height });
-    };
-    video.onerror = () => {
-      cleanup();
-      reject(new Error("The video could not be loaded to verify its ratio."));
-    };
-    video.src = src;
-  });
-
-const verifyVideoSourceMatchesAspectRatio = async (
-  source: string,
-  expectedAspectRatio: VideoProjectAspectRatio
-) => {
-  const { width, height } = await loadVideoMetadata(source);
-  const detectedAspectRatio = detectAspectRatioFromDimensions(width, height);
-
-  if (!detectedAspectRatio) {
-    throw new Error("The video ratio could not be detected.");
-  }
-
-  if (detectedAspectRatio !== expectedAspectRatio) {
-    throw new Error(
-      `This clip is ${getVideoAspectRatioLabel(detectedAspectRatio)}, but this project is set to ${getVideoAspectRatioLabel(expectedAspectRatio)}. One Video Edit project can only use one ratio.`
-    );
-  }
-};
-
-const verifyVideoFileMatchesAspectRatio = async (
-  file: File,
-  expectedAspectRatio: VideoProjectAspectRatio
-) => {
-  const objectUrl = URL.createObjectURL(file);
-
-  try {
-    await verifyVideoSourceMatchesAspectRatio(objectUrl, expectedAspectRatio);
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-};
-
-const validateVideoSourcesForProject = async (
-  videoSources: string[],
-  expectedAspectRatio: VideoProjectAspectRatio
-) => {
-  for (const [index, source] of videoSources.entries()) {
-    try {
-      await verifyVideoSourceMatchesAspectRatio(source, expectedAspectRatio);
-    } catch (error) {
-      const prefix = videoSources.length > 1 ? `Clip ${index + 1}: ` : "";
-      throw new Error(
-        prefix +
-          (error instanceof Error
-            ? error.message
-            : "The video ratio could not be verified.")
-      );
-    }
-  }
-};
-
-const isMp4VideoSource = (value: string) =>
-  /^data:video\/mp4/i.test(value) || /\.mp4(?:[?#].*)?$/i.test(value);
-
-const isMp4VideoFile = (file: File) => {
-  const fileName = file.name.trim().toLowerCase();
-  return file.type === "video/mp4" || fileName.endsWith(".mp4");
-};
-
-const getProjectVideoUrls = (project: PortfolioProject) => {
-  const uploadedVideoUrls = Array.isArray(project.videoUrls)
-    ? project.videoUrls
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0 && isMp4VideoSource(item))
-    : [];
-
-  if (uploadedVideoUrls.length > 0) {
-    return uploadedVideoUrls;
-  }
-
-  const trimmedVideoUrl = project.videoUrl?.trim();
-  if (trimmedVideoUrl && isMp4VideoSource(trimmedVideoUrl)) {
-    return [trimmedVideoUrl];
-  }
-
-  const trimmedLink = project.designLink?.trim();
-  if (trimmedLink && trimmedLink !== "#" && isMp4VideoSource(trimmedLink)) {
-    return [trimmedLink];
-  }
-
-  return [];
-};
-
-const getProjectVideoPosterUrls = (project: PortfolioProject, clipCount: number) => {
-  const rawVideoPosterUrls = Array.isArray(project.videoPosterUrls)
-    ? project.videoPosterUrls
-    : [];
-  const normalizedVideoPosterUrls = rawVideoPosterUrls.map((item) =>
-    typeof item === "string" ? item.trim() : ""
-  );
-
-  if (clipCount <= 0) {
-    return normalizedVideoPosterUrls;
-  }
-
-  return Array.from({ length: clipCount }, (_, index) => normalizedVideoPosterUrls[index] || "");
-};
-
-const getProjectVideoUrl = (project: PortfolioProject) => {
-  return getProjectVideoUrls(project)[0] || "";
-};
-
-const fallbackProjects: PortfolioProjects = {
-  "Graphic Design": [
-    {
-      title: "COMRADZ Sessions",
-      description:
-        "A weekly poster designed to showcase the details of our Sunday dance sessions. Each poster highlights the schedule, theme, and key information for the day’s session, making it easy for participants to stay informed and join in. The design aims to be clear, engaging, and consistent, creating a recognizable visual identity for COMRADZ’s weekly gatherings.",
-      image: "/comradz.png",
-      designLink: "#",
-      showDetailsModal: true,
-      details: {
-        title: "COMRADZ Sessions",
-        description:
-          "A weekly poster designed to showcase the details of our Sunday dance sessions. Each poster highlights the schedule, theme, and key information for the day’s session, making it easy for participants to stay informed and join in. The design aims to be clear, engaging, and consistent, creating a recognizable visual identity for COMRADZ’s weekly gatherings.",
-        heroImage: "/comradz2.png",
-        galleryImages: ["/image1.png", "/image2.png", "/image3.png", "/image4.png"],
-      },
-    },
-    {
-      title: "Project Two",
-      description: "Description of Project Two",
-      image: "/comradz.png",
-      designLink: "#",
-    },
-    {
-      title: "Project Three",
-      description: "Description of Project Three",
-      image: "/comradz.png",
-      designLink: "#",
-    },
-  ],
-  "Video Edit": [],
-  Websites: [],
-};
-
-const fallbackTestimonials: Testimonial[] = [
-  {
-    quote:
-      "The attention to detail and innovative features have completely transformed our workflow. This is exactly what we've been looking for.",
-    name: "Sarah Chen",
-    designation: "Product Manager at TechFlow",
-    src: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=3560&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
-  {
-    quote:
-      "Implementation was seamless and the results exceeded our expectations. The platform's flexibility is remarkable.",
-    name: "Michael Rodriguez",
-    designation: "CTO at InnovateSphere",
-    src: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=3540&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
-  {
-    quote:
-      "This solution has significantly improved our team's productivity. The intuitive interface makes complex tasks simple.",
-    name: "Emily Watson",
-    designation: "Operations Director at CloudScale",
-    src: "https://images.unsplash.com/photo-1623582854588-d60de57fa33f?q=80&w=3540&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
-  {
-    quote:
-      "Outstanding support and robust features. It's rare to find a product that delivers on all its promises.",
-    name: "James Kim",
-    designation: "Engineering Lead at DataPro",
-    src: "https://images.unsplash.com/photo-1636041293178-808a6762ab39?q=80&w=3464&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
-  {
-    quote:
-      "The scalability and performance have been game-changing for our organization. Highly recommend to any growing business.",
-    name: "Lisa Thompson",
-    designation: "VP of Technology at FutureNet",
-    src: "https://images.unsplash.com/photo-1624561172888-ac93c696e10c?q=80&w=2592&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  },
+const iconOptions: FeaturedProjectIcon[] = [
+  "clapperboard",
+  "monitor-play",
+  "film",
+  "layers",
+  "sparkles",
 ];
 
-function createEmptyProjectForm(): ProjectForm {
-  return {
-    title: "",
-    description: "",
-    image: "",
-    designLink: "",
-    videoCategory: "",
-    videoParentLabel: "",
-    videoAspectRatio: "landscape",
-    videoUrls: [""],
-    videoPosterUrls: [""],
-    showDetailsModal: true,
-    detailsTitle: "",
-    detailsDescription: "",
-    detailsHeroImage: "",
-    galleryImages: [""],
-  };
-}
+const isVideoCategory = (category: PortfolioCategory) => category === "Video Edit";
 
-function createEmptyTestimonialForm(): TestimonialForm {
-  return {
-    quote: "",
-    name: "",
-    designation: "",
-    src: "",
-  };
-}
+const defaultProjectImages: Record<PortfolioCategory, string> = {
+  "Graphic Design": "/comradz.png",
+  "Video Edit": "/v2.png",
+  Websites:
+    "https://images.unsplash.com/photo-1547658719-da2b51169166?auto=format&fit=crop&w=1200&q=80",
+};
 
-function getInitialExperienceEntries(): CreativeExperienceEntry[] {
-  if (typeof window === "undefined") return defaultExperienceEntries;
-  try {
-    const raw = window.localStorage.getItem(EXPERIENCE_STORAGE_KEY);
-    if (!raw) return defaultExperienceEntries;
-    return normalizeExperienceEntries(JSON.parse(raw));
-  } catch {
-    return defaultExperienceEntries;
-  }
-}
-
-function getStoredExperienceUpdatedAt() {
-  if (typeof window === "undefined") return "";
-
-  return (
-    window.localStorage.getItem(EXPERIENCE_CONTENT_UPDATED_AT_KEY) ||
-    window.localStorage.getItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY) ||
-    ""
-  );
-}
-
-function normalizeProjects(value: unknown): PortfolioProjects {
-  if (!value || typeof value !== "object") {
-    return fallbackProjects;
-  }
-
+const normalizeProjects = (value: unknown): PortfolioProjects => {
+  if (!value || typeof value !== "object") return emptyProjects;
   const raw = value as Record<string, unknown>;
+
   return {
     "Graphic Design": Array.isArray(raw["Graphic Design"])
       ? (raw["Graphic Design"] as PortfolioProject[])
-      : [],
+      : emptyProjects["Graphic Design"],
     "Video Edit": Array.isArray(raw["Video Edit"])
       ? (raw["Video Edit"] as PortfolioProject[])
-      : [],
+      : emptyProjects["Video Edit"],
     Websites: Array.isArray(raw.Websites)
       ? (raw.Websites as PortfolioProject[])
-      : Array.isArray(raw.Certificates)
-        ? (raw.Certificates as PortfolioProject[])
-        : [],
+      : emptyProjects.Websites,
   };
-}
-
-function normalizeTestimonials(value: unknown): Testimonial[] {
-  if (!Array.isArray(value)) {
-    return fallbackTestimonials;
-  }
-
-  const normalized = value
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") {
-        return null;
-      }
-      const raw = entry as Record<string, unknown>;
-      if (
-        typeof raw.quote !== "string" ||
-        typeof raw.name !== "string" ||
-        typeof raw.designation !== "string" ||
-        typeof raw.src !== "string"
-      ) {
-        return null;
-      }
-
-      return {
-        quote: raw.quote,
-        name: raw.name,
-        designation: raw.designation,
-        src: raw.src,
-      };
-    })
-    .filter((entry): entry is Testimonial => entry !== null);
-
-  return normalized.length > 0 ? normalized : fallbackTestimonials;
-}
-
-function toForm(project: PortfolioProject): ProjectForm {
-  const videoUrls = getProjectVideoUrls(project);
-  const hasVideoUrls = videoUrls.length > 0;
-  const videoPosterUrls = getProjectVideoPosterUrls(project, hasVideoUrls ? videoUrls.length : 1);
-
-  return {
-    title: project.title,
-    description: project.description,
-    image: project.image,
-    designLink: project.designLink,
-    videoCategory: project.videoCategory || "",
-    videoParentLabel: getVideoProjectParentLabel(project),
-    videoAspectRatio: getVideoProjectAspectRatio(project),
-    videoUrls: hasVideoUrls ? videoUrls : [""],
-    videoPosterUrls: hasVideoUrls ? videoPosterUrls : [videoPosterUrls[0] || ""],
-    showDetailsModal: project.showDetailsModal ?? false,
-    detailsTitle: project.details?.title || "",
-    detailsDescription: project.details?.description || "",
-    detailsHeroImage: project.details?.heroImage || "",
-    galleryImages:
-      project.details?.galleryImages && project.details.galleryImages.length > 0
-        ? project.details.galleryImages
-        : [""],
-  };
-}
-
-function toProject(form: ProjectForm, category: PortfolioCategory): PortfolioProject {
-  const trimmedTitle = form.title.trim();
-  const trimmedDescription = form.description.trim();
-  const trimmedImage = form.image.trim();
-  const trimmedLink = form.designLink.trim();
-  const trimmedVideoCategory = form.videoCategory.trim();
-  const trimmedVideoParentLabel = form.videoParentLabel.trim();
-  const trimmedVideoAspectRatio: VideoProjectAspectRatio =
-    form.videoAspectRatio === "portrait" ? "portrait" : "landscape";
-  const shouldEnableDetailsModal = category !== "Video Edit" && form.showDetailsModal;
-  const trimmedVideoEntries = form.videoUrls
-    .map((item, index) => ({
-      videoUrl: item.trim(),
-      posterUrl: form.videoPosterUrls[index]?.trim() || "",
-    }))
-    .filter((entry) => entry.videoUrl.length > 0 && isMp4VideoSource(entry.videoUrl));
-  const trimmedVideoUrls = trimmedVideoEntries.map((entry) => entry.videoUrl);
-  const trimmedVideoPosterUrls = trimmedVideoEntries.map((entry) => entry.posterUrl);
-  const galleryImages = form.galleryImages
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-
-  const project: PortfolioProject = {
-    title: trimmedTitle || "Untitled Project",
-    description: trimmedDescription || "Project description will be added soon.",
-    image: trimmedImage || "/comradz.png",
-    designLink: trimmedLink || "#",
-    showDetailsModal: shouldEnableDetailsModal,
-  };
-
-  if (category === "Video Edit") {
-    project.videoCategory =
-      trimmedVideoCategory || trimmedTitle || DEFAULT_VIDEO_EDIT_GROUP;
-    project.videoAspectRatio = trimmedVideoAspectRatio;
-    if (trimmedVideoParentLabel) {
-      project.videoParentLabel = trimmedVideoParentLabel;
-    }
-    if (trimmedVideoUrls.length > 0) {
-      project.videoUrls = trimmedVideoUrls;
-      project.videoUrl = trimmedVideoUrls[0];
-      if (trimmedVideoPosterUrls.some((item) => item.length > 0)) {
-        project.videoPosterUrls = trimmedVideoPosterUrls;
-      }
-    }
-  }
-
-  if (shouldEnableDetailsModal) {
-    project.details = {
-      title: form.detailsTitle.trim() || trimmedTitle || "Project Details",
-      description:
-        form.detailsDescription.trim() ||
-        trimmedDescription ||
-        "Additional project details will be added soon.",
-      heroImage: form.detailsHeroImage.trim() || trimmedImage || "/comradz2.png",
-      galleryImages:
-        galleryImages.length > 0 ? galleryImages : [trimmedImage || "/comradz.png"],
-    };
-  }
-
-  return project;
-}
-
-function toTestimonial(form: TestimonialForm): Testimonial {
-  return {
-    quote:
-      form.quote.trim() ||
-      "Great collaboration and a strong final result from start to finish.",
-    name: form.name.trim() || "Anonymous Client",
-    designation: form.designation.trim() || "Creative Partner",
-    src:
-      form.src.trim() ||
-      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=3560&auto=format&fit=crop",
-  };
-}
-
-function getDefaultStudioCredentials(): StudioCredentials {
-  return {
-    email: DEFAULT_STUDIO_EMAIL,
-    password: DEFAULT_STUDIO_PASSWORD,
-  };
-}
-
-function getStoredStudioCredentials(): StudioCredentials {
-  if (typeof window === "undefined") {
-    return getDefaultStudioCredentials();
-  }
-
-  try {
-    const storedEmail = window.localStorage.getItem(STUDIO_EMAIL_STORAGE_KEY)?.trim();
-    const storedPassword = window.localStorage.getItem(STUDIO_PASSWORD_STORAGE_KEY);
-
-    return {
-      email: storedEmail || DEFAULT_STUDIO_EMAIL,
-      password: storedPassword || DEFAULT_STUDIO_PASSWORD,
-    };
-  } catch {
-    return getDefaultStudioCredentials();
-  }
-}
-
-type ImageFieldProps = {
-  id: string;
-  label: string;
-  value: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-  previewHeightClassName?: string;
 };
 
-function ImageField({
-  id,
+const getInitialProjects = (): PortfolioProjects => {
+  if (typeof window === "undefined") return emptyProjects;
+
+  try {
+    const raw = window.localStorage.getItem(PORTFOLIO_STORAGE_KEY);
+    return raw ? normalizeProjects(JSON.parse(raw)) : emptyProjects;
+  } catch {
+    return emptyProjects;
+  }
+};
+
+const getInitialHomeContent = (): HomeContent => {
+  if (typeof window === "undefined") return defaultHomeContent;
+
+  try {
+    const raw = window.localStorage.getItem(HOME_CONTENT_STORAGE_KEY);
+    return raw ? parseHomeContent(raw) : defaultHomeContent;
+  } catch {
+    return defaultHomeContent;
+  }
+};
+
+const getInitialExperienceEntries = (): CreativeExperienceEntry[] => {
+  if (typeof window === "undefined") return defaultExperienceEntries;
+
+  try {
+    const raw = window.localStorage.getItem(EXPERIENCE_STORAGE_KEY);
+    return raw ? parseExperienceEntries(raw) : defaultExperienceEntries;
+  } catch {
+    return defaultExperienceEntries;
+  }
+};
+
+const getInitialTestimonials = (): Testimonial[] => {
+  if (typeof window === "undefined") return defaultTestimonials;
+
+  try {
+    const raw = window.localStorage.getItem(TESTIMONIALS_STORAGE_KEY);
+    return raw ? normalizeTestimonials(JSON.parse(raw)) : defaultTestimonials;
+  } catch {
+    return defaultTestimonials;
+  }
+};
+
+const createProject = (category: PortfolioCategory): PortfolioProject => {
+  if (category === "Video Edit") {
+    return {
+      title: "New Video Project",
+      description: "Describe the edit, style, pacing, and result.",
+      image: defaultProjectImages["Video Edit"],
+      designLink: "#",
+      videoCategory: "Short-form",
+      videoParentLabel: "Client project",
+      videoAspectRatio: "landscape",
+      videoUrls: [""],
+      videoPosterUrls: [defaultProjectImages["Video Edit"]],
+      showDetailsModal: false,
+    };
+  }
+
+  const title = category === "Graphic Design" ? "New Design Project" : "New Web Project";
+  const defaultImage = defaultProjectImages[category];
+
+  return {
+    title,
+    description: "Describe the project, visual direction, and final delivery.",
+    image: defaultImage,
+    designLink: "#",
+    showDetailsModal: true,
+    details: {
+      title,
+      description: "Add the case-study introduction shown on the project page.",
+      heroImage: defaultImage,
+      galleryImages: [defaultImage],
+    },
+  };
+};
+
+const createExperienceEntry = (): CreativeExperienceEntry => ({
+  role: "Video Editing Experience",
+  client: "Client name",
+  period: "2026",
+  summary: "Describe the client story or result.",
+  tags: ["Premiere Pro", "After Effects"],
+  image: "",
+});
+
+const createFeaturedProject = (): HomeFeaturedProject => ({
+  title: "Featured Project",
+  description: "Short description for the featured project frame.",
+  image: "",
+  icon: "sparkles",
+});
+
+const createAboutItem = (): HomeAboutAccordionItem => ({
+  title: "New Panel",
+  imageUrl: "",
+});
+
+const createCreativeLane = (): HomeCreativeLane => ({
+  value: "video-editing",
+  label: "New Lane",
+  badge: "Creative Lane",
+  title: "A sharp lane title.",
+  description: "Describe what this service lane offers.",
+  buttonText: "View Work",
+  buttonHref: "/portfolio/video-editing",
+  imageSrc: "",
+  imageAlt: "Creative lane image",
+});
+
+const createExperienceCard = (): HomeExperienceCard => ({
+  quote: "Describe the experience, workflow, or result.",
+  name: "Experience lane",
+  role: "Tools / Role",
+  image: "",
+});
+
+const splitTags = (value: string) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const moveItem = <T,>(items: T[], index: number, direction: -1 | 1) => {
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= items.length) return items;
+  const nextItems = [...items];
+  const [item] = nextItems.splice(index, 1);
+  nextItems.splice(nextIndex, 0, item);
+  return nextItems;
+};
+
+function Field({
   label,
-  value,
-  placeholder,
-  onChange,
-  previewHeightClassName = "h-36",
-}: ImageFieldProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState("");
+  children,
+  hint,
+}: {
+  label: string;
+  children: React.ReactNode;
+  hint?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8fdcff]/72">
+        {label}
+      </span>
+      <div className="mt-2">{children}</div>
+      {hint ? <p className="mt-1.5 text-xs leading-relaxed text-white/38">{hint}</p> : null}
+    </label>
+  );
+}
 
-  const handleFiles = async (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
+const inputClass =
+  "w-full rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#8fdcff]/46";
 
-    if (!file.type.startsWith("image/")) {
-      setUploadError("Please choose an image file.");
-      return;
-    }
+const textareaClass =
+  "min-h-[96px] w-full rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2.5 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/30 focus:border-[#8fdcff]/46";
 
-    if (file.size > MAX_IMAGE_UPLOAD_SIZE) {
-      setUploadError("Please keep image uploads under 5 MB for smoother saving.");
-      return;
-    }
+function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className={`${inputClass} ${props.className || ""}`} />;
+}
 
-    setIsUploading(true);
+function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea {...props} className={`${textareaClass} ${props.className || ""}`} />;
+}
 
-    try {
-      const asset = await uploadPortfolioAssetToCloudinary(file, "portfolio/images");
-      onChange(asset.url);
-      setUploadError("");
-    } catch (error) {
-      setUploadError(
-        error instanceof Error ? error.message : "That image could not be uploaded."
-      );
-    } finally {
-      setIsUploading(false);
-    }
-  };
+function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select {...props} className={`${inputClass} ${props.className || ""}`} />;
+}
 
-  const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    await handleFiles(event.target.files);
-    event.target.value = "";
-  };
+function SectionCard({
+  title,
+  eyebrow,
+  children,
+  action,
+}: {
+  title: string;
+  eyebrow?: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <section className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.025))] p-5 shadow-[0_20px_64px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:p-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(84,184,255,0.1),transparent_34%)]" />
+      <div className="relative z-10 mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          {eyebrow ? (
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#8fdcff]/70">
+              {eyebrow}
+            </p>
+          ) : null}
+          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-white">
+            {title}
+          </h2>
+        </div>
+        {action}
+      </div>
+      <div className="relative z-10">{children}</div>
+    </section>
+  );
+}
 
-  const handleDrop = async (event: React.DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    setIsDragging(false);
-    await handleFiles(event.dataTransfer.files);
-  };
+function SaveButton({
+  children = "Save",
+  onClick,
+}: {
+  children?: React.ReactNode;
+  onClick: () => void | Promise<void>;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => void onClick()}
+      className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#76e1ff,#4a8fff)] px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#04111b] shadow-[0_14px_30px_rgba(84,184,255,0.22)] transition hover:-translate-y-0.5"
+    >
+      <Save className="h-4 w-4" />
+      {children}
+    </button>
+  );
+}
+
+function ConnectionBadge({
+  label,
+  detail,
+  state,
+  icon,
+}: {
+  label: string;
+  detail: string;
+  state: ConnectionState;
+  icon: React.ReactNode;
+}) {
+  const stateClass =
+    state === "connected"
+      ? "border-[#8ef0d2]/24 bg-[#8ef0d2]/[0.075] text-[#c9ffe9]"
+      : state === "checking"
+        ? "border-[#8fdcff]/18 bg-[#8fdcff]/[0.055] text-[#ccefff]"
+        : "border-[#ff8fa3]/28 bg-[#ff8fa3]/[0.08] text-[#ffd1d8]";
+  const dotClass =
+    state === "connected"
+      ? "bg-[#8ef0d2]"
+      : state === "checking"
+        ? "animate-pulse bg-[#8fdcff]"
+        : "bg-[#ff8fa3]";
+  const statusLabel =
+    state === "connected" ? "Connected" : state === "checking" ? "Checking" : "Not connected";
 
   return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="block text-sm text-white/85">
-        {label}
-      </label>
-
-      <input
-        id={id}
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-      />
-
-      <label
-        htmlFor={`${id}-upload`}
-        onDragEnter={() => setIsDragging(true)}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center transition-all ${
-          isDragging
-            ? "border-[#0099ff]/70 bg-[#0099ff]/12"
-            : "border-white/15 bg-black/20 hover:border-[#0099ff]/45 hover:bg-[#0099ff]/8"
-        } ${isUploading ? "pointer-events-none opacity-70" : ""}`}
-      >
-        <input
-          id={`${id}-upload`}
-          type="file"
-          accept="image/*"
-          className="sr-only"
-          onChange={handleInputChange}
-          disabled={isUploading}
-        />
-        <span className="text-sm font-medium text-white/90">
-          {isUploading ? "Uploading image..." : "Drag an image here or click to upload"}
+    <div
+      className={`inline-flex min-w-0 items-center gap-3 rounded-2xl border px-3.5 py-2 ${stateClass}`}
+    >
+      <span className="shrink-0 text-current/82">{icon}</span>
+      <span className={`h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
+      <span className="min-w-0">
+        <span className="block text-[10px] font-bold uppercase tracking-[0.16em]">
+          {label} · {statusLabel}
         </span>
-        <span className="mt-1 text-xs text-white/55">
-          Uploaded images are saved to Cloudinary. You can still paste a path or URL above.
-        </span>
-      </label>
-
-      {uploadError && <p className="text-xs text-amber-200">{uploadError}</p>}
-
-      {value && (
-        <div className="overflow-hidden rounded-xl border border-white/15 bg-black/30">
-          <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-              Preview
-            </p>
-            <button
-              type="button"
-              onClick={() => onChange("")}
-              className="text-[11px] uppercase tracking-[0.14em] text-white/55 transition-colors hover:text-white"
-            >
-              Clear
-            </button>
-          </div>
-          <img
-            src={value}
-            alt={`${label} preview`}
-            className={`w-full object-cover ${previewHeightClassName}`}
-          />
-        </div>
-      )}
+        <span className="block truncate text-xs text-current/68">{detail}</span>
+      </span>
     </div>
   );
 }
 
-type VideoFieldProps = {
-  id: string;
-  label: string;
-  value: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-  expectedAspectRatio?: VideoProjectAspectRatio;
-  previewHeightClassName?: string;
-};
+function EditorTabs({
+  items,
+  activeIndex,
+  onChange,
+  emptyLabel,
+}: {
+  items: Array<{ label: string; title: string }>;
+  activeIndex: number;
+  onChange: (index: number) => void;
+  emptyLabel?: string;
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm text-white/46">
+        {emptyLabel || "No items yet."}
+      </div>
+    );
+  }
 
-function VideoField({
-  id,
+  return (
+    <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-black/18 p-2">
+      {items.map((item, index) => (
+        <button
+          key={`${item.label}-${index}`}
+          type="button"
+          onClick={() => onChange(index)}
+          className={`shrink-0 rounded-xl border px-4 py-3 text-left transition ${
+            activeIndex === index
+              ? "border-[#8fdcff]/40 bg-[#8fdcff]/[0.12] text-white"
+              : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
+          }`}
+        >
+          <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-current/54">
+            {item.label}
+          </span>
+          <span className="mt-1 block max-w-[12rem] truncate text-sm font-semibold">
+            {item.title}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function UploadField({
   label,
   value,
-  placeholder,
   onChange,
-  expectedAspectRatio = "landscape",
-  previewHeightClassName = "h-40",
-}: VideoFieldProps) {
-  const trimmedValue = value.trim();
-  const hasValue = trimmedValue.length > 0;
-  const hasMp4Value = isMp4VideoSource(trimmedValue);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [uploadError, setUploadError] = useState("");
+  onUploaded,
+  kind,
+  folder,
+  hint,
+  placeholder,
+  uploadLabel,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  onUploaded?: (value: string) => void | Promise<void>;
+  kind: "image" | "video";
+  folder: string;
+  hint?: string;
+  placeholder?: string;
+  uploadLabel?: string;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [progress, setProgress] = useState<number | null>(null);
 
-  const handleFiles = async (files: FileList | null) => {
-    const file = files?.[0];
+  const handleUpload = async (file: File | undefined) => {
     if (!file) return;
-
-    const fileName = file.name.trim().toLowerCase();
-    const isMp4File = file.type === "video/mp4" || fileName.endsWith(".mp4");
-
-    if (!isMp4File) {
-      setUploadError("Please choose an MP4 video file.");
-      return;
-    }
-
-    if (file.size > MAX_VIDEO_UPLOAD_SIZE) {
-      setUploadError(`Please keep MP4 uploads under ${MAX_VIDEO_UPLOAD_SIZE_MB} MB.`);
-      return;
-    }
+    setError("");
+    setUploading(true);
+    setProgress(0);
 
     try {
-      await verifyVideoFileMatchesAspectRatio(file, expectedAspectRatio);
-    } catch (error) {
-      setUploadError(
-        error instanceof Error ? error.message : "The video ratio could not be verified."
-      );
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadProgress(50);
-
-    try {
-      const asset = await uploadPortfolioAssetToCloudinary(file, "portfolio/videos");
-      onChange(asset.url);
-      setUploadProgress(100);
-      setUploadError("");
-    } catch (error) {
-      setUploadProgress(null);
-      setUploadError(
-        error instanceof Error ? error.message : "That MP4 could not be uploaded."
+      const asset = await uploadPortfolioAssetToCloudinary(file, folder, {
+        onProgress: ({ bytesUploaded, totalBytes }) => {
+          setProgress(Math.round((bytesUploaded / totalBytes) * 100));
+        },
+      });
+      if (onUploaded) {
+        await onUploaded(asset.url);
+      } else {
+        onChange(asset.url);
+      }
+      setProgress(100);
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Upload failed. Paste a URL instead."
       );
     } finally {
-      setIsUploading(false);
+      setUploading(false);
     }
-  };
-
-  const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    await handleFiles(event.target.files);
-    event.target.value = "";
-  };
-
-  const handleDrop = async (event: React.DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    setIsDragging(false);
-    await handleFiles(event.dataTransfer.files);
   };
 
   return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="block text-sm text-white/85">
-        {label}
-      </label>
-
-      <input
-        id={id}
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-      />
-
-      <p className="text-xs leading-relaxed text-white/55">
-        Use a direct `.mp4` path, a public URL, or upload one below. This project is set to{" "}
-        {getVideoAspectRatioLabel(expectedAspectRatio)} only.
-      </p>
-
-      <label
-        htmlFor={`${id}-upload`}
-        onDragEnter={() => setIsDragging(true)}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center transition-all ${
-          isDragging
-            ? "border-[#0099ff]/70 bg-[#0099ff]/12"
-            : "border-white/15 bg-black/20 hover:border-[#0099ff]/45 hover:bg-[#0099ff]/8"
-        } ${isUploading ? "pointer-events-none opacity-70" : ""}`}
-      >
-        <input
-          id={`${id}-upload`}
-          type="file"
-          accept="video/mp4,.mp4"
-          className="sr-only"
-          onChange={handleInputChange}
-          disabled={isUploading}
+    <Field label={label} hint={hint}>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <TextInput
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={
+            placeholder ||
+            (kind === "image"
+              ? "Image URL or /file.png"
+              : "YouTube link, Cloudinary video URL, or MP4 URL")
+          }
         />
-        <span className="text-sm font-medium text-white/90">
-          {isUploading ? "Uploading MP4..." : "Drag an MP4 here or click to upload"}
-        </span>
-        <span className="mt-1 text-xs text-white/55">
-          Uploaded videos are saved to Cloudinary. Max {MAX_VIDEO_UPLOAD_SIZE_MB} MB.
-        </span>
-      </label>
-
-      {uploadError && <p className="text-xs text-amber-200">{uploadError}</p>}
-
-      {uploadProgress !== null && (
-        <div className="rounded-xl border border-[#8fdcff]/18 bg-[#071722]/80 px-3 py-3">
-          <div className="flex items-center justify-between gap-3 text-xs">
-            <span className="font-medium text-white/82">
-              {isUploading ? "Uploading to Cloudinary" : "Upload complete"}
-            </span>
-            <span className="font-semibold text-[#8fdcff]">{uploadProgress}%</span>
-          </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-[linear-gradient(90deg,#36d1ff,#0099ff)] transition-[width] duration-200"
-              style={{ width: `${uploadProgress}%` }}
-            />
-          </div>
+        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#8fdcff]/22 bg-[#8fdcff]/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#dff8ff] transition hover:border-[#8fdcff]/40 hover:bg-[#8fdcff]/[0.1]">
+          <UploadCloud className="h-4 w-4" />
+          {uploading ? "Uploading" : uploadLabel || "Upload"}
+          <input
+            type="file"
+            accept={kind === "image" ? "image/*" : "video/*"}
+            className="hidden"
+            onChange={(event) => {
+              void handleUpload(event.target.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+      </div>
+      {progress !== null ? (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-[#8fdcff] transition-[width]"
+            style={{ width: `${progress}%` }}
+          />
         </div>
-      )}
-
-      {hasValue ? (
-        hasMp4Value ? (
-          <div className="overflow-hidden rounded-xl border border-white/15 bg-black/30">
-            <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                MP4 Preview
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setUploadError("");
-                  setUploadProgress(null);
-                  onChange("");
-                }}
-                className="text-[11px] uppercase tracking-[0.14em] text-white/55 transition-colors hover:text-white"
-              >
-                Clear
-              </button>
-            </div>
-            <video
-              src={trimmedValue}
-              className={`w-full object-cover ${previewHeightClassName}`}
-              controls
-              playsInline
-              muted
-              preload="metadata"
-            />
-          </div>
-        ) : (
-          <div className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-4 text-sm leading-relaxed text-amber-100">
-            Use a direct `.mp4` file path or URL for Video Edit projects.
-          </div>
-        )
       ) : null}
+      {error ? <p className="mt-2 text-xs leading-relaxed text-[#ffb7c0]">{error}</p> : null}
+      {kind === "image" && value ? (
+        <div className="mt-3 aspect-video max-w-sm overflow-hidden rounded-xl border border-white/10 bg-black/20">
+          <img src={value} alt={label} className="h-full w-full object-cover" />
+        </div>
+      ) : null}
+    </Field>
+  );
+}
+
+function RowActions({
+  onMoveUp,
+  onMoveDown,
+  onRemove,
+}: {
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={onMoveUp}
+        disabled={!onMoveUp}
+        className="rounded-full border border-white/10 p-2 text-white/54 transition hover:border-white/20 hover:text-white disabled:opacity-30"
+        aria-label="Move up"
+      >
+        <ArrowUp className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={onMoveDown}
+        disabled={!onMoveDown}
+        className="rounded-full border border-white/10 p-2 text-white/54 transition hover:border-white/20 hover:text-white disabled:opacity-30"
+        aria-label="Move down"
+      >
+        <ArrowDown className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="rounded-full border border-[#ffb7c0]/16 p-2 text-[#ffb7c0]/72 transition hover:border-[#ffb7c0]/32 hover:text-[#ffccd2]"
+        aria-label="Remove"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
     </div>
   );
 }
 
 export default function StudioPage() {
-  const router = useRouter();
-  const [supabaseStatus, setSupabaseStatus] = useState<
-    "checking" | "enabled" | "disabled"
-  >(() => (isSupabaseConfigured() ? "enabled" : "checking"));
-  const [cloudinaryStatus, setCloudinaryStatus] = useState<
-    "checking" | "connected" | "disconnected"
-  >("checking");
-  const [studioCredentials, setStudioCredentials] = useState<StudioCredentials>(() =>
-    getStoredStudioCredentials()
+  const [isAuthed, setIsAuthed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.localStorage.getItem(STUDIO_AUTH_KEY) === "true"
   );
-  const [email, setEmail] = useState(() => getStoredStudioCredentials().email);
-  const [password, setPassword] = useState("");
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.sessionStorage.getItem(STUDIO_AUTH_KEY) === "1";
-  });
+  const [loginEmail, setLoginEmail] = useState(DEFAULT_STUDIO_EMAIL);
+  const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [loginNotice, setLoginNotice] = useState("");
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetEmail, setResetEmail] = useState(() => getStoredStudioCredentials().email);
-  const [resetCode, setResetCode] = useState("");
-  const [nextPassword, setNextPassword] = useState("");
-  const [confirmNextPassword, setConfirmNextPassword] = useState("");
-  const [resetState, setResetState] = useState<{
-    status: "idle" | "submitting" | "success" | "error";
-    message: string;
+  const [activeTab, setActiveTab] = useState<StudioTab>("home");
+  const [activeCategory, setActiveCategory] = useState<PortfolioCategory>("Video Edit");
+  const [activeFeaturedProjectIndex, setActiveFeaturedProjectIndex] = useState(0);
+  const [activeAboutItemIndex, setActiveAboutItemIndex] = useState(0);
+  const [activeCreativeLaneIndex, setActiveCreativeLaneIndex] = useState(0);
+  const [activeExperienceCardIndex, setActiveExperienceCardIndex] = useState(0);
+  const [activeExperienceEntryIndex, setActiveExperienceEntryIndex] = useState(0);
+  const [activeProjectIndex, setActiveProjectIndex] = useState(0);
+  const [projects, setProjects] = useState<PortfolioProjects>(getInitialProjects);
+  const [homeContent, setHomeContent] = useState<HomeContent>(getInitialHomeContent);
+  const [experienceEntries, setExperienceEntries] =
+    useState<CreativeExperienceEntry[]>(getInitialExperienceEntries);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>(getInitialTestimonials);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [connectionStatus, setConnectionStatus] = useState<{
+    cloudinary: ConnectionState;
+    supabase: ConnectionState;
+    cloudinaryDetail: string;
+    supabaseDetail: string;
   }>({
-    status: "idle",
-    message: "",
+    cloudinary: "checking",
+    supabase: "checking",
+    cloudinaryDetail: "Checking upload config",
+    supabaseDetail: "Checking database config",
   });
 
-  const [projects, setProjects] = useState<PortfolioProjects>(() => {
-    if (typeof window === "undefined") return fallbackProjects;
-    try {
-      const raw = window.localStorage.getItem(PORTFOLIO_STORAGE_KEY);
-      if (!raw) return fallbackProjects;
-      return normalizeProjects(JSON.parse(raw));
-    } catch {
-      return fallbackProjects;
-    }
-  });
-  const [activeCategory, setActiveCategory] = useState<PortfolioCategory>("Graphic Design");
-  const [form, setForm] = useState<ProjectForm>(createEmptyProjectForm());
-  const [isBulkVideoDragging, setIsBulkVideoDragging] = useState(false);
-  const [isBulkVideoUploading, setIsBulkVideoUploading] = useState(false);
-  const [bulkVideoUploadProgress, setBulkVideoUploadProgress] = useState<number | null>(null);
-  const [bulkVideoUploadMessage, setBulkVideoUploadMessage] = useState("");
-  const [bulkVideoUploadError, setBulkVideoUploadError] = useState("");
-  const [projectFormError, setProjectFormError] = useState("");
-  const [isProjectSubmitting, setIsProjectSubmitting] = useState(false);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [testimonials, setTestimonials] = useState<Testimonial[]>(() => {
-    if (typeof window === "undefined") return fallbackTestimonials;
-    try {
-      const raw = window.localStorage.getItem(TESTIMONIALS_STORAGE_KEY);
-      if (!raw) return fallbackTestimonials;
-      return normalizeTestimonials(JSON.parse(raw));
-    } catch {
-      return fallbackTestimonials;
-    }
-  });
-  const [experienceEntries, setExperienceEntries] = useState<CreativeExperienceEntry[]>(
-    getInitialExperienceEntries
-  );
-  const [savedExperienceEntries, setSavedExperienceEntries] = useState<
-    CreativeExperienceEntry[]
-  >(getInitialExperienceEntries);
-  const [isSavingExperience, setIsSavingExperience] = useState(false);
-  const [experienceSaveNotice, setExperienceSaveNotice] = useState<{
-    tone: "success" | "warning";
-    message: string;
-  } | null>(null);
-  const [testimonialForm, setTestimonialForm] = useState<TestimonialForm>(
-    createEmptyTestimonialForm()
-  );
-  const [editingTestimonialIndex, setEditingTestimonialIndex] = useState<number | null>(
-    null
-  );
-  const projectPreview = useMemo(() => toProject(form, activeCategory), [form, activeCategory]);
-  const testimonialPreview = useMemo(
-    () => toTestimonial(testimonialForm),
-    [testimonialForm]
-  );
+  const projectsRef = useRef(projects);
+  const homeContentRef = useRef(homeContent);
   const experienceEntriesRef = useRef(experienceEntries);
-  const hasUnsavedExperienceChanges = useMemo(
-    () =>
-      JSON.stringify(experienceEntries) !== JSON.stringify(savedExperienceEntries),
-    [experienceEntries, savedExperienceEntries]
-  );
+  const testimonialsRef = useRef(testimonials);
+
+  useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
+
+  useEffect(() => {
+    homeContentRef.current = homeContent;
+  }, [homeContent]);
 
   useEffect(() => {
     experienceEntriesRef.current = experienceEntries;
   }, [experienceEntries]);
 
   useEffect(() => {
-    const storedCredentials = getStoredStudioCredentials();
-    setStudioCredentials(storedCredentials);
-    setEmail((previousEmail) => previousEmail || storedCredentials.email);
-    setResetEmail(storedCredentials.email);
-
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STUDIO_EMAIL_STORAGE_KEY, storedCredentials.email);
-      window.localStorage.setItem(
-        STUDIO_PASSWORD_STORAGE_KEY,
-        storedCredentials.password
-      );
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!window.localStorage.getItem(PORTFOLIO_STORAGE_KEY)) {
-      window.localStorage.setItem(
-        PORTFOLIO_STORAGE_KEY,
-        JSON.stringify(projects)
-      );
-    }
-  }, [projects]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!window.localStorage.getItem(EXPERIENCE_STORAGE_KEY)) {
-      window.localStorage.setItem(
-        EXPERIENCE_STORAGE_KEY,
-        JSON.stringify(experienceEntries)
-      );
-    }
-  }, [experienceEntries]);
+    testimonialsRef.current = testimonials;
+  }, [testimonials]);
 
   useEffect(() => {
     let cancelled = false;
-    const syncFromSupabase = async () => {
-      const configured = await ensureSupabaseConfigured();
+
+    void (async () => {
+      const publicConfig = await fetchPublicPortfolioConfig();
       if (cancelled) return;
 
-      setSupabaseStatus(configured ? "enabled" : "disabled");
-      if (!configured) return;
+      setConnectionStatus((current) => ({
+        ...current,
+        cloudinary: publicConfig?.cloudinaryConfigured ? "connected" : "missing",
+        supabase: publicConfig?.supabaseConfigured ? "checking" : "missing",
+        cloudinaryDetail: publicConfig?.cloudinaryConfigured
+          ? `Connected to ${publicConfig.cloudinaryCloudName}`
+          : "Not connected: missing cloud name or upload preset",
+        supabaseDetail: publicConfig?.supabaseConfigured
+          ? "Checking content table"
+          : "Not connected: missing URL or anon key",
+      }));
 
-      const remoteContent = await fetchPortfolioContentFromSupabase();
-      if (!remoteContent || cancelled) return;
+      const remote = await fetchPortfolioContentFromSupabase();
+      if (cancelled) return;
 
-      const localPortfolioUpdatedAtValue =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY)
-          : null;
-      const localExperienceUpdatedAtValue = getStoredExperienceUpdatedAt();
-      const localPortfolioUpdatedAt = localPortfolioUpdatedAtValue
-        ? Date.parse(localPortfolioUpdatedAtValue)
-        : Number.NaN;
-      const localExperienceUpdatedAt = localExperienceUpdatedAtValue
-        ? Date.parse(localExperienceUpdatedAtValue)
-        : Number.NaN;
-      const remoteUpdatedAt = remoteContent.updatedAt
-        ? Date.parse(remoteContent.updatedAt)
-        : Number.NaN;
-      const hasLocalPortfolioUpdatedAt = Number.isFinite(localPortfolioUpdatedAt);
-      const hasLocalExperienceUpdatedAt = Number.isFinite(localExperienceUpdatedAt);
-      const hasRemoteUpdatedAt = Number.isFinite(remoteUpdatedAt);
-      const shouldApplyRemoteProjectsAndTestimonials = hasRemoteUpdatedAt
-        ? !hasLocalPortfolioUpdatedAt || remoteUpdatedAt >= localPortfolioUpdatedAt
-        : !hasLocalPortfolioUpdatedAt;
-      const remoteExperienceEntries =
-        remoteContent.experienceEntriesSyncSupported !== false
-          ? parseExperienceEntries(remoteContent.experienceEntries)
-          : null;
-      const remoteExperienceImageCount = countUsableExperienceImages(remoteExperienceEntries ?? []);
-      const localExperienceImageCount = countUsableExperienceImages(experienceEntriesRef.current);
-      const shouldKeepLocalExperienceImages =
-        remoteExperienceEntries !== null &&
-        remoteExperienceImageCount < localExperienceImageCount;
-      const shouldApplyRemoteExperience =
-        remoteExperienceEntries !== null &&
-        !shouldKeepLocalExperienceImages &&
-        (hasRemoteUpdatedAt
-          ? !hasLocalExperienceUpdatedAt || remoteUpdatedAt >= localExperienceUpdatedAt
-          : !hasLocalExperienceUpdatedAt);
+      setConnectionStatus((current) => ({
+        ...current,
+        supabase: remote ? "connected" : publicConfig?.supabaseConfigured ? "error" : "missing",
+        supabaseDetail: remote
+          ? `Connected to row ${publicConfig?.supabaseContentRowId || "main"}`
+          : publicConfig?.supabaseConfigured
+            ? "Not connected: content row was not reached"
+            : current.supabaseDetail,
+      }));
 
-      if (!shouldApplyRemoteProjectsAndTestimonials && !shouldApplyRemoteExperience) {
-        return;
+      if (!remote) return;
+
+      if (remote.projects) {
+        const normalized = normalizeProjects(remote.projects);
+        setProjects(normalized);
+        window.localStorage.setItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(normalized));
       }
 
-      if (shouldApplyRemoteProjectsAndTestimonials) {
-        const normalizedProjects = normalizeProjects(remoteContent.projects);
-        const normalizedTestimonials = normalizeTestimonials(remoteContent.testimonials);
-
-        setProjects(normalizedProjects);
-        setTestimonials(normalizedTestimonials);
-
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(
-            PORTFOLIO_STORAGE_KEY,
-            JSON.stringify(normalizedProjects)
-          );
-          window.localStorage.setItem(
-            TESTIMONIALS_STORAGE_KEY,
-            JSON.stringify(normalizedTestimonials)
-          );
-          if (remoteContent.updatedAt) {
-            persistPortfolioUpdatedAt(remoteContent.updatedAt);
-          }
-          window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
-          window.dispatchEvent(new Event(TESTIMONIALS_UPDATED_EVENT));
-        }
+      if (remote.homeContent) {
+        const normalized = normalizeHomeContent(remote.homeContent);
+        setHomeContent(normalized);
+        window.localStorage.setItem(HOME_CONTENT_STORAGE_KEY, JSON.stringify(normalized));
       }
 
-      if (shouldApplyRemoteExperience && remoteExperienceEntries) {
-        setExperienceEntries(remoteExperienceEntries);
-        setSavedExperienceEntries(remoteExperienceEntries);
-        experienceEntriesRef.current = remoteExperienceEntries;
-
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(
-            EXPERIENCE_STORAGE_KEY,
-            JSON.stringify(remoteExperienceEntries)
-          );
-          if (remoteContent.updatedAt) {
-            window.localStorage.setItem(
-              EXPERIENCE_CONTENT_UPDATED_AT_KEY,
-              remoteContent.updatedAt
-            );
-          }
-          window.dispatchEvent(new Event(EXPERIENCE_UPDATED_EVENT));
-        }
+      if (remote.experienceEntries) {
+        const normalized = normalizeExperienceEntries(remote.experienceEntries);
+        setExperienceEntries(normalized);
+        window.localStorage.setItem(EXPERIENCE_STORAGE_KEY, JSON.stringify(normalized));
       }
-    };
 
-    void syncFromSupabase();
+      if (remote.testimonials) {
+        const normalized = normalizeTestimonials(remote.testimonials);
+        setTestimonials(normalized);
+        window.localStorage.setItem(TESTIMONIALS_STORAGE_KEY, JSON.stringify(normalized));
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!window.localStorage.getItem(TESTIMONIALS_STORAGE_KEY)) {
-      window.localStorage.setItem(
-        TESTIMONIALS_STORAGE_KEY,
-        JSON.stringify(testimonials)
+  const currentCategoryProjects = projects[activeCategory] || [];
+  const selectedFeaturedProjectIndex = Math.min(
+    activeFeaturedProjectIndex,
+    Math.max(homeContent.featuredProjects.projects.length - 1, 0)
+  );
+  const selectedAboutItemIndex = Math.min(
+    activeAboutItemIndex,
+    Math.max(homeContent.aboutAccordion.items.length - 1, 0)
+  );
+  const selectedCreativeLaneIndex = Math.min(
+    activeCreativeLaneIndex,
+    Math.max(homeContent.creativeProfile.lanes.length - 1, 0)
+  );
+  const selectedExperienceCardIndex = Math.min(
+    activeExperienceCardIndex,
+    Math.max(homeContent.experienceSection.cards.length - 1, 0)
+  );
+  const selectedExperienceEntryIndex = Math.min(
+    activeExperienceEntryIndex,
+    Math.max(experienceEntries.length - 1, 0)
+  );
+  const selectedProjectIndex = Math.min(
+    activeProjectIndex,
+    Math.max(currentCategoryProjects.length - 1, 0)
+  );
+
+  const activeCategoryLabel = useMemo(
+    () => categories.find((category) => category.key === activeCategory)?.label || activeCategory,
+    [activeCategory]
+  );
+
+  const markStatus = (message: string) => {
+    setStatusMessage(message);
+    window.setTimeout(() => {
+      setStatusMessage((currentMessage) =>
+        currentMessage === message ? "" : currentMessage
       );
-    }
-  }, [testimonials]);
+    }, 2800);
+  };
 
-  useEffect(() => {
-    const config = getCloudinaryConfig();
-    setCloudinaryStatus(config.isConfigured ? "connected" : "disconnected");
-  }, []);
+  const syncToSupabase = async (payload?: {
+    nextProjects?: PortfolioProjects;
+    nextHomeContent?: HomeContent;
+    nextExperienceEntries?: CreativeExperienceEntry[];
+    nextTestimonials?: Testimonial[];
+  }) => {
+    const saved = await savePortfolioContentToSupabase({
+      projects: payload?.nextProjects || projectsRef.current,
+      testimonials: payload?.nextTestimonials || testimonialsRef.current,
+      experienceEntries: payload?.nextExperienceEntries || experienceEntriesRef.current,
+      homeContent: payload?.nextHomeContent || homeContentRef.current,
+    });
 
-  const activeProjects = useMemo(
-    () => projects[activeCategory] || [],
-    [projects, activeCategory]
-  );
-  const isVideoEditCategory = activeCategory === "Video Edit";
-  const projectPreviewVideoUrls = getProjectVideoUrls(projectPreview);
-  const projectPreviewVideoPosterUrls = getProjectVideoPosterUrls(
-    projectPreview,
-    projectPreviewVideoUrls.length || 1
-  );
-  const projectPreviewPosterImage = projectPreviewVideoPosterUrls[0] || "";
-  const projectPreviewVideoPosterCount = projectPreviewVideoPosterUrls.filter(
-    (item) => item.length > 0
-  ).length;
-  const projectPreviewVideoUrl = getProjectVideoUrl(projectPreview);
-  const projectPreviewVideoCategory = getVideoProjectCategory(projectPreview);
-  const projectPreviewVideoParentLabel = getVideoProjectParentLabel(projectPreview);
-  const projectPreviewVideoAspectRatio = getVideoProjectAspectRatio(projectPreview);
-  const projectPreviewCardImage = projectPreview.image.trim() || projectPreviewPosterImage;
-  const projectPreviewVideoFrameClass =
-    projectPreviewVideoAspectRatio === "portrait"
-      ? "mx-auto aspect-[9/16] max-w-[260px] sm:max-w-[320px]"
-      : "aspect-[16/9]";
-
-  const persistStudioCredentials = (nextCredentials: StudioCredentials) => {
-    setStudioCredentials(nextCredentials);
-
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(STUDIO_EMAIL_STORAGE_KEY, nextCredentials.email);
-    window.localStorage.setItem(
-      STUDIO_PASSWORD_STORAGE_KEY,
-      nextCredentials.password
+    markStatus(
+      saved
+        ? "Saved and synced."
+        : "Saved locally. Supabase sync failed or is not configured."
     );
   };
 
-  const persistPortfolioUpdatedAt = (nextUpdatedAt: string) => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY, nextUpdatedAt);
+  const persistHomeContent = async (nextHomeContent: HomeContent) => {
+    const normalized = normalizeHomeContent(nextHomeContent);
+    const updatedAt = new Date().toISOString();
+    setHomeContent(normalized);
+    homeContentRef.current = normalized;
+    window.localStorage.setItem(HOME_CONTENT_STORAGE_KEY, JSON.stringify(normalized));
+    window.localStorage.setItem(HOME_CONTENT_UPDATED_AT_KEY, updatedAt);
+    window.dispatchEvent(new Event(HOME_CONTENT_UPDATED_EVENT));
+    await syncToSupabase({ nextHomeContent: normalized });
   };
 
-  const persistExperienceUpdatedAt = (nextUpdatedAt: string) => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(EXPERIENCE_CONTENT_UPDATED_AT_KEY, nextUpdatedAt);
-  };
-
-  const persistProjects = (nextProjects: PortfolioProjects) => {
+  const persistProjects = async (nextProjects: PortfolioProjects) => {
+    const updatedAt = new Date().toISOString();
     setProjects(nextProjects);
-    if (typeof window === "undefined") return;
-    persistPortfolioUpdatedAt(new Date().toISOString());
+    projectsRef.current = nextProjects;
     window.localStorage.setItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(nextProjects));
+    window.localStorage.setItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY, updatedAt);
     window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
-    void savePortfolioContentToSupabase({
-      projects: nextProjects,
-      testimonials,
-      experienceEntries: experienceEntriesRef.current,
-    });
+    await syncToSupabase({ nextProjects });
   };
 
-  const persistTestimonials = (nextTestimonials: Testimonial[]) => {
-    setTestimonials(nextTestimonials);
-    if (typeof window === "undefined") return;
-    persistPortfolioUpdatedAt(new Date().toISOString());
-    window.localStorage.setItem(
-      TESTIMONIALS_STORAGE_KEY,
-      JSON.stringify(nextTestimonials)
-    );
-    window.dispatchEvent(new Event(TESTIMONIALS_UPDATED_EVENT));
-    void savePortfolioContentToSupabase({
-      projects,
-      testimonials: nextTestimonials,
-      experienceEntries: experienceEntriesRef.current,
-    });
-  };
-
-  const persistExperienceDraftLocally = (
-    nextExperienceEntries: CreativeExperienceEntry[],
-    updatedAt = new Date().toISOString()
-  ) => {
-    if (typeof window === "undefined") return;
-
-    persistExperienceUpdatedAt(updatedAt);
-    window.localStorage.setItem(
-      EXPERIENCE_STORAGE_KEY,
-      JSON.stringify(nextExperienceEntries)
-    );
-    window.dispatchEvent(new Event(EXPERIENCE_UPDATED_EVENT));
-
-    if (typeof BroadcastChannel !== "undefined") {
-      const channel = new BroadcastChannel(PORTFOLIO_SYNC_CHANNEL_NAME);
-      channel.postMessage({
-        type: "experience-updated",
-        experienceEntries: nextExperienceEntries,
-        updatedAt,
-      });
-      channel.close();
-    }
-  };
-
-  const persistExperienceEntries = async (
-    nextExperienceEntries: CreativeExperienceEntry[]
-  ) => {
-    const sanitizedExperienceEntries = nextExperienceEntries.map((entry) => ({
+  const persistExperienceEntries = async (nextEntries: CreativeExperienceEntry[]) => {
+    const sanitized = nextEntries.map((entry) => ({
       ...entry,
       image: sanitizeExperienceImage(entry.image),
     }));
-
-    setExperienceEntries(sanitizedExperienceEntries);
-    setSavedExperienceEntries(sanitizedExperienceEntries);
-    experienceEntriesRef.current = sanitizedExperienceEntries;
-    if (typeof window === "undefined") return;
     const updatedAt = new Date().toISOString();
-    persistPortfolioUpdatedAt(updatedAt);
-    persistExperienceUpdatedAt(updatedAt);
-    window.localStorage.setItem(
-      EXPERIENCE_STORAGE_KEY,
-      JSON.stringify(sanitizedExperienceEntries)
-    );
+    setExperienceEntries(sanitized);
+    experienceEntriesRef.current = sanitized;
+    window.localStorage.setItem(EXPERIENCE_STORAGE_KEY, JSON.stringify(sanitized));
+    window.localStorage.setItem(EXPERIENCE_CONTENT_UPDATED_AT_KEY, updatedAt);
     window.dispatchEvent(new Event(EXPERIENCE_UPDATED_EVENT));
-    if (typeof BroadcastChannel !== "undefined") {
-      const channel = new BroadcastChannel(PORTFOLIO_SYNC_CHANNEL_NAME);
-      channel.postMessage({
-        type: "experience-updated",
-        experienceEntries: sanitizedExperienceEntries,
-        updatedAt,
-      });
-      channel.close();
-    }
-    return savePortfolioContentToSupabase({
-      projects,
-      testimonials,
-      experienceEntries: sanitizedExperienceEntries,
+    await syncToSupabase({ nextExperienceEntries: sanitized });
+  };
+
+  const persistHomeUpload = async (updater: (current: HomeContent) => HomeContent) => {
+    await persistHomeContent(updater(homeContentRef.current));
+  };
+
+  const persistProjectUploadAt = async (
+    index: number,
+    updater: (project: PortfolioProject) => PortfolioProject
+  ) => {
+    const currentProjects = projectsRef.current;
+    const categoryProjects = currentProjects[activeCategory] || [];
+    const nextProjects = {
+      ...currentProjects,
+      [activeCategory]: categoryProjects.map((project, projectIndex) =>
+        projectIndex === index ? updater(project) : project
+      ),
+    };
+
+    await persistProjects(nextProjects);
+  };
+
+  const persistProjectDetailsUpload = async (
+    index: number,
+    updater: (
+      details: NonNullable<PortfolioProject["details"]>
+    ) => NonNullable<PortfolioProject["details"]>
+  ) => {
+    await persistProjectUploadAt(index, (project) => {
+      const currentDetails = project.details || {
+        title: project.title,
+        description: project.description,
+        heroImage: project.image,
+        galleryImages: [project.image].filter(Boolean),
+      };
+
+      return {
+        ...project,
+        showDetailsModal: true,
+        details: updater(currentDetails),
+      };
     });
   };
 
-  const handleExperienceImageChange = (index: number, value: string) => {
-    const nextEntries = experienceEntriesRef.current.map((item, itemIndex) =>
-      itemIndex === index ? { ...item, image: sanitizeExperienceImage(value) } : item
-    );
-
-    setExperienceEntries(nextEntries);
-    setExperienceSaveNotice(null);
+  const persistExperienceUpload = async (
+    updater: (current: CreativeExperienceEntry[]) => CreativeExperienceEntry[]
+  ) => {
+    await persistExperienceEntries(updater(experienceEntriesRef.current));
   };
-
-  const handleExperienceFieldChange = (index: number, field: "client" | "role" | "period" | "summary", value: string) => {
-    setExperienceEntries((prev) => {
-      const next = prev.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, [field]: value } : item
-      );
-      return next;
-    });
-    setExperienceSaveNotice(null);
-  };
-
-  const handleExperienceTagsChange = (index: number, commaSeparatedTags: string) => {
-    setExperienceEntries((prev) =>
-      prev.map((item, itemIndex) =>
-        itemIndex === index
-          ? {
-              ...item,
-              tags: commaSeparatedTags
-                .split(",")
-                .map((tag) => tag.trim())
-                .filter((tag) => tag.length > 0),
-            }
-          : item
-      )
-    );
-    setExperienceSaveNotice(null);
-  };
-
-  const handleSaveExperience = async () => {
-    setIsSavingExperience(true);
-    setExperienceSaveNotice(null);
-
-    const nextExperienceEntries = experienceEntries;
-    const didSyncToSupabase = await persistExperienceEntries(nextExperienceEntries);
-    let didVerifyRemoteExperience = didSyncToSupabase;
-    let didVerifyLocalExperience = false;
-
-    if (typeof window !== "undefined") {
-      try {
-        const raw = window.localStorage.getItem(EXPERIENCE_STORAGE_KEY);
-        didVerifyLocalExperience =
-          raw !== null &&
-          JSON.stringify(normalizeExperienceEntries(JSON.parse(raw))) ===
-            JSON.stringify(nextExperienceEntries);
-      } catch {
-        didVerifyLocalExperience = false;
-      }
-    }
-
-    if (didSyncToSupabase) {
-      const remoteContent = await fetchPortfolioContentFromSupabase();
-      const remoteExperienceEntries = parseExperienceEntries(
-        remoteContent?.experienceEntries
-      );
-      didVerifyRemoteExperience =
-        remoteContent?.experienceEntriesSyncSupported !== false &&
-        remoteExperienceEntries !== null &&
-        JSON.stringify(remoteExperienceEntries) === JSON.stringify(nextExperienceEntries);
-    }
-
-    setExperienceSaveNotice(
-      didVerifyLocalExperience && didVerifyRemoteExperience
-        ? {
-            tone: "success",
-            message: "Experience changes saved.",
-          }
-        : didVerifyLocalExperience
-          ? {
-              tone: "warning",
-              message:
-                "Experience changes saved locally, but Supabase is not saving experience entries yet. Run the latest SQL in supabase/schema.sql to add the experience_entries column.",
-            }
-        : {
-            tone: "warning",
-            message:
-              "Experience changes did not finish saving correctly. Try saving once more after the image preview appears.",
-          }
-    );
-    setIsSavingExperience(false);
-  };
-
-  const handleResetExperience = () => {
-    setExperienceEntries(savedExperienceEntries);
-    setExperienceSaveNotice(null);
-  };
-
-  const experienceSection = (
-    <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:p-5 space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Experience</h2>
-          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/65">
-            Edit all experience card fields - client name, role, period, summary, tags, and image. Save
-            when you're done so the About section uses the latest content.
-          </p>
-        </div>
-
-        <div className="flex flex-col items-start gap-3 lg:items-end">
-          <div className="flex flex-wrap gap-2">
-            {hasUnsavedExperienceChanges ? (
-              <button
-                type="button"
-                onClick={handleResetExperience}
-                className="rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
-              >
-                Reset
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={handleSaveExperience}
-              disabled={!hasUnsavedExperienceChanges || isSavingExperience}
-              className="rounded-lg bg-[#0099ff] px-4 py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isSavingExperience ? "Saving Experience..." : "Save Experience"}
-            </button>
-          </div>
-
-          {hasUnsavedExperienceChanges ? (
-            <p className="text-xs text-amber-200">Unsaved changes in experience.</p>
-          ) : experienceSaveNotice ? (
-            <p
-              className={`text-xs ${
-                experienceSaveNotice.tone === "success"
-                  ? "text-emerald-300"
-                  : "text-amber-200"
-              }`}
-            >
-              {experienceSaveNotice.message}
-            </p>
-          ) : (
-            <p className="text-xs text-white/45">
-              Image changes update locally right away. Click save to sync them everywhere.
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {experienceEntries.map((entry, index) => (
-          <div
-            key={`experience-card-${index}`}
-            className="rounded-2xl border border-white/15 bg-black/25 p-4 space-y-4"
-          >
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/42">
-                Experience {index + 1}
-              </p>
-              <div className="mt-2 space-y-2">
-                <input
-                  type="text"
-                  value={entry.client}
-                  onChange={(e) => handleExperienceFieldChange(index, "client", e.target.value)}
-                  placeholder="Client name"
-                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-[#0099ff]"
-                />
-                <input
-                  type="text"
-                  value={entry.role}
-                  onChange={(e) => handleExperienceFieldChange(index, "role", e.target.value)}
-                  placeholder="Role (e.g. Video Editor)"
-                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-xs uppercase tracking-[0.16em] text-[#8cdfff] outline-none focus:border-[#0099ff]"
-                />
-                <input
-                  type="text"
-                  value={entry.period}
-                  onChange={(e) => handleExperienceFieldChange(index, "period", e.target.value)}
-                  placeholder="Period (e.g. 2024 - Present)"
-                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-xs text-white/55 outline-none focus:border-[#0099ff]"
-                />
-              </div>
-            </div>
-
-            <ImageField
-              id={`experience-image-${index}`}
-              label="Card image"
-              value={entry.image}
-              onChange={(value) => handleExperienceImageChange(index, value)}
-              placeholder="Image path or URL for this experience card"
-              previewHeightClassName="h-40"
-            />
-
-            <div className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3">
-              <textarea
-                value={entry.summary}
-                onChange={(e) => handleExperienceFieldChange(index, "summary", e.target.value)}
-                placeholder="Brief summary of this experience..."
-                className="w-full min-h-[60px] rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-xs leading-relaxed text-white/68 outline-none focus:border-[#0099ff] resize-y"
-              />
-              <div>
-                <p className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-white/38">Tags (comma-separated)</p>
-                <input
-                  type="text"
-                  value={entry.tags.join(", ")}
-                  onChange={(e) => handleExperienceTagsChange(index, e.target.value)}
-                  placeholder="e.g. Premiere Pro, After Effects, DaVinci"
-                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-white/58 outline-none focus:border-[#0099ff]"
-                />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 
   const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (
-      email.trim().toLowerCase() === studioCredentials.email.trim().toLowerCase() &&
-      password === studioCredentials.password
-    ) {
-      setIsAuthenticated(true);
-      setLoginError("");
-      setLoginNotice("");
-      if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(STUDIO_AUTH_KEY, "1");
-      }
+    if (loginEmail.trim() !== DEFAULT_STUDIO_EMAIL || loginPassword !== DEFAULT_STUDIO_PASSWORD) {
+      setLoginError("Use the Studio email and password.");
       return;
     }
-
-    setLoginNotice("");
-    setLoginError("Invalid email or password.");
-  };
-
-  const handleBackToHome = () => {
-    if (typeof window !== "undefined") {
-      window.location.assign("/");
-      return;
-    }
-
-    router.push("/");
-  };
-
-  const openForgotPassword = () => {
-    setShowForgotPassword(true);
-    setResetEmail(studioCredentials.email);
-    setResetCode("");
-    setNextPassword("");
-    setConfirmNextPassword("");
-    setResetState({
-      status: "idle",
-      message: "",
-    });
+    window.localStorage.setItem(STUDIO_AUTH_KEY, "true");
+    setIsAuthed(true);
     setLoginError("");
-    setLoginNotice("");
   };
 
-  const closeForgotPassword = () => {
-    setShowForgotPassword(false);
-    setResetEmail(studioCredentials.email);
-    setResetCode("");
-    setNextPassword("");
-    setConfirmNextPassword("");
-    setResetState({
-      status: "idle",
-      message: "",
-    });
+  const handleLogout = () => {
+    window.localStorage.removeItem(STUDIO_AUTH_KEY);
+    setIsAuthed(false);
   };
 
-  const handlePasswordReset = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const updateHome = (updater: (draft: HomeContent) => HomeContent) => {
+    setHomeContent((current) => updater(current));
+  };
 
-    const normalizedResetEmail = resetEmail.trim().toLowerCase();
-    const normalizedStudioEmail = studioCredentials.email.trim().toLowerCase();
+  const updateProjects = (updater: (draft: PortfolioProjects) => PortfolioProjects) => {
+    setProjects((current) => updater(current));
+  };
 
-    if (normalizedResetEmail !== normalizedStudioEmail) {
-      setResetState({
-        status: "error",
-        message: "Use the Studio email address to reset your password.",
-      });
-      return;
-    }
+  const updateProjectAt = (
+    index: number,
+    updater: (project: PortfolioProject) => PortfolioProject
+  ) => {
+    updateProjects((current) => ({
+      ...current,
+      [activeCategory]: (current[activeCategory] || []).map((project, projectIndex) =>
+        projectIndex === index ? updater(project) : project
+      ),
+    }));
+  };
 
-    if (nextPassword.length < 8) {
-      setResetState({
-        status: "error",
-        message: "Choose a password with at least 8 characters.",
-      });
-      return;
-    }
-
-    if (nextPassword !== confirmNextPassword) {
-      setResetState({
-        status: "error",
-        message: "The new password and confirmation do not match.",
-      });
-      return;
-    }
-
-    setResetState({
-      status: "submitting",
-      message: "Checking your recovery code...",
-    });
-
-    try {
-      const response = await fetch("/api/studio/reset", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: resetEmail.trim(),
-          resetCode: resetCode.trim(),
-        }),
-      });
-
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
-
-      if (!response.ok) {
-        setResetState({
-          status: "error",
-          message: payload?.error || "That recovery code was not accepted.",
-        });
-        return;
-      }
-
-      const updatedCredentials: StudioCredentials = {
-        email: studioCredentials.email,
-        password: nextPassword,
+  const updateProjectDetails = (
+    index: number,
+    updater: (details: NonNullable<PortfolioProject["details"]>) => NonNullable<PortfolioProject["details"]>
+  ) => {
+    updateProjectAt(index, (project) => {
+      const currentDetails = project.details || {
+        title: project.title,
+        description: project.description,
+        heroImage: project.image,
+        galleryImages: [project.image].filter(Boolean),
       };
-
-      persistStudioCredentials(updatedCredentials);
-      setPassword("");
-      setEmail(updatedCredentials.email);
-      setShowForgotPassword(false);
-      setResetCode("");
-      setNextPassword("");
-      setConfirmNextPassword("");
-      setResetState({
-        status: "success",
-        message: "Password changed.",
-      });
-      setLoginError("");
-      setLoginNotice("Password changed. Sign in with your new Studio password.");
-    } catch {
-      setResetState({
-        status: "error",
-        message: "The password reset check failed. Please try again.",
-      });
-    }
-  };
-
-  const resetForm = () => {
-    setForm(createEmptyProjectForm());
-    setIsBulkVideoDragging(false);
-    setIsBulkVideoUploading(false);
-    setBulkVideoUploadProgress(null);
-    setBulkVideoUploadMessage("");
-    setBulkVideoUploadError("");
-    setProjectFormError("");
-    setIsProjectSubmitting(false);
-    setEditingIndex(null);
-  };
-
-  const appendVideoUrlsToForm = (videoUrls: string[]) => {
-    if (videoUrls.length === 0) {
-      return;
-    }
-
-    setForm((prev) => {
-      const existingVideoEntries = prev.videoUrls
-        .map((item, index) => ({
-          videoUrl: item.trim(),
-          posterUrl: prev.videoPosterUrls[index]?.trim() || "",
-        }))
-        .filter((entry) => entry.videoUrl.length > 0 || entry.posterUrl.length > 0);
-      const nextVideoEntries = [
-        ...existingVideoEntries,
-        ...videoUrls.map((videoUrl) => ({
-          videoUrl,
-          posterUrl: "",
-        })),
-      ];
 
       return {
-        ...prev,
-        videoUrls:
-          nextVideoEntries.length > 0
-            ? nextVideoEntries.map((entry) => entry.videoUrl)
-            : [""],
-        videoPosterUrls:
-          nextVideoEntries.length > 0
-            ? nextVideoEntries.map((entry) => entry.posterUrl)
-            : [""],
+        ...project,
+        showDetailsModal: true,
+        details: updater(currentDetails),
       };
     });
   };
 
-  const handleBulkVideoFiles = async (files: FileList | null) => {
-    const nextFiles = Array.from(files ?? []);
-    if (nextFiles.length === 0) {
-      return;
-    }
-
-    const invalidFile = nextFiles.find((file) => !isMp4VideoFile(file));
-    if (invalidFile) {
-      setBulkVideoUploadError(`"${invalidFile.name}" is not an MP4 file.`);
-      return;
-    }
-
-    const oversizedFile = nextFiles.find((file) => file.size > MAX_VIDEO_UPLOAD_SIZE);
-    if (oversizedFile) {
-      setBulkVideoUploadError(
-        `"${oversizedFile.name}" is over ${MAX_VIDEO_UPLOAD_SIZE_MB} MB.`
-      );
-      return;
-    }
-
-    try {
-      for (const file of nextFiles) {
-        await verifyVideoFileMatchesAspectRatio(file, form.videoAspectRatio);
-      }
-    } catch (error) {
-      setBulkVideoUploadError(
-        error instanceof Error ? error.message : "One of the MP4 files does not match the selected ratio."
-      );
-      return;
-    }
-
-    const totalBytes = nextFiles.reduce((total, file) => total + file.size, 0);
-    let uploadedBytes = 0;
-
-    setBulkVideoUploadError("");
-    setBulkVideoUploadMessage(
-      nextFiles.length === 1
-        ? "Uploading 1 clip to this project"
-        : `Uploading ${nextFiles.length} clips to this project`
-    );
-    setIsBulkVideoUploading(true);
-    setBulkVideoUploadProgress(1);
-
-    try {
-      for (const [index, file] of nextFiles.entries()) {
-        let currentFileUploadedBytes = 0;
-
-        setBulkVideoUploadMessage(
-          nextFiles.length === 1
-            ? "Uploading clip 1 of 1"
-            : `Uploading clip ${index + 1} of ${nextFiles.length}`
-        );
-
-        const asset = await uploadPortfolioAssetToCloudinary(file, "portfolio/videos");
-        currentFileUploadedBytes = file.size;
-
-        uploadedBytes += file.size;
-        appendVideoUrlsToForm([asset.url]);
-        setBulkVideoUploadProgress(
-          Math.max(1, Math.min(100, Math.round((uploadedBytes / totalBytes) * 100)))
-        );
-      }
-
-      setBulkVideoUploadMessage(
-        nextFiles.length === 1 ? "1 clip uploaded to the project" : `${nextFiles.length} clips uploaded to the project`
-      );
-      setBulkVideoUploadProgress(100);
-    } catch (error) {
-      setBulkVideoUploadError(
-        error instanceof Error ? error.message : "One of the MP4 uploads failed."
-      );
-    } finally {
-      setIsBulkVideoUploading(false);
-      setIsBulkVideoDragging(false);
-    }
-  };
-
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    void (async () => {
-      setProjectFormError("");
-
-      if (activeCategory === "Video Edit") {
-        const trimmedVideoSources = form.videoUrls
-          .map((item) => item.trim())
-          .filter((item) => item.length > 0 && isMp4VideoSource(item));
-
-        if (trimmedVideoSources.length > 0) {
-          setIsProjectSubmitting(true);
-
-          try {
-            await validateVideoSourcesForProject(
-              trimmedVideoSources,
-              form.videoAspectRatio
-            );
-          } catch (error) {
-            setProjectFormError(
-              error instanceof Error
-                ? error.message
-                : "All clips in this project must match the selected ratio."
-            );
-            setIsProjectSubmitting(false);
-            return;
-          }
-        }
-      }
-
-      const updatedProjects = { ...projects };
-      const categoryProjects = [...updatedProjects[activeCategory]];
-      const nextProject = toProject(form, activeCategory);
-
-      if (editingIndex === null) {
-        categoryProjects.push(nextProject);
-      } else {
-        categoryProjects[editingIndex] = nextProject;
-      }
-
-      updatedProjects[activeCategory] = categoryProjects;
-      persistProjects(updatedProjects);
-      resetForm();
-    })();
-  };
-
-  const handleEdit = (index: number) => {
-    setEditingIndex(index);
-    setBulkVideoUploadProgress(null);
-    setBulkVideoUploadMessage("");
-    setBulkVideoUploadError("");
-    setProjectFormError("");
-    setIsProjectSubmitting(false);
-    setIsBulkVideoDragging(false);
-    setIsBulkVideoUploading(false);
-    setForm(toForm(activeProjects[index]));
-  };
-
-  const handleMoveProject = (index: number, direction: -1 | 1) => {
-    const nextIndex = index + direction;
-    const categoryProjects = projects[activeCategory] || [];
-
-    if (nextIndex < 0 || nextIndex >= categoryProjects.length) {
-      return;
-    }
-
-    const updatedProjects = { ...projects };
-    const reorderedProjects = [...categoryProjects];
-    const [movedProject] = reorderedProjects.splice(index, 1);
-
-    if (!movedProject) {
-      return;
-    }
-
-    reorderedProjects.splice(nextIndex, 0, movedProject);
-    updatedProjects[activeCategory] = reorderedProjects;
-    persistProjects(updatedProjects);
-
-    setEditingIndex((previousIndex) => {
-      if (previousIndex === null) {
-        return previousIndex;
-      }
-
-      if (previousIndex === index) {
-        return nextIndex;
-      }
-
-      if (previousIndex === nextIndex) {
-        return index;
-      }
-
-      return previousIndex;
-    });
-  };
-
-  const handleDelete = (index: number) => {
-    const updatedProjects = { ...projects };
-    updatedProjects[activeCategory] = updatedProjects[activeCategory].filter(
-      (_, itemIndex) => itemIndex !== index
-    );
-    persistProjects(updatedProjects);
-
-    if (editingIndex === index) {
-      resetForm();
-    } else if (editingIndex !== null && editingIndex > index) {
-      setEditingIndex(editingIndex - 1);
-    }
-  };
-
-  const resetTestimonialForm = () => {
-    setTestimonialForm(createEmptyTestimonialForm());
-    setEditingTestimonialIndex(null);
-  };
-
-  const handleTestimonialSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const nextTestimonials = [...testimonials];
-    const nextTestimonial = toTestimonial(testimonialForm);
-
-    if (editingTestimonialIndex === null) {
-      nextTestimonials.push(nextTestimonial);
-    } else {
-      nextTestimonials[editingTestimonialIndex] = nextTestimonial;
-    }
-
-    persistTestimonials(nextTestimonials);
-    resetTestimonialForm();
-  };
-
-  const handleEditTestimonial = (index: number) => {
-    setEditingTestimonialIndex(index);
-    setTestimonialForm(testimonials[index]);
-  };
-
-  const handleDeleteTestimonial = (index: number) => {
-    const nextTestimonials = testimonials.filter(
-      (_, itemIndex) => itemIndex !== index
-    );
-    persistTestimonials(
-      nextTestimonials.length > 0 ? nextTestimonials : fallbackTestimonials
-    );
-
-    if (editingTestimonialIndex === index) {
-      resetTestimonialForm();
-    }
-  };
-
-  if (!isAuthenticated) {
+  if (!isAuthed) {
     return (
-      <div className="min-h-screen bg-transparent text-white flex items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-2xl border border-white/15 bg-white/5 backdrop-blur-xl p-6 space-y-5">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold">Studio Login</h1>
-            <p className="text-sm text-white/70">
-              Sign in to manage portfolio sections and projects.
-            </p>
+      <main className="flex min-h-screen items-center justify-center bg-[#050914] px-5 text-white">
+        <form
+          onSubmit={handleLogin}
+          className="w-full max-w-md rounded-[28px] border border-white/10 bg-white/[0.055] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-xl"
+        >
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/50 transition hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back home
+          </Link>
+          <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8fdcff]">
+            Portfolio Studio
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em]">
+            Edit the whole site.
+          </h1>
+          <div className="mt-6 space-y-4">
+            <Field label="Email">
+              <TextInput
+                type="email"
+                value={loginEmail}
+                onChange={(event) => setLoginEmail(event.target.value)}
+              />
+            </Field>
+            <Field label="Password">
+              <TextInput
+                type="password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                placeholder="Studio password"
+              />
+            </Field>
           </div>
-
-          {!showForgotPassword ? (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="Email"
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                required
-              />
-
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Password"
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                required
-              />
-
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <button
-                  type="button"
-                  onClick={openForgotPassword}
-                  className="text-[#8fd3ff] transition-colors hover:text-white"
-                >
-                  Forgot password?
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBackToHome}
-                  className="text-white/70 transition-colors hover:text-white"
-                >
-                  Back to home
-                </button>
-              </div>
-
-              {loginError && <p className="text-sm text-red-300">{loginError}</p>}
-              {loginNotice && <p className="text-sm text-emerald-300">{loginNotice}</p>}
-
-              <button
-                type="submit"
-                className="w-full rounded-lg bg-[#0099ff] py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors"
-              >
-                Login
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handlePasswordReset} className="space-y-4">
-              <div className="rounded-xl border border-white/12 bg-black/20 p-4 space-y-2">
-                <p className="text-sm font-semibold text-white">
-                  Reset your Studio password
-                </p>
-                <p className="text-xs leading-relaxed text-white/60">
-                  Enter your private recovery code, then choose a new Studio password.
-                </p>
-              </div>
-
-              <input
-                type="email"
-                value={resetEmail}
-                onChange={(event) => setResetEmail(event.target.value)}
-                placeholder="Studio
-                 email"
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                required
-              />
-
-              <input
-                type="password"
-                value={resetCode}
-                onChange={(event) => setResetCode(event.target.value)}
-                placeholder="Recovery code"
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                required
-              />
-
-              <input
-                type="password"
-                value={nextPassword}
-                onChange={(event) => setNextPassword(event.target.value)}
-                placeholder="New password"
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                required
-              />
-
-              <input
-                type="password"
-                value={confirmNextPassword}
-                onChange={(event) => setConfirmNextPassword(event.target.value)}
-                placeholder="Confirm new password"
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                required
-              />
-
-              {resetState.message && (
-                <p
-                  className={`text-sm ${
-                    resetState.status === "error"
-                      ? "text-red-300"
-                      : resetState.status === "success"
-                        ? "text-emerald-300"
-                        : "text-white/65"
-                  }`}
-                >
-                  {resetState.message}
-                </p>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  className="flex-1 rounded-lg bg-[#0099ff] py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={resetState.status === "submitting"}
-                >
-                  {resetState.status === "submitting"
-                    ? "Checking code..."
-                    : "Change Password"}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeForgotPassword}
-                  className="rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
-                >
-                  Back
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      </div>
+          {loginError ? <p className="mt-4 text-sm text-[#ffb7c0]">{loginError}</p> : null}
+          <button
+            type="submit"
+            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-xl bg-[linear-gradient(135deg,#76e1ff,#4a8fff)] text-sm font-bold text-[#04111b]"
+          >
+            Open Studio
+          </button>
+        </form>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-transparent text-white p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+    <main className="min-h-screen bg-[#040914] text-white">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(25,91,255,0.24),transparent_32%),radial-gradient(circle_at_88%_4%,rgba(84,184,255,0.2),transparent_28%),linear-gradient(180deg,#06111f_0%,#040914_58%,#03060c_100%)]" />
+        <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(143,220,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(143,220,255,0.08)_1px,transparent_1px)] [background-size:42px_42px]" />
+      </div>
+
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#040914]/82 px-5 py-4 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[92rem] flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold">Portfolio Studio</h1>
-            <p
-              className={`mt-1 text-xs ${
-                supabaseStatus === "enabled"
-                  ? "text-emerald-300"
-                  : supabaseStatus === "checking"
-                    ? "text-sky-300"
-                    : "text-amber-300"
-              }`}
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/46 transition hover:text-white"
             >
-              {supabaseStatus === "enabled"
-                ? "Supabase sync connected"
-                : supabaseStatus === "checking"
-                  ? "Checking Supabase connection..."
-                  : "Supabase env not set: using local storage fallback"}
-            </p>
-            <p
-              className={`mt-0.5 text-xs ${
-                cloudinaryStatus === "connected"
-                  ? "text-emerald-300"
-                  : "text-amber-300"
-              }`}
-            >
-              {cloudinaryStatus === "connected"
-                ? "Cloudinary connected"
-                : cloudinaryStatus === "checking"
-                  ? "Checking Cloudinary..."
-                  : "Cloudinary not configured"}
-            </p>
+              <ArrowLeft className="h-4 w-4" />
+              Back home
+            </Link>
+            <h1 className="mt-2 text-2xl font-semibold tracking-[-0.05em]">
+              Portfolio Studio
+            </h1>
           </div>
-          <button
-            type="button"
-            onClick={handleBackToHome}
-            className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10 transition-colors"
-          >
-            <ArrowLeft size={16} />
-            Back To Home
-          </button>
-        </div>
-
-        {experienceSection}
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {categories.map((category) => (
+          <div className="flex flex-wrap items-center gap-3">
+            {statusMessage ? (
+              <p className="rounded-full border border-[#8fdcff]/18 bg-[#8fdcff]/[0.06] px-4 py-2 text-xs font-semibold text-[#ccefff]">
+                {statusMessage}
+              </p>
+            ) : null}
             <button
-              key={category}
               type="button"
-              onClick={() => {
-                setActiveCategory(category);
-                resetForm();
-              }}
-              className={`rounded-lg border px-4 py-3 text-sm font-semibold transition-all ${
-                activeCategory === category
-                  ? "border-[#0099ff] bg-[#0099ff]/20 text-white"
-                  : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
-              }`}
+              onClick={() => syncToSupabase()}
+              className="inline-flex items-center gap-2 rounded-full border border-[#8fdcff]/24 bg-[#8fdcff]/[0.08] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#dff8ff] transition hover:border-[#8fdcff]/44 hover:bg-[#8fdcff]/[0.12]"
             >
-              {category} ({projects[category].length})
+              <Save className="h-4 w-4" />
+              Sync all to Supabase
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/62 transition hover:border-white/22 hover:text-white"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
+          </div>
         </div>
+        <div className="mx-auto mt-4 flex max-w-[92rem] flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <ConnectionBadge
+            label="Cloudinary"
+            detail={connectionStatus.cloudinaryDetail}
+            state={connectionStatus.cloudinary}
+            icon={<Cloud className="h-4 w-4" />}
+          />
+          <ConnectionBadge
+            label="Supabase"
+            detail={connectionStatus.supabaseDetail}
+            state={connectionStatus.supabase}
+            icon={<Database className="h-4 w-4" />}
+          />
+        </div>
+      </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6">
-          <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:p-5 space-y-4">
-            <h2 className="text-lg font-semibold">
-              {editingIndex === null ? "Add Project" : "Edit Project"} - {activeCategory}
-            </h2>
-            <p className="text-xs leading-relaxed text-white/65">
-              {isVideoEditCategory
-                ? "Each Video Edit entry becomes one project box in the homepage rail. Give it a dedicated thumbnail, then attach one or more direct .mp4 clips for the in-focus preview."
-                : "Update the project card, optional external link, and the case-study details shown in the portfolio."}
-            </p>
+      <div className="relative z-10 mx-auto grid max-w-[92rem] gap-6 px-4 py-6 sm:px-5 sm:py-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <aside className="min-w-0 lg:sticky lg:top-28 lg:self-start">
+          <nav className="flex gap-2 overflow-x-auto rounded-[22px] border border-white/10 bg-white/[0.045] p-2 backdrop-blur-xl lg:grid lg:overflow-visible">
+            {[
+              ["home", "Home Page"],
+              ["about", "About Me"],
+              ["lanes", "Creative Lanes"],
+              ["experience", "Experience"],
+              ["portfolio", "Portfolio"],
+              ["stories", "Experience Archive"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveTab(key as StudioTab)}
+                className={`shrink-0 whitespace-nowrap rounded-2xl px-4 py-3 text-left text-sm font-semibold transition lg:shrink ${
+                  activeTab === key
+                    ? "bg-[#8fdcff]/14 text-white shadow-[0_0_24px_rgba(84,184,255,0.12)]"
+                    : "text-white/54 hover:bg-white/[0.045] hover:text-white"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <input
-                type="text"
-                value={form.title}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, title: event.target.value }))
-                }
-                placeholder="Project title"
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                required
-              />
+        <div className="space-y-6">
+          {activeTab === "home" ? (
+            <>
+              <SectionCard
+                eyebrow="Home"
+                title="Hero Text"
+                action={<SaveButton onClick={() => persistHomeContent(homeContent)} />}
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Eyebrow">
+                    <TextInput
+                      value={homeContent.hero.eyebrow}
+                      onChange={(event) =>
+                        updateHome((current) => ({
+                          ...current,
+                          hero: { ...current.hero, eyebrow: event.target.value },
+                        }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Highlight">
+                    <TextInput
+                      value={homeContent.hero.highlight}
+                      onChange={(event) =>
+                        updateHome((current) => ({
+                          ...current,
+                          hero: { ...current.hero, highlight: event.target.value },
+                        }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Line 1">
+                    <TextInput
+                      value={homeContent.hero.line1}
+                      onChange={(event) =>
+                        updateHome((current) => ({
+                          ...current,
+                          hero: { ...current.hero, line1: event.target.value },
+                        }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Line 2">
+                    <TextInput
+                      value={homeContent.hero.line2}
+                      onChange={(event) =>
+                        updateHome((current) => ({
+                          ...current,
+                          hero: { ...current.hero, line2: event.target.value },
+                        }))
+                      }
+                    />
+                  </Field>
+                  <div className="md:col-span-2">
+                    <Field label="Description">
+                      <TextArea
+                        value={homeContent.hero.description}
+                        onChange={(event) =>
+                          updateHome((current) => ({
+                            ...current,
+                            hero: { ...current.hero, description: event.target.value },
+                          }))
+                        }
+                      />
+                    </Field>
+                  </div>
+                  {(["primaryCta", "secondaryCta", "contactCta"] as const).map((field) => (
+                    <Field key={field} label={field.replace("Cta", " CTA")}>
+                      <TextInput
+                        value={homeContent.hero[field]}
+                        onChange={(event) =>
+                          updateHome((current) => ({
+                            ...current,
+                            hero: { ...current.hero, [field]: event.target.value },
+                          }))
+                        }
+                      />
+                    </Field>
+                  ))}
+                  <div className="md:col-span-2">
+                    <Field label="Pills" hint="Comma separated labels.">
+                      <TextInput
+                        value={homeContent.hero.pills.join(", ")}
+                        onChange={(event) =>
+                          updateHome((current) => ({
+                            ...current,
+                            hero: { ...current.hero, pills: splitTags(event.target.value) },
+                          }))
+                        }
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </SectionCard>
 
-              <textarea
-                value={form.description}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, description: event.target.value }))
-                }
-                placeholder="Project description"
-                className="w-full min-h-[90px] rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                required
-              />
+              <SectionCard
+                eyebrow="Home"
+                title="Featured Projects"
+                action={<SaveButton onClick={() => persistHomeContent(homeContent)} />}
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Eyebrow">
+                    <TextInput
+                      value={homeContent.featuredProjects.eyebrow}
+                      onChange={(event) =>
+                        updateHome((current) => ({
+                          ...current,
+                          featuredProjects: {
+                            ...current.featuredProjects,
+                            eyebrow: event.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </Field>
+                  {(["titleMuted", "titleStrong"] as const).map((field) => (
+                    <Field key={field} label={field}>
+                      <TextInput
+                        value={homeContent.featuredProjects[field]}
+                        onChange={(event) =>
+                          updateHome((current) => ({
+                            ...current,
+                            featuredProjects: {
+                              ...current.featuredProjects,
+                              [field]: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </Field>
+                  ))}
+                  <Field
+                    label="Scroll pace"
+                    hint="Viewport height per frame. Lower values change frames faster."
+                  >
+                    <TextInput
+                      type="number"
+                      min={32}
+                      max={110}
+                      step={1}
+                      value={homeContent.featuredProjects.scrollLengthVh}
+                      onChange={(event) => {
+                        const nextValue = Number(event.target.value);
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
-                {isVideoEditCategory ? (
-                  <div className="space-y-3">
-                    <div className="rounded-xl border border-[#8fdcff]/18 bg-[#06111a]/70 p-4 space-y-3">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">
-                          Bulk MP4 Upload
-                        </p>
-                        <p className="mt-2 text-xs leading-relaxed text-white/60">
-                          Drag multiple `.mp4` files here or click to upload several clips at once.
-                          Every successful upload is added to this project&apos;s clip list, and you
-                          can set a thumbnail for each clip below.
-                        </p>
-                      </div>
+                        updateHome((current) => ({
+                          ...current,
+                          featuredProjects: {
+                            ...current.featuredProjects,
+                            scrollLengthVh: Number.isFinite(nextValue)
+                              ? Math.min(110, Math.max(32, nextValue))
+                              : defaultHomeContent.featuredProjects.scrollLengthVh,
+                          },
+                        }));
+                      }}
+                    />
+                  </Field>
+                  <div className="md:col-span-2">
+                    <Field label="Description">
+                      <TextArea
+                        value={homeContent.featuredProjects.description}
+                        onChange={(event) =>
+                          updateHome((current) => ({
+                            ...current,
+                            featuredProjects: {
+                              ...current.featuredProjects,
+                              description: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </Field>
+                  </div>
+                </div>
 
-                      <label
-                        htmlFor="project-video-bulk-upload"
-                        onDragEnter={() => setIsBulkVideoDragging(true)}
-                        onDragOver={(event) => {
-                          event.preventDefault();
-                          setIsBulkVideoDragging(true);
-                        }}
-                        onDragLeave={() => setIsBulkVideoDragging(false)}
-                        onDrop={async (event) => {
-                          event.preventDefault();
-                          setIsBulkVideoDragging(false);
-                          await handleBulkVideoFiles(event.dataTransfer.files);
-                        }}
-                        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center transition-all ${
-                          isBulkVideoDragging
-                            ? "border-[#0099ff]/70 bg-[#0099ff]/12"
-                            : "border-white/15 bg-black/20 hover:border-[#0099ff]/45 hover:bg-[#0099ff]/8"
-                        } ${isBulkVideoUploading ? "pointer-events-none opacity-70" : ""}`}
-                      >
-                        <input
-                          id="project-video-bulk-upload"
-                          type="file"
-                          accept="video/mp4,.mp4"
-                          multiple
-                          className="sr-only"
-                          onChange={async (event) => {
-                            await handleBulkVideoFiles(event.target.files);
-                            event.target.value = "";
-                          }}
-                          disabled={isBulkVideoUploading}
-                        />
-                        <span className="text-sm font-medium text-white/90">
-                          {isBulkVideoUploading
-                            ? "Uploading clips..."
-                            : "Drag MP4 clips here or click to upload many"}
-                        </span>
-                        <span className="mt-1 text-xs text-white/55">
-                          Uploaded videos are saved to Cloudinary and appended to this
-                          project.
-                        </span>
-                      </label>
-
-                      {bulkVideoUploadError ? (
-                        <p className="text-xs text-amber-200">{bulkVideoUploadError}</p>
-                      ) : null}
-
-                      {bulkVideoUploadProgress !== null ? (
-                        <div className="rounded-xl border border-[#8fdcff]/18 bg-[#071722]/80 px-3 py-3">
-                          <div className="flex items-center justify-between gap-3 text-xs">
-                            <span className="font-medium text-white/82">
-                              {bulkVideoUploadMessage || "Uploading clips"}
-                            </span>
-                            <span className="font-semibold text-[#8fdcff]">
-                              {bulkVideoUploadProgress}%
-                            </span>
-                          </div>
-                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
-                            <div
-                              className="h-full rounded-full bg-[linear-gradient(90deg,#36d1ff,#0099ff)] transition-[width] duration-200"
-                              style={{ width: `${bulkVideoUploadProgress}%` }}
-                            />
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    {form.videoUrls.map((videoUrl, index) => (
-                      <div
-                        key={`project-video-file-${index}`}
-                        className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3"
-                      >
-                        <VideoField
-                          id={`project-video-file-${index}`}
-                          label={form.videoUrls.length === 1 ? "MP4 file" : `MP4 clip ${index + 1}`}
-                          value={videoUrl}
-                          expectedAspectRatio={form.videoAspectRatio}
-                          onChange={(value) =>
-                            setForm((prev) => {
-                              const nextVideoUrls = [...prev.videoUrls];
-                              nextVideoUrls[index] = value;
-                              return { ...prev, videoUrls: nextVideoUrls };
-                            })
+                <div className="mt-6 space-y-4">
+                  <EditorTabs
+                    items={homeContent.featuredProjects.projects.map((project, index) => ({
+                      label: `Frame ${index + 1}`,
+                      title: project.title || `Featured frame ${index + 1}`,
+                    }))}
+                    activeIndex={selectedFeaturedProjectIndex}
+                    onChange={setActiveFeaturedProjectIndex}
+                    emptyLabel="No featured frames yet."
+                  />
+                  {homeContent.featuredProjects.projects.map((project, index) => (
+                    index === selectedFeaturedProjectIndex ? (
+                    <div key={`featured-project-${index}`} className="rounded-2xl border border-white/10 bg-black/18 p-4">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <p className="font-semibold text-white">Frame {index + 1}</p>
+                        <RowActions
+                          onMoveUp={
+                            index > 0
+                              ? () =>
+                                  {
+                                    updateHome((current) => ({
+                                      ...current,
+                                      featuredProjects: {
+                                        ...current.featuredProjects,
+                                        projects: moveItem(
+                                          current.featuredProjects.projects,
+                                          index,
+                                          -1
+                                        ),
+                                      },
+                                    }));
+                                    setActiveFeaturedProjectIndex(index - 1);
+                                  }
+                              : undefined
                           }
-                          placeholder={`Direct .mp4 file path or URL for clip ${index + 1}`}
-                        />
-                        <ImageField
-                          id={`project-video-thumbnail-${index}`}
-                          label={
-                            form.videoUrls.length === 1
-                              ? "Clip thumbnail"
-                              : `Clip ${index + 1} thumbnail`
+                          onMoveDown={
+                            index < homeContent.featuredProjects.projects.length - 1
+                              ? () =>
+                                  {
+                                    updateHome((current) => ({
+                                      ...current,
+                                      featuredProjects: {
+                                        ...current.featuredProjects,
+                                        projects: moveItem(
+                                          current.featuredProjects.projects,
+                                          index,
+                                          1
+                                        ),
+                                      },
+                                    }));
+                                    setActiveFeaturedProjectIndex(index + 1);
+                                  }
+                              : undefined
                           }
-                          value={form.videoPosterUrls[index] || ""}
-                          onChange={(value) =>
-                            setForm((prev) => {
-                              const nextVideoPosterUrls = [...prev.videoPosterUrls];
-                              nextVideoPosterUrls[index] = value;
-                              return { ...prev, videoPosterUrls: nextVideoPosterUrls };
-                            })
-                          }
-                          placeholder={`Image path or URL for clip ${index + 1} thumbnail`}
-                          previewHeightClassName="h-28"
-                        />
-                        {form.videoUrls.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setForm((prev) => ({
-                                ...prev,
-                                videoUrls: prev.videoUrls.filter((_, itemIndex) => itemIndex !== index),
-                                videoPosterUrls: prev.videoPosterUrls.filter(
+                          onRemove={() => {
+                            updateHome((current) => ({
+                              ...current,
+                              featuredProjects: {
+                                ...current.featuredProjects,
+                                projects: current.featuredProjects.projects.filter(
                                   (_, itemIndex) => itemIndex !== index
                                 ),
+                              },
+                            }));
+                            setActiveFeaturedProjectIndex(Math.max(0, index - 1));
+                          }}
+                        />
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Field label="Title">
+                          <TextInput
+                            value={project.title}
+                            onChange={(event) =>
+                              updateHome((current) => ({
+                                ...current,
+                                featuredProjects: {
+                                  ...current.featuredProjects,
+                                  projects: current.featuredProjects.projects.map(
+                                    (item, itemIndex) =>
+                                      itemIndex === index
+                                        ? { ...item, title: event.target.value }
+                                        : item
+                                  ),
+                                },
                               }))
                             }
-                            className="rounded-lg border border-white/20 px-3 text-xs hover:bg-white/10 transition-colors"
+                          />
+                        </Field>
+                        <Field label="Icon">
+                          <SelectInput
+                            value={project.icon}
+                            onChange={(event) =>
+                              updateHome((current) => ({
+                                ...current,
+                                featuredProjects: {
+                                  ...current.featuredProjects,
+                                  projects: current.featuredProjects.projects.map(
+                                    (item, itemIndex) =>
+                                      itemIndex === index
+                                        ? {
+                                            ...item,
+                                            icon: event.target.value as FeaturedProjectIcon,
+                                          }
+                                        : item
+                                  ),
+                                },
+                              }))
+                            }
                           >
-                            Remove clip
-                          </button>
-                        )}
+                            {iconOptions.map((icon) => (
+                              <option key={icon} value={icon}>
+                                {icon}
+                              </option>
+                            ))}
+                          </SelectInput>
+                        </Field>
+                        <div className="md:col-span-2">
+                          <Field label="Description">
+                            <TextArea
+                              value={project.description}
+                              onChange={(event) =>
+                                updateHome((current) => ({
+                                  ...current,
+                                  featuredProjects: {
+                                    ...current.featuredProjects,
+                                    projects: current.featuredProjects.projects.map(
+                                      (item, itemIndex) =>
+                                        itemIndex === index
+                                          ? { ...item, description: event.target.value }
+                                          : item
+                                    ),
+                                  },
+                                }))
+                              }
+                            />
+                          </Field>
+                        </div>
+                        <div className="md:col-span-2">
+                          <UploadField
+                            label="Image"
+                            kind="image"
+                            folder="portfolio/home-featured"
+                            value={project.image}
+                            onChange={(value) =>
+                              updateHome((current) => ({
+                                ...current,
+                                featuredProjects: {
+                                  ...current.featuredProjects,
+                                  projects: current.featuredProjects.projects.map(
+                                    (item, itemIndex) =>
+                                      itemIndex === index ? { ...item, image: value } : item
+                                  ),
+                                },
+                              }))
+                            }
+                            onUploaded={(value) =>
+                              persistHomeUpload((current) => ({
+                                ...current,
+                                featuredProjects: {
+                                  ...current.featuredProjects,
+                                  projects: current.featuredProjects.projects.map(
+                                    (item, itemIndex) =>
+                                      itemIndex === index ? { ...item, image: value } : item
+                                  ),
+                                },
+                              }))
+                            }
+                          />
+                        </div>
                       </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setForm((prev) => ({
-                          ...prev,
-                          videoUrls: [...prev.videoUrls, ""],
-                          videoPosterUrls: [...prev.videoPosterUrls, ""],
+                    </div>
+                    ) : null
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateHome((current) => ({
+                        ...current,
+                        featuredProjects: {
+                          ...current.featuredProjects,
+                          projects: [
+                            ...current.featuredProjects.projects,
+                            createFeaturedProject(),
+                          ],
+                        },
+                      }));
+                      setActiveFeaturedProjectIndex(homeContent.featuredProjects.projects.length);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#8fdcff]/22 px-4 py-2 text-sm font-semibold text-[#dff8ff] transition hover:bg-[#8fdcff]/[0.08]"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add featured frame
+                  </button>
+                </div>
+              </SectionCard>
+            </>
+          ) : null}
+
+          {activeTab === "about" ? (
+            <SectionCard
+              eyebrow="Home"
+              title="About Accordion"
+              action={<SaveButton onClick={() => persistHomeContent(homeContent)} />}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                {(["eyebrow", "title", "ctaLabel"] as const).map((field) => (
+                  <Field key={field} label={field}>
+                    <TextInput
+                      value={homeContent.aboutAccordion[field]}
+                      onChange={(event) =>
+                        updateHome((current) => ({
+                          ...current,
+                          aboutAccordion: {
+                            ...current.aboutAccordion,
+                            [field]: event.target.value,
+                          },
                         }))
                       }
-                      className="inline-flex items-center gap-2 rounded-lg border border-[#0099ff]/60 px-3 py-2 text-xs text-[#8fd3ff] hover:bg-[#0099ff]/15 transition-colors"
-                    >
-                      <Plus size={14} />
-                      Add another MP4
-                    </button>
-                  </div>
-                ) : (
-                  <ImageField
-                    id="project-card-image"
-                    label="Card image"
-                    value={form.image}
-                    onChange={(value) =>
-                      setForm((prev) => ({ ...prev, image: value }))
-                    }
-                    placeholder="Card image path or URL"
-                  />
-                )}
-                <input
-                  type="text"
-                  value={form.designLink}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, designLink: event.target.value }))
-                  }
-                  placeholder={isVideoEditCategory ? "Project link (optional)" : "Design link"}
-                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                />
+                    />
+                  </Field>
+                ))}
+                <div className="md:col-span-2">
+                  <Field label="Description">
+                    <TextArea
+                      value={homeContent.aboutAccordion.description}
+                      onChange={(event) =>
+                        updateHome((current) => ({
+                          ...current,
+                          aboutAccordion: {
+                            ...current.aboutAccordion,
+                            description: event.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </Field>
+                </div>
+                <div className="md:col-span-2">
+                  <Field label="Secondary Description">
+                    <TextArea
+                      value={homeContent.aboutAccordion.secondaryDescription}
+                      onChange={(event) =>
+                        updateHome((current) => ({
+                          ...current,
+                          aboutAccordion: {
+                            ...current.aboutAccordion,
+                            secondaryDescription: event.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </Field>
+                </div>
               </div>
 
-              {isVideoEditCategory && (
-                <div className="rounded-xl border border-[#8fdcff]/18 bg-[#06111a]/70 p-4 space-y-3">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-[#8fdcff]">
-                      Video Showcase Setup
-                    </p>
-                    <p className="mt-2 text-xs leading-relaxed text-white/60">
-                      This single project becomes one homepage project box. Leave the heading blank
-                      to use the project title, keep a dedicated box thumbnail, and add one or more
-                      direct `.mp4` files for the in-focus preview.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <input
-                      type="text"
-                      value={form.videoCategory}
-                      onChange={(event) =>
-                        setForm((prev) => ({ ...prev, videoCategory: event.target.value }))
-                      }
-                      placeholder="Project heading for this box (leave blank to use project title)"
-                      className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                    />
-                    <input
-                      type="text"
-                      value={form.videoParentLabel}
-                      onChange={(event) =>
-                        setForm((prev) => ({ ...prev, videoParentLabel: event.target.value }))
-                      }
-                      placeholder="Small label under the title (e.g. Vast Professionals)"
-                      className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-sm text-white/85">Video ratio</p>
-                      <p className="mt-1 text-xs leading-relaxed text-white/55">
-                        Choose the format for this project so the website can size the
-                        player correctly for long-form or short-form videos. All clips in this
-                        project must match the same ratio.
-                      </p>
+              <div className="mt-6 space-y-4">
+                <EditorTabs
+                  items={homeContent.aboutAccordion.items.map((item, index) => ({
+                    label: `Panel ${index + 1}`,
+                    title: item.title || `Accordion image ${index + 1}`,
+                  }))}
+                  activeIndex={selectedAboutItemIndex}
+                  onChange={setActiveAboutItemIndex}
+                  emptyLabel="No About panels yet."
+                />
+                {homeContent.aboutAccordion.items.map((item, index) => (
+                  index === selectedAboutItemIndex ? (
+                  <div key={`about-item-${index}`} className="rounded-2xl border border-white/10 bg-black/18 p-4">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <p className="font-semibold text-white">Accordion image {index + 1}</p>
+                      <RowActions
+                        onMoveUp={
+                          index > 0
+                            ? () =>
+                                {
+                                  updateHome((current) => ({
+                                    ...current,
+                                    aboutAccordion: {
+                                      ...current.aboutAccordion,
+                                      items: moveItem(current.aboutAccordion.items, index, -1),
+                                    },
+                                  }));
+                                  setActiveAboutItemIndex(index - 1);
+                                }
+                            : undefined
+                        }
+                        onMoveDown={
+                          index < homeContent.aboutAccordion.items.length - 1
+                            ? () =>
+                                {
+                                  updateHome((current) => ({
+                                    ...current,
+                                    aboutAccordion: {
+                                      ...current.aboutAccordion,
+                                      items: moveItem(current.aboutAccordion.items, index, 1),
+                                    },
+                                  }));
+                                  setActiveAboutItemIndex(index + 1);
+                                }
+                            : undefined
+                        }
+                        onRemove={() => {
+                          updateHome((current) => ({
+                            ...current,
+                            aboutAccordion: {
+                              ...current.aboutAccordion,
+                              items: current.aboutAccordion.items.filter(
+                                (_, itemIndex) => itemIndex !== index
+                              ),
+                            },
+                          }));
+                          setActiveAboutItemIndex(Math.max(0, index - 1));
+                        }}
+                      />
                     </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {VIDEO_ASPECT_RATIO_OPTIONS.map((option) => {
-                        const isSelected = form.videoAspectRatio === option.value;
-
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() =>
-                              {
-                                setProjectFormError("");
-                                setBulkVideoUploadError("");
-                                setForm((prev) => ({
-                                  ...prev,
-                                  videoAspectRatio: option.value,
-                                }));
-                              }
-                            }
-                            className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-                              isSelected
-                                ? "border-[#36d1ff]/55 bg-[#081927] text-white"
-                                : "border-white/15 bg-black/20 text-white/78 hover:border-[#36d1ff]/30 hover:bg-[#07131d]"
-                            }`}
-                          >
-                            <p className="text-sm font-semibold">{option.label}</p>
-                            <p className="mt-1 text-xs leading-relaxed text-white/55">
-                              {option.description}
-                            </p>
-                          </button>
-                        );
-                      })}
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Title">
+                        <TextInput
+                          value={item.title}
+                          onChange={(event) =>
+                            updateHome((current) => ({
+                              ...current,
+                              aboutAccordion: {
+                                ...current.aboutAccordion,
+                                items: current.aboutAccordion.items.map((entry, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...entry, title: event.target.value }
+                                    : entry
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </Field>
+                      <UploadField
+                        label="Image"
+                        kind="image"
+                        folder="portfolio/about"
+                        value={item.imageUrl}
+                        onChange={(value) =>
+                          updateHome((current) => ({
+                            ...current,
+                            aboutAccordion: {
+                              ...current.aboutAccordion,
+                              items: current.aboutAccordion.items.map((entry, itemIndex) =>
+                                itemIndex === index ? { ...entry, imageUrl: value } : entry
+                              ),
+                            },
+                          }))
+                        }
+                        onUploaded={(value) =>
+                          persistHomeUpload((current) => ({
+                            ...current,
+                            aboutAccordion: {
+                              ...current.aboutAccordion,
+                              items: current.aboutAccordion.items.map((entry, itemIndex) =>
+                                itemIndex === index ? { ...entry, imageUrl: value } : entry
+                              ),
+                            },
+                          }))
+                        }
+                      />
                     </div>
                   </div>
-                  <div>
-                    <ImageField
-                      id="project-video-poster"
-                      label="Project box thumbnail"
-                      value={form.image}
-                      onChange={(value) =>
-                        setForm((prev) => ({ ...prev, image: value }))
-                      }
-                      placeholder="Thumbnail image for the homepage project box"
-                      previewHeightClassName="h-28"
-                    />
-                  </div>
-                </div>
-              )}
+                  ) : null
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateHome((current) => ({
+                      ...current,
+                      aboutAccordion: {
+                        ...current.aboutAccordion,
+                        items: [...current.aboutAccordion.items, createAboutItem()],
+                      },
+                    }));
+                    setActiveAboutItemIndex(homeContent.aboutAccordion.items.length);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full border border-[#8fdcff]/22 px-4 py-2 text-sm font-semibold text-[#dff8ff] transition hover:bg-[#8fdcff]/[0.08]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add accordion panel
+                </button>
+              </div>
+            </SectionCard>
+          ) : null}
 
-              {!isVideoEditCategory && (
-                <label className="flex items-center gap-2 text-sm text-white/85">
-                  <input
-                    type="checkbox"
-                    checked={form.showDetailsModal}
+          {activeTab === "lanes" ? (
+            <SectionCard
+              eyebrow="Home"
+              title="Creative Lanes"
+              action={<SaveButton onClick={() => persistHomeContent(homeContent)} />}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Muted title">
+                  <TextInput
+                    value={homeContent.creativeProfile.titleMuted}
                     onChange={(event) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        showDetailsModal: event.target.checked,
+                      updateHome((current) => ({
+                        ...current,
+                        creativeProfile: {
+                          ...current.creativeProfile,
+                          titleMuted: event.target.value,
+                        },
                       }))
                     }
-                    className="accent-[#0099ff]"
                   />
-                  Enable details modal
-                </label>
-              )}
-
-              {!isVideoEditCategory && form.showDetailsModal && (
-                <div className="rounded-xl border border-white/15 bg-black/25 p-3 space-y-3">
-                  <input
-                    type="text"
-                    value={form.detailsTitle}
+                </Field>
+                <Field label="Strong title">
+                  <TextInput
+                    value={homeContent.creativeProfile.titleStrong}
                     onChange={(event) =>
-                      setForm((prev) => ({ ...prev, detailsTitle: event.target.value }))
+                      updateHome((current) => ({
+                        ...current,
+                        creativeProfile: {
+                          ...current.creativeProfile,
+                          titleStrong: event.target.value,
+                        },
+                      }))
                     }
-                    placeholder="Details title"
-                    className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
                   />
+                </Field>
+              </div>
 
-                  <textarea
-                    value={form.detailsDescription}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, detailsDescription: event.target.value }))
-                    }
-                    placeholder="Details description"
-                    className="w-full min-h-[80px] rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                  />
-
-                  <ImageField
-                    id="project-details-hero-image"
-                    label="Details hero image"
-                    value={form.detailsHeroImage}
-                    onChange={(value) =>
-                      setForm((prev) => ({ ...prev, detailsHeroImage: value }))
-                    }
-                    placeholder="Details hero image path or URL"
-                  />
-
-                  <div className="space-y-2">
-                    {form.galleryImages.map((galleryPath, index) => (
-                      <div
-                        key={`gallery-input-${index}`}
-                        className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-3"
-                      >
-                        <ImageField
-                          id={`gallery-image-${index}`}
-                          label={`Gallery image ${index + 1}`}
-                          value={galleryPath}
-                          onChange={(value) =>
-                            setForm((prev) => {
-                              const nextGallery = [...prev.galleryImages];
-                              nextGallery[index] = value;
-                              return { ...prev, galleryImages: nextGallery };
-                            })
-                          }
-                          placeholder={`Gallery image ${index + 1}`}
-                          previewHeightClassName="h-28"
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setForm((prev) => {
-                              if (prev.galleryImages.length === 1) return prev;
-                              return {
-                                ...prev,
-                                galleryImages: prev.galleryImages.filter(
-                                  (_, itemIndex) => itemIndex !== index
+              <div className="mt-6 space-y-4">
+                <EditorTabs
+                  items={homeContent.creativeProfile.lanes.map((lane, index) => ({
+                    label: `Lane ${index + 1}`,
+                    title: lane.label || lane.value,
+                  }))}
+                  activeIndex={selectedCreativeLaneIndex}
+                  onChange={setActiveCreativeLaneIndex}
+                  emptyLabel="No creative lanes yet."
+                />
+                {homeContent.creativeProfile.lanes.map((lane, index) => (
+                  index === selectedCreativeLaneIndex ? (
+                  <div key={`${lane.value}-${index}`} className="rounded-2xl border border-white/10 bg-black/18 p-4">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <p className="font-semibold text-white">{lane.label}</p>
+                      <RowActions
+                        onMoveUp={
+                          index > 0
+                            ? () =>
+                                {
+                                  updateHome((current) => ({
+                                    ...current,
+                                    creativeProfile: {
+                                      ...current.creativeProfile,
+                                      lanes: moveItem(current.creativeProfile.lanes, index, -1),
+                                    },
+                                  }));
+                                  setActiveCreativeLaneIndex(index - 1);
+                                }
+                            : undefined
+                        }
+                        onMoveDown={
+                          index < homeContent.creativeProfile.lanes.length - 1
+                            ? () =>
+                                {
+                                  updateHome((current) => ({
+                                    ...current,
+                                    creativeProfile: {
+                                      ...current.creativeProfile,
+                                      lanes: moveItem(current.creativeProfile.lanes, index, 1),
+                                    },
+                                  }));
+                                  setActiveCreativeLaneIndex(index + 1);
+                                }
+                            : undefined
+                        }
+                        onRemove={() => {
+                          updateHome((current) => ({
+                            ...current,
+                            creativeProfile: {
+                              ...current.creativeProfile,
+                              lanes: current.creativeProfile.lanes.filter(
+                                (_, itemIndex) => itemIndex !== index
+                              ),
+                            },
+                          }));
+                          setActiveCreativeLaneIndex(Math.max(0, index - 1));
+                        }}
+                      />
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Lane type">
+                        <SelectInput
+                          value={lane.value}
+                          onChange={(event) =>
+                            updateHome((current) => ({
+                              ...current,
+                              creativeProfile: {
+                                ...current.creativeProfile,
+                                lanes: current.creativeProfile.lanes.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? {
+                                        ...item,
+                                        value: event.target.value as HomeCreativeLane["value"],
+                                      }
+                                    : item
                                 ),
-                              };
-                            })
+                              },
+                            }))
                           }
-                          className="rounded-lg border border-white/20 px-3 text-xs hover:bg-white/10 transition-colors"
                         >
-                          Remove
-                        </button>
+                          <option value="video-editing">Video Editing</option>
+                          <option value="graphic-design">Graphic Design</option>
+                          <option value="web-development">Web Development</option>
+                        </SelectInput>
+                      </Field>
+                      {(["label", "badge", "buttonText", "buttonHref", "imageAlt"] as const).map(
+                        (field) => (
+                          <Field key={field} label={field}>
+                            <TextInput
+                              value={lane[field]}
+                              onChange={(event) =>
+                                updateHome((current) => ({
+                                  ...current,
+                                  creativeProfile: {
+                                    ...current.creativeProfile,
+                                    lanes: current.creativeProfile.lanes.map(
+                                      (item, itemIndex) =>
+                                        itemIndex === index
+                                          ? { ...item, [field]: event.target.value }
+                                          : item
+                                    ),
+                                  },
+                                }))
+                              }
+                            />
+                          </Field>
+                        )
+                      )}
+                      <div className="md:col-span-2">
+                        <Field label="Title">
+                          <TextInput
+                            value={lane.title}
+                            onChange={(event) =>
+                              updateHome((current) => ({
+                                ...current,
+                                creativeProfile: {
+                                  ...current.creativeProfile,
+                                  lanes: current.creativeProfile.lanes.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, title: event.target.value }
+                                      : item
+                                  ),
+                                },
+                              }))
+                            }
+                          />
+                        </Field>
                       </div>
-                    ))}
+                      <div className="md:col-span-2">
+                        <Field label="Description">
+                          <TextArea
+                            value={lane.description}
+                            onChange={(event) =>
+                              updateHome((current) => ({
+                                ...current,
+                                creativeProfile: {
+                                  ...current.creativeProfile,
+                                  lanes: current.creativeProfile.lanes.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, description: event.target.value }
+                                      : item
+                                  ),
+                                },
+                              }))
+                            }
+                          />
+                        </Field>
+                      </div>
+                      <div className="md:col-span-2">
+                        <UploadField
+                          label="Lane image"
+                          kind="image"
+                          folder="portfolio/lanes"
+                          value={lane.imageSrc}
+                          onChange={(value) =>
+                            updateHome((current) => ({
+                              ...current,
+                              creativeProfile: {
+                                ...current.creativeProfile,
+                                lanes: current.creativeProfile.lanes.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, imageSrc: value } : item
+                                ),
+                              },
+                            }))
+                          }
+                          onUploaded={(value) =>
+                            persistHomeUpload((current) => ({
+                              ...current,
+                              creativeProfile: {
+                                ...current.creativeProfile,
+                                lanes: current.creativeProfile.lanes.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, imageSrc: value } : item
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  ) : null
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateHome((current) => ({
+                      ...current,
+                      creativeProfile: {
+                        ...current.creativeProfile,
+                        lanes: [...current.creativeProfile.lanes, createCreativeLane()],
+                      },
+                    }));
+                    setActiveCreativeLaneIndex(homeContent.creativeProfile.lanes.length);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full border border-[#8fdcff]/22 px-4 py-2 text-sm font-semibold text-[#dff8ff] transition hover:bg-[#8fdcff]/[0.08]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add lane
+                </button>
+              </div>
+            </SectionCard>
+          ) : null}
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setForm((prev) => ({
-                          ...prev,
-                          galleryImages: [...prev.galleryImages, ""],
+          {activeTab === "experience" ? (
+            <SectionCard
+              eyebrow="Home"
+              title="Experience Testimonials"
+              action={<SaveButton onClick={() => persistHomeContent(homeContent)} />}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                {(["eyebrow", "titleMuted", "titleStrong"] as const).map((field) => (
+                  <Field key={field} label={field}>
+                    <TextInput
+                      value={homeContent.experienceSection[field]}
+                      onChange={(event) =>
+                        updateHome((current) => ({
+                          ...current,
+                          experienceSection: {
+                            ...current.experienceSection,
+                            [field]: event.target.value,
+                          },
                         }))
                       }
-                      className="inline-flex items-center gap-2 rounded-lg border border-[#0099ff]/60 px-3 py-2 text-xs text-[#8fd3ff] hover:bg-[#0099ff]/15 transition-colors"
-                    >
-                      <Plus size={14} />
-                      Add gallery field
-                    </button>
-                  </div>
+                    />
+                  </Field>
+                ))}
+                <div className="md:col-span-2">
+                  <Field label="Description">
+                    <TextArea
+                      value={homeContent.experienceSection.description}
+                      onChange={(event) =>
+                        updateHome((current) => ({
+                          ...current,
+                          experienceSection: {
+                            ...current.experienceSection,
+                            description: event.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </Field>
                 </div>
-              )}
+              </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                {projectFormError ? (
-                  <p className="flex-1 text-sm text-amber-200">{projectFormError}</p>
-                ) : (
-                  <div className="flex-1" />
-                )}
-                <button
-                  type="submit"
-                  className="rounded-lg bg-[#0099ff] px-4 py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={isProjectSubmitting}
-                >
-                  {isProjectSubmitting
-                    ? "Checking ratio..."
-                    : editingIndex === null
-                      ? "Add Project"
-                      : "Save Changes"}
-                </button>
-                {editingIndex !== null && (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
+              <div className="mt-6 space-y-4">
+                <EditorTabs
+                  items={homeContent.experienceSection.cards.map((card, index) => ({
+                    label: `Card ${index + 1}`,
+                    title: card.name || `Experience card ${index + 1}`,
+                  }))}
+                  activeIndex={selectedExperienceCardIndex}
+                  onChange={setActiveExperienceCardIndex}
+                  emptyLabel="No experience cards yet."
+                />
+                {homeContent.experienceSection.cards.map((card, index) => (
+                  index === selectedExperienceCardIndex ? (
+                  <div
+                    key={`experience-card-${index}`}
+                    className="rounded-2xl border border-white/10 bg-black/18 p-4"
                   >
-                    Cancel Edit
-                  </button>
-                )}
-              </div>
-            </form>
-
-            <div className="rounded-2xl border border-white/15 bg-black/25 p-4 md:p-5 space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                    Live Preview
-                  </p>
-                  <h3 className="mt-1 text-sm font-semibold text-white">
-                    This is how the project content is shaping up.
-                  </h3>
-                </div>
-                <span className="rounded-full border border-[#0099ff]/30 bg-[#0099ff]/10 px-3 py-1 text-[10px] tracking-[0.18em] text-[#8fd3ff]">
-                  {activeCategory}
-                </span>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[1.15fr_0.95fr]">
-                <div className={isVideoEditCategory ? "space-y-4" : "overflow-hidden rounded-[22px] border border-white/15 bg-black/30"}>
-                  {isVideoEditCategory ? (
-                    <>
-                      <div className="rounded-[22px] border border-white/15 bg-black/30 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                              Homepage Project Box
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-white">
-                              This thumbnail is what shows in the rail before someone opens the project.
-                            </p>
-                          </div>
-                          <span className="rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
-                            Thumbnail
-                          </span>
-                        </div>
-
-                        <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
-                          <div className="group relative aspect-square overflow-hidden rounded-[24px] border border-white/12 bg-white/[0.05]">
-                            {projectPreviewCardImage ? (
-                              <img
-                                src={projectPreviewCardImage}
-                                alt={`${projectPreview.title} project box preview`}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="h-full w-full bg-[linear-gradient(135deg,rgba(8,16,24,0.98),rgba(5,9,15,0.94))]" />
-                            )}
-                            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(6,11,18,0.05),rgba(5,8,13,0.78)_100%)]" />
-                            <div className="relative z-10 flex h-full flex-col p-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <span className="rounded-full border border-white/12 bg-black/24 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/58">
-                                  {projectPreviewVideoUrls.length}{" "}
-                                  {projectPreviewVideoUrls.length === 1 ? "clip" : "clips"}
-                                </span>
-                              </div>
-                              <div className="mt-auto">
-                                <p className="text-lg font-semibold text-white">
-                                  {projectPreviewVideoCategory}
-                                </p>
-                                <p className="mt-2 text-sm text-white/62">
-                                  Click to view clips
-                                </p>
-                                <span className="mt-4 inline-flex rounded-full border border-[#8fdcff]/22 bg-[#091826]/78 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c8f5ff]">
-                                  Preview project
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="rounded-[24px] border border-white/12 bg-black/24 p-4">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                              Box Setup
-                            </p>
-                            <p className="mt-2 text-xl font-semibold text-white">
-                              {projectPreview.title}
-                            </p>
-                            <p className="mt-3 text-sm leading-relaxed text-white/66 line-clamp-4">
-                              {projectPreview.description}
-                            </p>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <span className="rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
-                                {projectPreviewCardImage ? "Box thumbnail ready" : "Needs box thumbnail"}
-                              </span>
-                              <span className="rounded-full border border-[#8fdcff]/22 bg-[#091826]/78 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[#c8f5ff]">
-                                {projectPreviewVideoAspectRatio === "portrait" ? "Portrait" : "Landscape"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="overflow-hidden rounded-[22px] border border-white/15 bg-black/30">
-                        <div className={`relative bg-black ${projectPreviewVideoFrameClass}`}>
-                          {projectPreviewVideoUrl ? (
-                            <video
-                              key={`${projectPreview.title}-${projectPreviewVideoUrl}`}
-                              src={projectPreviewVideoUrl}
-                              poster={projectPreviewPosterImage || undefined}
-                              className="h-full w-full object-cover"
-                              controls
-                              playsInline
-                              muted
-                              autoPlay
-                              loop
-                              preload="metadata"
-                            />
-                          ) : (
-                            <div
-                              className="flex h-full w-full items-center justify-center px-6 text-center"
-                              style={{
-                                background: projectPreviewPosterImage
-                                  ? `linear-gradient(135deg, rgba(2, 6, 10, 0.7), rgba(2, 6, 10, 0.92)), url(${projectPreviewPosterImage}) center/cover`
-                                  : projectPreviewCardImage
-                                    ? `linear-gradient(135deg, rgba(2, 6, 10, 0.7), rgba(2, 6, 10, 0.92)), url(${projectPreviewCardImage}) center/cover`
-                                    : "linear-gradient(135deg, rgba(4,10,18,0.98), rgba(6,18,28,0.92))",
-                              }}
-                            >
-                              <div className="max-w-sm">
-                                <p className="text-base font-semibold text-white">
-                                  No direct MP4 clip added yet
-                                </p>
-                                <p className="mt-2 text-sm leading-relaxed text-white/62">
-                                  Add one or more direct `.mp4` file paths or URLs and this
-                                  project will open inside the in-focus stage on the homepage.
-                                </p>
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="absolute left-4 top-4 rounded-full border border-[#8fdcff]/20 bg-[#06131d]/86 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#aeeaff] backdrop-blur-md">
-                            In Focus
-                          </div>
-                        </div>
-                        <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(0,153,255,0.08),rgba(8,10,18,0.14))] p-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-semibold text-white">
-                              {projectPreviewVideoCategory}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                                Clip Deck
-                              </span>
-                              <span className="rounded-full border border-white/12 bg-black/35 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/62">
-                                {projectPreviewVideoUrls.length}{" "}
-                                {projectPreviewVideoUrls.length === 1 ? "clip" : "clips"}
-                              </span>
-                            </div>
-                          </div>
-                          <p className="mt-2 text-sm leading-relaxed text-white/70 line-clamp-4">
-                            {projectPreview.description}
-                          </p>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <img
-                        src={projectPreview.image}
-                        alt={projectPreview.title}
-                        className="h-52 w-full object-cover"
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <p className="font-semibold text-white">
+                        {card.name || `Experience card ${index + 1}`}
+                      </p>
+                      <RowActions
+                        onMoveUp={
+                          index > 0
+                            ? () =>
+                                {
+                                  updateHome((current) => ({
+                                    ...current,
+                                    experienceSection: {
+                                      ...current.experienceSection,
+                                      cards: moveItem(
+                                        current.experienceSection.cards,
+                                        index,
+                                        -1
+                                      ),
+                                    },
+                                  }));
+                                  setActiveExperienceCardIndex(index - 1);
+                                }
+                            : undefined
+                        }
+                        onMoveDown={
+                          index < homeContent.experienceSection.cards.length - 1
+                            ? () =>
+                                {
+                                  updateHome((current) => ({
+                                    ...current,
+                                    experienceSection: {
+                                      ...current.experienceSection,
+                                      cards: moveItem(
+                                        current.experienceSection.cards,
+                                        index,
+                                        1
+                                      ),
+                                    },
+                                  }));
+                                  setActiveExperienceCardIndex(index + 1);
+                                }
+                            : undefined
+                        }
+                        onRemove={() => {
+                          updateHome((current) => ({
+                            ...current,
+                            experienceSection: {
+                              ...current.experienceSection,
+                              cards: current.experienceSection.cards.filter(
+                                (_, itemIndex) => itemIndex !== index
+                              ),
+                            },
+                          }));
+                          setActiveExperienceCardIndex(Math.max(0, index - 1));
+                        }}
                       />
-                      <div className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(0,153,255,0.08),rgba(8,10,18,0.14))] p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-white">
-                              {projectPreview.title}
-                            </p>
-                            {projectPreviewVideoParentLabel ? (
-                              <p className="mt-1 text-xs text-white/46">
-                                under {projectPreviewVideoParentLabel}
-                              </p>
-                            ) : null}
-                          </div>
-                          <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                            Project Card
-                          </span>
-                        </div>
-                        <p className="mt-2 text-sm leading-relaxed text-white/70 line-clamp-4">
-                          {projectPreview.description}
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </div>
+                    </div>
 
-                <div className="rounded-[22px] border border-white/15 bg-black/30 p-4 space-y-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-white">
-                      {isVideoEditCategory ? "Showcase Setup" : "Details Preview"}
-                    </p>
-                    <span className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                      {isVideoEditCategory
-                        ? "Video Edit"
-                        : projectPreview.showDetailsModal
-                          ? "Enabled"
-                          : "Disabled"}
-                    </span>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <Field label="Name">
+                        <TextInput
+                          value={card.name}
+                          onChange={(event) =>
+                            updateHome((current) => ({
+                              ...current,
+                              experienceSection: {
+                                ...current.experienceSection,
+                                cards: current.experienceSection.cards.map(
+                                  (item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, name: event.target.value }
+                                      : item
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </Field>
+                      <Field label="Role / tools">
+                        <TextInput
+                          value={card.role}
+                          onChange={(event) =>
+                            updateHome((current) => ({
+                              ...current,
+                              experienceSection: {
+                                ...current.experienceSection,
+                                cards: current.experienceSection.cards.map(
+                                  (item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, role: event.target.value }
+                                      : item
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </Field>
+                      <div className="md:col-span-2">
+                        <Field label="Quote">
+                          <TextArea
+                            value={card.quote}
+                            onChange={(event) =>
+                              updateHome((current) => ({
+                                ...current,
+                                experienceSection: {
+                                  ...current.experienceSection,
+                                  cards: current.experienceSection.cards.map(
+                                    (item, itemIndex) =>
+                                      itemIndex === index
+                                        ? { ...item, quote: event.target.value }
+                                        : item
+                                  ),
+                                },
+                              }))
+                            }
+                          />
+                        </Field>
+                      </div>
+                      <div className="md:col-span-2">
+                        <UploadField
+                          label="Card image"
+                          kind="image"
+                          folder="portfolio/experience"
+                          value={card.image}
+                          onChange={(value) =>
+                            updateHome((current) => ({
+                              ...current,
+                              experienceSection: {
+                                ...current.experienceSection,
+                                cards: current.experienceSection.cards.map(
+                                  (item, itemIndex) =>
+                                    itemIndex === index ? { ...item, image: value } : item
+                                ),
+                              },
+                            }))
+                          }
+                          onUploaded={(value) =>
+                            persistHomeUpload((current) => ({
+                              ...current,
+                              experienceSection: {
+                                ...current.experienceSection,
+                                cards: current.experienceSection.cards.map(
+                                  (item, itemIndex) =>
+                                    itemIndex === index ? { ...item, image: value } : item
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
                   </div>
+                  ) : null
+                ))}
 
-                  {isVideoEditCategory ? (
-                    <>
-                      <div className="rounded-xl border border-white/12 bg-black/35 p-4 space-y-3">
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                            Project Heading
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-white">
-                            {projectPreviewVideoCategory}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                            Video Ratio
-                          </p>
-                          <p className="mt-1 text-sm leading-relaxed text-white/68">
-                            {projectPreviewVideoAspectRatio === "portrait"
-                              ? "1080 x 1920 (portrait / short-form)"
-                              : "1920 x 1080 (landscape / standard)"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                            MP4 Clips
-                          </p>
-                          {projectPreviewVideoUrls.length > 0 ? (
-                            <div className="mt-2 space-y-2">
-                              <p className="text-sm leading-relaxed text-white/68">
-                                {projectPreviewVideoUrls.length}{" "}
-                                {projectPreviewVideoUrls.length === 1 ? "clip is" : "clips are"}{" "}
-                                ready for this in-focus project.
-                              </p>
-                              {projectPreviewVideoUrls.slice(0, 3).map((videoUrl, index) => (
-                                <p
-                                  key={`${videoUrl}-${index}`}
-                                  className="break-all text-xs leading-relaxed text-white/50"
-                                >
-                                  Clip {index + 1}: {videoUrl}
-                                </p>
-                              ))}
-                              {projectPreviewVideoUrls.length > 3 ? (
-                                <p className="text-xs leading-relaxed text-white/42">
-                                  +{projectPreviewVideoUrls.length - 3} more clips
-                                </p>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <p className="mt-1 break-all text-sm leading-relaxed text-white/68">
-                              Add one or more direct `.mp4` file paths or URLs so the homepage can
-                              play all of your clips inside the in-focus preview.
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                              Clip Thumbnails
-                            </p>
-                            {projectPreviewVideoPosterCount > 0 ? (
-                              <p className="mt-1 text-sm leading-relaxed text-white/68">
-                                {projectPreviewVideoPosterCount}{" "}
-                                {projectPreviewVideoPosterCount === 1
-                                  ? "thumbnail is"
-                                  : "thumbnails are"}{" "}
-                                ready for the clip deck.
-                              </p>
-                            ) : (
-                              <p className="mt-1 text-sm leading-relaxed text-white/68">
-                                Upload an optional image for each clip to override the default
-                                live frame preview from the video itself.
-                              </p>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                              Project Box Thumbnail
-                            </p>
-                            <p className="mt-1 text-sm leading-relaxed text-white/68">
-                              {projectPreviewCardImage
-                                ? "A dedicated thumbnail is ready for the homepage project box."
-                                : "Add a dedicated image so the project box has its own thumbnail in the homepage rail."}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">
-                              Project Link
-                            </p>
-                            <p className="mt-1 break-all text-sm leading-relaxed text-white/68">
-                              {projectPreview.designLink}
-                            </p>
-                          </div>
-                        </div>
-                    </>
-                  ) : projectPreview.showDetailsModal && projectPreview.details ? (
-                    <>
-                      <div className="overflow-hidden rounded-xl border border-white/12 bg-black/35">
-                        <img
-                          src={projectPreview.details.heroImage}
-                          alt={projectPreview.details.title}
-                          className="h-28 w-full object-cover"
-                        />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-semibold text-white">
-                          {projectPreview.details.title}
-                        </h4>
-                        <p className="mt-2 text-sm leading-relaxed text-white/68 line-clamp-5">
-                          {projectPreview.details.description}
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {projectPreview.details.galleryImages
-                          .slice(0, 3)
-                          .map((image, index) => (
-                            <div
-                              key={`${image}-${index}`}
-                              className="overflow-hidden rounded-lg border border-white/10 bg-black/40"
-                            >
-                              <img
-                                src={image}
-                                alt={`${projectPreview.details?.title} gallery ${index + 1}`}
-                                className="h-16 w-full object-cover"
-                              />
-                            </div>
-                          ))}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="rounded-xl border border-dashed border-white/12 bg-black/20 px-4 py-6 text-sm text-white/55">
-                      Turn on the details modal to preview the hero image and gallery here.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:p-5 space-y-3">
-            <h2 className="text-lg font-semibold">
-              {activeCategory} Projects ({activeProjects.length})
-            </h2>
-            {activeCategory === "Video Edit" && activeProjects.length > 1 && (
-              <p className="text-xs leading-relaxed text-white/58">
-                Use the up and down buttons to control the order shown in the main
-                portfolio showcase.
-              </p>
-            )}
-
-            <div className="max-h-[62vh] overflow-y-auto space-y-3 pr-1">
-              {activeProjects.map((project, index) => (
-                <div
-                  key={`${activeCategory}-${project.title}-${index}`}
-                  className="rounded-xl border border-white/15 bg-black/25 p-3"
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateHome((current) => ({
+                      ...current,
+                      experienceSection: {
+                        ...current.experienceSection,
+                        cards: [...current.experienceSection.cards, createExperienceCard()],
+                      },
+                    }));
+                    setActiveExperienceCardIndex(homeContent.experienceSection.cards.length);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full border border-[#8fdcff]/22 px-4 py-2 text-sm font-semibold text-[#dff8ff] transition hover:bg-[#8fdcff]/[0.08]"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="h-14 w-14 overflow-hidden rounded-xl border border-white/12 bg-black/30">
-                      {project.image ? (
-                        <img
-                          src={project.image}
-                          alt={`${project.title} thumbnail`}
-                          className="h-full w-full object-cover"
+                  <Plus className="h-4 w-4" />
+                  Add experience card
+                </button>
+              </div>
+            </SectionCard>
+          ) : null}
+
+          {activeTab === "portfolio" ? (
+            <SectionCard
+              eyebrow="Portfolio"
+              title={`${activeCategoryLabel} Projects`}
+              action={<SaveButton onClick={() => persistProjects(projects)} />}
+            >
+              <div className="mb-5 grid gap-3 md:grid-cols-3">
+                {categories.map((category) => (
+                  <button
+                    key={category.key}
+                    type="button"
+                    onClick={() => {
+                      setActiveCategory(category.key);
+                      setActiveProjectIndex(0);
+                    }}
+                    className={`rounded-2xl border p-4 text-left transition ${
+                      activeCategory === category.key
+                        ? "border-[#8fdcff]/36 bg-[#8fdcff]/[0.1]"
+                        : "border-white/10 bg-black/14 hover:border-white/20"
+                    }`}
+                  >
+                    <p className="font-semibold text-white">{category.label}</p>
+                    <p className="mt-2 text-xs leading-relaxed text-white/46">{category.note}</p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                {currentCategoryProjects.length > 0 ? (
+                  <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-black/18 p-2">
+                    {currentCategoryProjects.map((project, index) => (
+                      <button
+                        key={`project-tab-${index}`}
+                        type="button"
+                        onClick={() => setActiveProjectIndex(index)}
+                        className={`shrink-0 rounded-xl border px-4 py-3 text-left transition ${
+                          selectedProjectIndex === index
+                            ? "border-[#8fdcff]/40 bg-[#8fdcff]/[0.12] text-white"
+                            : "border-white/10 bg-white/[0.035] text-white/58 hover:border-white/20 hover:text-white"
+                        }`}
+                      >
+                        <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-current/54">
+                          Project {index + 1}
+                        </span>
+                        <span className="mt-1 block max-w-[12rem] truncate text-sm font-semibold">
+                          {project.title || `${activeCategoryLabel} ${index + 1}`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                {currentCategoryProjects.map((project, index) => {
+                  if (index !== selectedProjectIndex) {
+                    return null;
+                  }
+
+                  const detailImages = project.details?.galleryImages || [""];
+                  const videoUrls = project.videoUrls && project.videoUrls.length > 0 ? project.videoUrls : [""];
+                  const videoPosters =
+                    project.videoPosterUrls && project.videoPosterUrls.length > 0
+                      ? project.videoPosterUrls
+                      : [""];
+
+                  return (
+                    <div key={`portfolio-project-${index}`} className="rounded-2xl border border-white/10 bg-black/18 p-4">
+                      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-lg font-semibold text-white">
+                            {project.title || `Project ${index + 1}`}
+                          </p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-white/34">
+                            {activeCategoryLabel} / Project {index + 1}
+                          </p>
+                        </div>
+                        <RowActions
+                          onMoveUp={
+                            index > 0
+                              ? () =>
+                                  {
+                                    updateProjects((current) => ({
+                                      ...current,
+                                      [activeCategory]: moveItem(
+                                        current[activeCategory] || [],
+                                        index,
+                                        -1
+                                      ),
+                                    }));
+                                    setActiveProjectIndex(index - 1);
+                                  }
+                              : undefined
+                          }
+                          onMoveDown={
+                            index < currentCategoryProjects.length - 1
+                              ? () =>
+                                  {
+                                    updateProjects((current) => ({
+                                      ...current,
+                                      [activeCategory]: moveItem(
+                                        current[activeCategory] || [],
+                                        index,
+                                        1
+                                      ),
+                                    }));
+                                    setActiveProjectIndex(index + 1);
+                                  }
+                              : undefined
+                          }
+                          onRemove={() => {
+                            updateProjects((current) => ({
+                              ...current,
+                              [activeCategory]: (current[activeCategory] || []).filter(
+                                (_, itemIndex) => itemIndex !== index
+                              ),
+                            }));
+                            setActiveProjectIndex(Math.max(0, index - 1));
+                          }}
                         />
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Field label="Title">
+                          <TextInput
+                            value={project.title}
+                            onChange={(event) =>
+                              updateProjectAt(index, (item) => ({
+                                ...item,
+                                title: event.target.value,
+                              }))
+                            }
+                          />
+                        </Field>
+                        <UploadField
+                          label="Card image"
+                          kind="image"
+                          folder="portfolio/cards"
+                          value={project.image}
+                          onChange={(value) =>
+                            updateProjectAt(index, (item) => ({ ...item, image: value }))
+                          }
+                          onUploaded={(value) =>
+                            persistProjectUploadAt(index, (item) => ({
+                              ...item,
+                              image: value,
+                            }))
+                          }
+                        />
+                        <div className="md:col-span-2">
+                          <Field label="Description">
+                            <TextArea
+                              value={project.description}
+                              onChange={(event) =>
+                                updateProjectAt(index, (item) => ({
+                                  ...item,
+                                  description: event.target.value,
+                                }))
+                              }
+                            />
+                          </Field>
+                        </div>
+                        <Field label="External source / backup link">
+                          <TextInput
+                            value={project.designLink}
+                            onChange={(event) =>
+                              updateProjectAt(index, (item) => ({
+                                ...item,
+                                designLink: event.target.value,
+                              }))
+                            }
+                          />
+                        </Field>
+                      </div>
+
+                      {isVideoCategory(activeCategory) ? (
+                        <div className="mt-5 rounded-2xl border border-[#8fdcff]/14 bg-[#8fdcff]/[0.045] p-4">
+                          <div className="grid gap-4 md:grid-cols-3">
+                            <Field label="Video group">
+                              <TextInput
+                                value={project.videoCategory || ""}
+                                onChange={(event) =>
+                                  updateProjectAt(index, (item) => ({
+                                    ...item,
+                                    videoCategory: event.target.value,
+                                  }))
+                                }
+                              />
+                            </Field>
+                            <Field label="Client / parent label">
+                              <TextInput
+                                value={project.videoParentLabel || ""}
+                                onChange={(event) =>
+                                  updateProjectAt(index, (item) => ({
+                                    ...item,
+                                    videoParentLabel: event.target.value,
+                                  }))
+                                }
+                              />
+                            </Field>
+                            <Field label="Aspect ratio">
+                              <SelectInput
+                                value={project.videoAspectRatio || "landscape"}
+                                onChange={(event) =>
+                                  updateProjectAt(index, (item) => ({
+                                    ...item,
+                                    videoAspectRatio: event.target.value as VideoAspectRatio,
+                                  }))
+                                }
+                              >
+                                <option value="landscape">1920 x 1080</option>
+                                <option value="portrait">1080 x 1920</option>
+                              </SelectInput>
+                            </Field>
+                          </div>
+
+                          <div className="mt-4 space-y-4">
+                            {videoUrls.map((videoUrl, videoIndex) => (
+                              <div key={`video-source-${videoIndex}`} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                                <div className="grid gap-4 lg:grid-cols-2">
+                                  <UploadField
+                                    label={`Video source ${videoIndex + 1}`}
+                                    kind="video"
+                                    folder="portfolio/videos"
+                                    value={videoUrl}
+                                    placeholder="Paste a YouTube link, or upload a video file to Cloudinary"
+                                    uploadLabel="Upload video"
+                                    hint="YouTube links stay as links. Uploaded video files are stored in Cloudinary; Supabase only saves the public URL."
+                                    onChange={(value) =>
+                                      updateProjectAt(index, (item) => {
+                                        const nextVideoUrls = [...videoUrls];
+                                        nextVideoUrls[videoIndex] = value;
+                                        return {
+                                          ...item,
+                                          videoUrls: nextVideoUrls,
+                                          videoUrl: nextVideoUrls.find(Boolean) || "",
+                                        };
+                                      })
+                                    }
+                                    onUploaded={(value) =>
+                                      persistProjectUploadAt(index, (item) => {
+                                        const nextVideoUrls = [...videoUrls];
+                                        nextVideoUrls[videoIndex] = value;
+                                        return {
+                                          ...item,
+                                          videoUrls: nextVideoUrls,
+                                          videoUrl: nextVideoUrls.find(Boolean) || "",
+                                        };
+                                      })
+                                    }
+                                  />
+                                  <UploadField
+                                    label={`Thumbnail ${videoIndex + 1}`}
+                                    kind="image"
+                                    folder="portfolio/video-thumbnails"
+                                    value={videoPosters[videoIndex] || ""}
+                                    onChange={(value) =>
+                                      updateProjectAt(index, (item) => {
+                                        const nextPosters = [...videoPosters];
+                                        nextPosters[videoIndex] = value;
+                                        return { ...item, videoPosterUrls: nextPosters };
+                                      })
+                                    }
+                                    onUploaded={(value) =>
+                                      persistProjectUploadAt(index, (item) => {
+                                        const nextPosters = [...videoPosters];
+                                        nextPosters[videoIndex] = value;
+                                        return { ...item, videoPosterUrls: nextPosters };
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateProjectAt(index, (item) => ({
+                                      ...item,
+                                      videoUrls: videoUrls.filter(
+                                        (_, itemIndex) => itemIndex !== videoIndex
+                                      ),
+                                      videoPosterUrls: videoPosters.filter(
+                                        (_, itemIndex) => itemIndex !== videoIndex
+                                      ),
+                                    }))
+                                  }
+                                  className="mt-3 text-xs font-semibold text-[#ffb7c0] hover:text-[#ffccd2]"
+                                >
+                                  Remove video link
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateProjectAt(index, (item) => ({
+                                  ...item,
+                                  videoUrls: [...videoUrls, ""],
+                                  videoPosterUrls: [...videoPosters, ""],
+                                }))
+                              }
+                              className="inline-flex items-center gap-2 rounded-full border border-[#8fdcff]/22 px-4 py-2 text-sm font-semibold text-[#dff8ff] transition hover:bg-[#8fdcff]/[0.08]"
+                            >
+                              <Video className="h-4 w-4" />
+                              Add video
+                            </button>
+                          </div>
+                        </div>
                       ) : (
-                        <div className="h-full w-full bg-[linear-gradient(135deg,rgba(8,16,24,0.98),rgba(5,9,15,0.94))]" />
+                        <div className="mt-5 rounded-2xl border border-[#8fdcff]/14 bg-[#8fdcff]/[0.045] p-4">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <Field label="Detail page title">
+                              <TextInput
+                                value={project.details?.title || project.title}
+                                onChange={(event) =>
+                                  updateProjectDetails(index, (details) => ({
+                                    ...details,
+                                    title: event.target.value,
+                                  }))
+                                }
+                              />
+                            </Field>
+                            <UploadField
+                              label="Hero frame 1920x1080"
+                              kind="image"
+                              folder="portfolio/project-frames"
+                              value={project.details?.heroImage || ""}
+                              onChange={(value) =>
+                                updateProjectDetails(index, (details) => ({
+                                  ...details,
+                                  heroImage: value,
+                                }))
+                              }
+                              onUploaded={(value) =>
+                                persistProjectDetailsUpload(index, (details) => ({
+                                  ...details,
+                                  heroImage: value,
+                                }))
+                              }
+                            />
+                            <div className="md:col-span-2">
+                              <Field label="Detail page intro">
+                                <TextArea
+                                  value={project.details?.description || ""}
+                                  onChange={(event) =>
+                                    updateProjectDetails(index, (details) => ({
+                                      ...details,
+                                      description: event.target.value,
+                                    }))
+                                  }
+                                />
+                              </Field>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 space-y-4">
+                            {detailImages.map((imageUrl, imageIndex) => (
+                              <div key={`gallery-frame-${imageIndex}`} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                                <UploadField
+                                  label={`Gallery frame ${imageIndex + 1}`}
+                                  kind="image"
+                                  folder="portfolio/project-gallery"
+                                  value={imageUrl}
+                                  onChange={(value) =>
+                                    updateProjectDetails(index, (details) => {
+                                      const nextImages = [...detailImages];
+                                      nextImages[imageIndex] = value;
+                                      return { ...details, galleryImages: nextImages };
+                                    })
+                                  }
+                                  onUploaded={(value) =>
+                                    persistProjectDetailsUpload(index, (details) => {
+                                      const nextImages = [...detailImages];
+                                      nextImages[imageIndex] = value;
+                                      return { ...details, galleryImages: nextImages };
+                                    })
+                                  }
+                                  hint="Use 1920x1080 images for graphic design and web projects."
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateProjectDetails(index, (details) => ({
+                                      ...details,
+                                      galleryImages: detailImages.filter(
+                                        (_, itemIndex) => itemIndex !== imageIndex
+                                      ),
+                                    }))
+                                  }
+                                  className="mt-3 text-xs font-semibold text-[#ffb7c0] hover:text-[#ffccd2]"
+                                >
+                                  Remove frame
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateProjectDetails(index, (details) => ({
+                                  ...details,
+                                  galleryImages: [...detailImages, ""],
+                                }))
+                              }
+                              className="inline-flex items-center gap-2 rounded-full border border-[#8fdcff]/22 px-4 py-2 text-sm font-semibold text-[#dff8ff] transition hover:bg-[#8fdcff]/[0.08]"
+                            >
+                              <ImageIcon className="h-4 w-4" />
+                              Add 1920x1080 frame
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <h3 className="font-semibold text-sm">{project.title}</h3>
-                        {activeCategory === "Video Edit" && (
-                          <span className="rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
-                            {String(index + 1).padStart(2, "0")}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-white/75 line-clamp-3">
-                        {project.description}
-                      </p>
-                    </div>
-                  </div>
-
-                  {activeCategory === "Video Edit" && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <span className="rounded-full border border-[#8fdcff]/25 bg-[#081622] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[#aeeaff]">
-                        {getVideoProjectCategory(project)}
-                      </span>
-                      <span className="rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
-                        {(() => {
-                          const videoCount = getProjectVideoUrls(project).length;
-                          if (videoCount === 0) {
-                            return "Needs clips";
-                          }
-
-                          return `${videoCount} ${videoCount === 1 ? "clip" : "clips"} ready`;
-                        })()}
-                      </span>
-                      <span className="rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-white/58">
-                        {project.image ? "Box thumbnail ready" : "Needs box thumbnail"}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {activeCategory === "Video Edit" && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveProject(index, -1)}
-                          disabled={index === 0}
-                          className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <ArrowUp size={12} />
-                          Up
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveProject(index, 1)}
-                          disabled={index === activeProjects.length - 1}
-                          className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <ArrowDown size={12} />
-                          Down
-                        </button>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleEdit(index)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-3 py-1.5 text-xs hover:bg-white/10 transition-colors"
-                    >
-                      <Pencil size={12} />
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(index)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-red-300/40 px-3 py-1.5 text-xs text-red-200 hover:bg-red-300/10 transition-colors"
-                    >
-                      <Trash2 size={12} />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {activeProjects.length === 0 && (
-                <p className="text-sm text-white/65">
-                  {activeCategory === "Video Edit"
-                    ? "No video edit projects yet. Add one project box with a heading, thumbnail, and one or more direct .mp4 files."
-                    : "No projects yet in this category."}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-6">
-          <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:p-5 space-y-4">
-            <h2 className="text-lg font-semibold">
-              {editingTestimonialIndex === null
-                ? "Add Testimonial"
-                : "Edit Testimonial"}
-            </h2>
-            <p className="text-xs text-white/70">
-              Manage testimonial text and profile image path/URL used in the Reviews
-              section.
-            </p>
-
-            <form onSubmit={handleTestimonialSubmit} className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  value={testimonialForm.name}
-                  onChange={(event) =>
-                    setTestimonialForm((prev) => ({
-                      ...prev,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="Client name"
-                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                  required
-                />
-                <input
-                  type="text"
-                  value={testimonialForm.designation}
-                  onChange={(event) =>
-                    setTestimonialForm((prev) => ({
-                      ...prev,
-                      designation: event.target.value,
-                    }))
-                  }
-                  placeholder="Role / Company"
-                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                  required
-                />
-              </div>
-
-              <ImageField
-                id="testimonial-image"
-                label="Testimonial image"
-                value={testimonialForm.src}
-                onChange={(value) =>
-                  setTestimonialForm((prev) => ({
-                    ...prev,
-                    src: value,
-                  }))
-                }
-                placeholder="Image path or URL (e.g. /client.png or https://...)"
-                previewHeightClassName="h-40"
-              />
-
-              <textarea
-                value={testimonialForm.quote}
-                onChange={(event) =>
-                  setTestimonialForm((prev) => ({
-                    ...prev,
-                    quote: event.target.value,
-                  }))
-                }
-                placeholder="Testimonial quote"
-                className="w-full min-h-[100px] rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#0099ff]"
-                required
-              />
-
-              <div className="flex gap-2">
+                  );
+                })}
                 <button
-                  type="submit"
-                  className="rounded-lg bg-[#0099ff] px-4 py-2 text-sm font-semibold hover:bg-[#00a8ff] transition-colors"
+                  type="button"
+                  onClick={() =>
+                    {
+                      updateProjects((current) => ({
+                        ...current,
+                        [activeCategory]: [
+                          ...(current[activeCategory] || []),
+                          createProject(activeCategory),
+                        ],
+                      }));
+                      setActiveProjectIndex(currentCategoryProjects.length);
+                    }
+                  }
+                  className="inline-flex items-center gap-2 rounded-full border border-[#8fdcff]/22 px-4 py-2 text-sm font-semibold text-[#dff8ff] transition hover:bg-[#8fdcff]/[0.08]"
                 >
-                  {editingTestimonialIndex === null
-                    ? "Add Testimonial"
-                    : "Save Testimonial"}
+                  <Plus className="h-4 w-4" />
+                  Add project
                 </button>
-                {editingTestimonialIndex !== null && (
-                  <button
-                    type="button"
-                    onClick={resetTestimonialForm}
-                    className="rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10 transition-colors"
-                  >
-                    Cancel Edit
-                  </button>
-                )}
               </div>
-            </form>
+            </SectionCard>
+          ) : null}
 
-            <div className="rounded-2xl border border-white/15 bg-black/25 p-4 md:p-5 space-y-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
-                  Live Preview
-                </p>
-                <h3 className="mt-1 text-sm font-semibold text-white">
-                  This updates while you edit the testimonial.
-                </h3>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-                <div className="overflow-hidden rounded-[22px] border border-white/15 bg-black/30">
-                  <img
-                    src={testimonialPreview.src}
-                    alt={testimonialPreview.name}
-                    className="h-56 w-full object-cover"
-                  />
-                </div>
-
-                <div className="relative flex min-h-[14rem] flex-col overflow-hidden rounded-[22px] border border-white/15 bg-black/35 p-4 shadow-[0_12px_26px_rgba(0,0,0,0.3)]">
-                  <div className="pointer-events-none absolute right-3 top-1 text-[56px] leading-none text-[#00c6ff]/18">
-                    &quot;
-                  </div>
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="rounded-full border border-[#00c6ff]/35 bg-[#00c6ff]/10 px-3 py-1 text-[10px] tracking-[0.16em] text-[#86e9ff]">
-                      TESTIMONIAL
-                    </span>
-                    <span className="text-xs text-white/55">Studio Preview</span>
-                  </div>
-                  <div className="flex flex-1 flex-col">
-                    <h4 className="text-lg font-bold text-white">
-                      {testimonialPreview.name}
-                    </h4>
-                    <p className="text-sm text-[#8cdfff]">
-                      {testimonialPreview.designation}
-                    </p>
-                    <p className="mt-4 flex-1 text-sm leading-relaxed text-white/85">
-                      {testimonialPreview.quote}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/15 bg-white/5 p-4 md:p-5 space-y-3">
-            <h2 className="text-lg font-semibold">
-              Testimonials ({testimonials.length})
-            </h2>
-
-            <div className="max-h-[62vh] overflow-y-auto space-y-3 pr-1">
-              {testimonials.map((testimonial, index) => (
-                <div
-                  key={`${testimonial.name}-${index}`}
-                  className="rounded-xl border border-white/15 bg-black/25 p-3"
-                >
-                  <div className="flex items-start gap-3">
-                    <img
-                      src={testimonial.src}
-                      alt={testimonial.name}
-                      className="h-12 w-12 rounded-full object-cover border border-white/20"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-semibold text-sm truncate">
-                        {testimonial.name}
-                      </h3>
-                      <p className="text-xs text-[#8cdfff] truncate">
-                        {testimonial.designation}
-                      </p>
+          {activeTab === "stories" ? (
+            <SectionCard
+              eyebrow="Home"
+              title="Experience Archive"
+              action={<SaveButton onClick={() => persistExperienceEntries(experienceEntries)} />}
+            >
+              <div className="space-y-4">
+                <EditorTabs
+                  items={experienceEntries.map((entry, index) => ({
+                    label: `Story ${index + 1}`,
+                    title: entry.role || entry.client || `Experience story ${index + 1}`,
+                  }))}
+                  activeIndex={selectedExperienceEntryIndex}
+                  onChange={setActiveExperienceEntryIndex}
+                  emptyLabel="No experience stories yet."
+                />
+                {experienceEntries.map((entry, index) => (
+                  index === selectedExperienceEntryIndex ? (
+                  <div key={`experience-story-${index}`} className="rounded-2xl border border-white/10 bg-black/18 p-4">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <p className="font-semibold text-white">{entry.role || `Story ${index + 1}`}</p>
+                      <RowActions
+                        onMoveUp={
+                          index > 0
+                            ? () =>
+                                {
+                                  setExperienceEntries((current) => moveItem(current, index, -1));
+                                  setActiveExperienceEntryIndex(index - 1);
+                                }
+                            : undefined
+                        }
+                        onMoveDown={
+                          index < experienceEntries.length - 1
+                            ? () =>
+                                {
+                                  setExperienceEntries((current) => moveItem(current, index, 1));
+                                  setActiveExperienceEntryIndex(index + 1);
+                                }
+                            : undefined
+                        }
+                        onRemove={() => {
+                          setExperienceEntries((current) =>
+                            current.filter((_, itemIndex) => itemIndex !== index)
+                          );
+                          setActiveExperienceEntryIndex(Math.max(0, index - 1));
+                        }}
+                      />
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {(["role", "client", "period"] as const).map((field) => (
+                        <Field key={field} label={field}>
+                          <TextInput
+                            value={entry[field]}
+                            onChange={(event) =>
+                              setExperienceEntries((current) =>
+                                current.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, [field]: event.target.value }
+                                    : item
+                                )
+                              )
+                            }
+                          />
+                        </Field>
+                      ))}
+                      <Field label="Tags" hint="Comma separated.">
+                        <TextInput
+                          value={entry.tags.join(", ")}
+                          onChange={(event) =>
+                            setExperienceEntries((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, tags: splitTags(event.target.value) }
+                                  : item
+                              )
+                            )
+                          }
+                        />
+                      </Field>
+                      <div className="md:col-span-2">
+                        <Field label="Summary">
+                          <TextArea
+                            value={entry.summary}
+                            onChange={(event) =>
+                              setExperienceEntries((current) =>
+                                current.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, summary: event.target.value }
+                                    : item
+                                )
+                              )
+                            }
+                          />
+                        </Field>
+                      </div>
+                      <div className="md:col-span-2">
+                        <UploadField
+                          label="Story image"
+                          kind="image"
+                          folder="portfolio/client-stories"
+                          value={entry.image}
+                          onChange={(value) =>
+                            setExperienceEntries((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, image: value } : item
+                              )
+                            )
+                          }
+                          onUploaded={(value) =>
+                            persistExperienceUpload((current) =>
+                              current.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, image: value } : item
+                              )
+                            )
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
-
-                  <p className="text-xs text-white/75 mt-2 line-clamp-3">
-                    {testimonial.quote}
-                  </p>
-
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleEditTestimonial(index)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-3 py-1.5 text-xs hover:bg-white/10 transition-colors"
-                    >
-                      <Pencil size={12} />
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteTestimonial(index)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-red-300/40 px-3 py-1.5 text-xs text-red-200 hover:bg-red-300/10 transition-colors"
-                    >
-                      <Trash2 size={12} />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                  ) : null
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExperienceEntries((current) => [...current, createExperienceEntry()]);
+                    setActiveExperienceEntryIndex(experienceEntries.length);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full border border-[#8fdcff]/22 px-4 py-2 text-sm font-semibold text-[#dff8ff] transition hover:bg-[#8fdcff]/[0.08]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add experience story
+                </button>
+              </div>
+            </SectionCard>
+          ) : null}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

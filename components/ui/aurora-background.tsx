@@ -44,10 +44,10 @@ export const AuroraBackground = ({
       >
         <div
           className={cn(
-            "absolute -inset-[12px] animate-aurora transform-gpu bg-[image:var(--dark-gradient),var(--aurora)] bg-[position:50%_50%,50%_50%] will-change-transform",
+            "absolute -inset-[12px] transform-gpu bg-[image:var(--dark-gradient),var(--aurora)] bg-[position:50%_50%,50%_50%] will-change-transform",
             motionLite
-              ? "bg-[size:240%,_170%] opacity-62 blur-[8px]"
-              : "bg-[size:300%,_200%] opacity-70 blur-[12px]",
+              ? "bg-[size:220%,_150%] opacity-45 blur-[4px]"
+              : "animate-aurora bg-[size:270%,_180%] opacity-54 blur-[6px]",
             showRadialGradient &&
               "[mask-image:radial-gradient(ellipse_at_100%_0%,black_10%,var(--transparent)_72%)]"
           )}
@@ -55,7 +55,7 @@ export const AuroraBackground = ({
         {!motionLite && (
           <div
             className={cn(
-              "absolute -inset-[12px] animate-aurora-slower transform-gpu bg-[image:var(--dark-gradient),var(--aurora)] bg-[size:220%,_160%] bg-[position:50%_50%,50%_50%] opacity-55 mix-blend-screen blur-[28px] will-change-transform",
+              "absolute -inset-[12px] animate-aurora-slower transform-gpu bg-[image:var(--dark-gradient),var(--aurora)] bg-[size:200%,_150%] bg-[position:50%_50%,50%_50%] opacity-34 mix-blend-screen blur-[16px]",
               showRadialGradient &&
                 "[mask-image:radial-gradient(ellipse_at_0%_100%,black_12%,var(--transparent)_74%)]"
             )}
