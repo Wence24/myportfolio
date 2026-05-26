@@ -34,6 +34,7 @@ export type ProjectCard = {
   href?: string;
   year: string;
   tags: string[];
+  topBadge?: string;
 };
 
 export type CategoryConfig = {
@@ -259,6 +260,13 @@ export const getProjectTags = (
   return Array.from(new Set(tags));
 };
 
+const getProjectTopBadge = (project: PortfolioProject, category: PortfolioCategory) => {
+  const normalizedCategory = project.videoCategory?.trim().toLowerCase() || "";
+  return category === "Video Edit" && normalizedCategory.includes("short")
+    ? "Short Reels"
+    : "";
+};
+
 export const getProjectSlug = (title: string) => {
   const slug = title
     .toLowerCase()
@@ -288,6 +296,11 @@ function ProjectShowcaseCard({ card }: { card: ProjectCard }) {
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.025]"
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_48%,rgba(0,0,0,0.12)_78%,rgba(0,0,0,0.24)_100%)]" />
+        {card.topBadge ? (
+          <span className="absolute right-4 top-4 rounded-full border border-[#8fdcff]/30 bg-black/46 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#dff8ff] shadow-[0_12px_28px_rgba(0,0,0,0.24)] backdrop-blur-md">
+            {card.topBadge}
+          </span>
+        ) : null}
       </div>
 
       <div className="min-h-[154px] bg-[#202322] px-4 pb-4 pt-5 sm:px-5">
@@ -387,6 +400,7 @@ export default function PortfolioCategoryPage({
           href: getProjectDetailHref(category, project.title || fallback.title),
           year: index === 0 ? "2026" : "2025",
           tags: getProjectTags(project, category, fallback.tags),
+          topBadge: getProjectTopBadge(project, category),
         };
       });
 
@@ -463,10 +477,8 @@ export default function PortfolioCategoryPage({
         </ScrollReveal>
 
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:gap-7">
-          {projectCards.map((card, index) => (
-            <ScrollReveal key={`${card.title}-${card.year}`} delayMs={120 + index * 80}>
-              <ProjectShowcaseCard card={card} />
-            </ScrollReveal>
+          {projectCards.map((card) => (
+            <ProjectShowcaseCard key={`${card.title}-${card.year}`} card={card} />
           ))}
         </div>
       </section>

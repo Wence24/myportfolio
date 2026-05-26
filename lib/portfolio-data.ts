@@ -77,6 +77,7 @@ export type HomeExperienceCard = {
   name: string;
   role: string;
   image: string;
+  videoUrl: string;
 };
 
 export type HomeContent = {
@@ -507,6 +508,7 @@ export const defaultHomeContent: HomeContent = {
         role: "Premiere Pro / After Effects",
         image:
           "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?q=80&w=900&auto=format&fit=crop",
+        videoUrl: "",
       },
       {
         quote:
@@ -515,6 +517,7 @@ export const defaultHomeContent: HomeContent = {
         role: "Photoshop / Illustrator / Canva",
         image:
           "https://images.unsplash.com/photo-1558655146-9f40138edfeb?q=80&w=900&auto=format&fit=crop",
+        videoUrl: "",
       },
       {
         quote:
@@ -523,6 +526,7 @@ export const defaultHomeContent: HomeContent = {
         role: "React / Next.js / Tailwind",
         image:
           "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=900&auto=format&fit=crop",
+        videoUrl: "",
       },
     ],
   },
@@ -715,6 +719,7 @@ export const normalizeHomeContent = (value: unknown): HomeContent => {
             name: getStringOrFallback(rawCard.name, fallbackCard.name),
             role: getStringOrFallback(rawCard.role, fallbackCard.role),
             image: getStringOrFallback(rawCard.image, fallbackCard.image),
+            videoUrl: getStringOrFallback(rawCard.videoUrl, fallbackCard.videoUrl || ""),
           };
         })
         .filter((card): card is HomeExperienceCard => card !== null)

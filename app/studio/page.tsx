@@ -80,6 +80,7 @@ type UsageMetric = {
   usage?: number;
   limit?: number;
   used_percent?: number;
+  credits_usage?: number;
 };
 
 type StudioHealth = {
@@ -189,6 +190,42 @@ const formatUsageMetric = (metric?: UsageMetric | null) => {
   if (hasUsage) return formatBytes(metric.usage);
   if (typeof metric.used_percent === "number") return `${metric.used_percent.toFixed(1)}% used`;
   return "Unavailable";
+};
+
+const formatUsageLimit = (metric?: UsageMetric | null, accountCredits?: UsageMetric | null) =>
+  typeof metric?.limit === "number" && metric.limit > 0
+    ? formatBytes(metric.limit)
+    : typeof accountCredits?.limit === "number"
+      ? `${accountCredits.limit} account credits`
+      : "No separate limit";
+
+const formatUsageRemaining = (metric?: UsageMetric | null, accountCredits?: UsageMetric | null) => {
+  if (
+    typeof metric?.usage === "number" &&
+    typeof metric.limit === "number" &&
+    metric.limit > 0
+  ) {
+    return formatBytes(Math.max(metric.limit - metric.usage, 0));
+  }
+
+  if (
+    typeof accountCredits?.limit === "number" &&
+    typeof accountCredits.usage === "number"
+  ) {
+    return `${Math.max(accountCredits.limit - accountCredits.usage, 0).toFixed(2)} credits`;
+  }
+
+  return "Unavailable";
+};
+
+const formatMetricCredits = (metric?: UsageMetric | null) =>
+  typeof metric?.credits_usage === "number"
+    ? `${metric.credits_usage.toFixed(2)} credits used by this item.`
+    : "This item uses account credits, but item credit usage was not returned.";
+
+const formatUsagePercent = (metric?: UsageMetric | null) => {
+  const percent = getMetricPercent(metric);
+  return typeof percent === "number" ? `${percent.toFixed(1)}%` : "Unavailable";
 };
 
 const getUsageTone = (percent?: number) => {
@@ -414,6 +451,7 @@ const createExperienceCard = (): HomeExperienceCard => ({
   name: "Experience lane",
   role: "Tools / Role",
   image: "",
+  videoUrl: "",
 });
 
 const splitTags = (value: string) =>
@@ -1081,6 +1119,15 @@ export default function StudioPage() {
     try {
       const optimizedProjects = optimizeProjects(projectsRef.current);
       const optimizedHomeContent = normalizeHomeContent(homeContentRef.current);
+      optimizedHomeContent.experienceSection.cards =
+        optimizedHomeContent.experienceSection.cards.map((card) => ({
+          ...card,
+          quote: card.quote.trim(),
+          name: card.name.trim(),
+          role: card.role.trim(),
+          image: card.image.trim(),
+          videoUrl: card.videoUrl?.trim() || "",
+        }));
       const optimizedExperienceEntries = normalizeExperienceEntries(
         experienceEntriesRef.current.map((entry) => ({
           ...entry,
@@ -1475,23 +1522,45 @@ export default function StudioPage() {
                       <Cloud className="h-5 w-5 text-[#8fdcff]" />
                     </div>
                     <div className="mt-5 space-y-3">
-                      <HealthCard
-                        label="Storage"
-                        value={formatUsageMetric(studioHealth?.cloudinary?.storage)}
-                        detail={
-                          studioHealth?.cloudinary?.detail ||
-                          connectionStatus.cloudinaryDetail
-                        }
-                        tone={getUsageTone(cloudinaryStoragePercent)}
-                        icon={<HardDrive className="h-5 w-5" />}
-                      />
-                      <HealthCard
-                        label="Bandwidth"
-                        value={formatUsageMetric(studioHealth?.cloudinary?.bandwidth)}
-                        detail="Shown when Cloudinary Admin API keys are available."
-                        tone={getUsageTone(getMetricPercent(studioHealth?.cloudinary?.bandwidth))}
-                        icon={<Activity className="h-5 w-5" />}
-                      />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <HealthCard
+                          label="Storage Used"
+                          value={formatUsageMetric(studioHealth?.cloudinary?.storage)}
+                          detail={
+                            studioHealth?.cloudinary?.detail ||
+                            connectionStatus.cloudinaryDetail
+                          }
+                          tone={getUsageTone(cloudinaryStoragePercent)}
+                          icon={<HardDrive className="h-5 w-5" />}
+                        />
+                        <HealthCard
+                          label="Storage Maximum"
+                          value={formatUsageLimit(
+                            studioHealth?.cloudinary?.storage,
+                            studioHealth?.cloudinary?.credits
+                          )}
+                          detail={`${formatMetricCredits(studioHealth?.cloudinary?.storage)} ${formatUsageRemaining(studioHealth?.cloudinary?.storage, studioHealth?.cloudinary?.credits)} account credits left.`}
+                          tone={getUsageTone(cloudinaryStoragePercent)}
+                          icon={<Gauge className="h-5 w-5" />}
+                        />
+                        <HealthCard
+                          label="Bandwidth Used"
+                          value={formatUsageMetric(studioHealth?.cloudinary?.bandwidth)}
+                          detail="Monthly Cloudinary bandwidth usage from the Admin API."
+                          tone={getUsageTone(getMetricPercent(studioHealth?.cloudinary?.bandwidth))}
+                          icon={<Activity className="h-5 w-5" />}
+                        />
+                        <HealthCard
+                          label="Bandwidth Maximum"
+                          value={formatUsageLimit(
+                            studioHealth?.cloudinary?.bandwidth,
+                            studioHealth?.cloudinary?.credits
+                          )}
+                          detail={`${formatMetricCredits(studioHealth?.cloudinary?.bandwidth)} ${formatUsageRemaining(studioHealth?.cloudinary?.bandwidth, studioHealth?.cloudinary?.credits)} account credits left.`}
+                          tone={getUsageTone(getMetricPercent(studioHealth?.cloudinary?.bandwidth))}
+                          icon={<Gauge className="h-5 w-5" />}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -2535,6 +2604,41 @@ export default function StudioPage() {
                                 cards: current.experienceSection.cards.map(
                                   (item, itemIndex) =>
                                     itemIndex === index ? { ...item, image: value } : item
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <UploadField
+                          label="Hover testimonial video"
+                          kind="video"
+                          folder="portfolio/testimonial-videos"
+                          value={card.videoUrl || ""}
+                          placeholder="Paste a Cloudinary/MP4 video URL or upload a testimonial clip"
+                          uploadLabel="Upload video"
+                          hint="This video fades in and plays muted when visitors hover this testimonial card."
+                          onChange={(value) =>
+                            updateHome((current) => ({
+                              ...current,
+                              experienceSection: {
+                                ...current.experienceSection,
+                                cards: current.experienceSection.cards.map(
+                                  (item, itemIndex) =>
+                                    itemIndex === index ? { ...item, videoUrl: value } : item
+                                ),
+                              },
+                            }))
+                          }
+                          onUploaded={(value) =>
+                            persistHomeUpload((current) => ({
+                              ...current,
+                              experienceSection: {
+                                ...current.experienceSection,
+                                cards: current.experienceSection.cards.map(
+                                  (item, itemIndex) =>
+                                    itemIndex === index ? { ...item, videoUrl: value } : item
                                 ),
                               },
                             }))
