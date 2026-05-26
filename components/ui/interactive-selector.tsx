@@ -159,18 +159,7 @@ export default function InteractiveSelector({
               <span className="min-w-0 truncate text-white/62">
                 {activeOption?.title || `Project ${safeActiveIndex + 1}`}
               </span>
-              <div className="flex shrink-0 items-center gap-3">
-                <span>{options.length} featured</span>
-                {activeOption?.href ? (
-                  <Link
-                    href={activeOption.href}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#8fdcff]/24 bg-[#8fdcff]/[0.08] px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#dff8ff] shadow-[0_10px_26px_rgba(84,184,255,0.12)] transition-[transform,border-color,background-color,color] duration-200 hover:-translate-y-0.5 hover:border-[#8fdcff]/46 hover:bg-[#8fdcff]/[0.14] hover:text-white"
-                  >
-                    View
-                    <ArrowUpRight className="h-3 w-3" />
-                  </Link>
-                ) : null}
-              </div>
+              <span className="shrink-0">{options.length} featured</span>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
               <div
@@ -186,9 +175,10 @@ export default function InteractiveSelector({
               const hasAnimated = animatedOptions.includes(index);
 
               return (
-                <button
+                <div
                   key={`${option.title}-${index}`}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   className="group relative flex min-h-0 flex-col justify-end overflow-hidden border-2 bg-[#111827] text-left outline-none transition-[flex,opacity,transform,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] focus-visible:ring-2 focus-visible:ring-[#8fdcff]/60 md:min-h-[100px]"
                   style={{
                     backgroundImage: `url('${option.image}')`,
@@ -205,6 +195,12 @@ export default function InteractiveSelector({
                     willChange: hasAnimated ? "auto" : "transform, opacity",
                   }}
                   onClick={() => handleOptionClick(index)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleOptionClick(index);
+                    }
+                  }}
                   aria-pressed={isActive}
                 >
                   <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.05),rgba(0,0,0,0.72))]" />
@@ -217,6 +213,16 @@ export default function InteractiveSelector({
                       opacity: isActive ? 1 : 0.62,
                     }}
                   />
+                  {isActive && option.href ? (
+                    <Link
+                      href={option.href}
+                      onClick={(event) => event.stopPropagation()}
+                      className="absolute right-4 top-4 z-20 inline-flex h-8 items-center gap-1.5 rounded-full border border-[#8fdcff]/26 bg-black/42 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#dff8ff] shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-md transition-[transform,border-color,background-color,color] duration-200 hover:-translate-y-0.5 hover:border-[#8fdcff]/50 hover:bg-[#8fdcff]/[0.14] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8fdcff]/60 sm:right-5 sm:top-5"
+                    >
+                      View
+                      <ArrowUpRight className="h-3 w-3" />
+                    </Link>
+                  ) : null}
 
                   <span className="relative z-10 flex h-16 items-center gap-2.5 px-3 pb-4 sm:h-20 sm:gap-3 sm:px-4 sm:pb-5">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/18 bg-black/60 shadow-[0_10px_24px_rgba(0,0,0,0.24)] sm:h-11 sm:w-11">
@@ -243,7 +249,7 @@ export default function InteractiveSelector({
                       </span>
                     </span>
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>
