@@ -515,6 +515,20 @@ body::-webkit-scrollbar {
   opacity: 0.12 !important;
 }
 
+.motion-lite .section-side-glow::before,
+.motion-lite .section-side-glow::after {
+  display: none !important;
+}
+
+.motion-lite .animate-ping {
+  animation: none !important;
+}
+
+.motion-lite .blur-3xl,
+.motion-lite .blur-2xl {
+  filter: blur(16px) !important;
+}
+
 @media (max-width: 768px) {
   .site-background__aurora,
   .site-background__aurora--secondary {

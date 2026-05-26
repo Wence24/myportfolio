@@ -23,6 +23,7 @@ import { SiteHeader } from "@/components/site-header";
 import { Feature108 } from "@/components/ui/shadcnblocks-com-feature108";
 import { LandingAccordionItem } from "@/components/ui/interactive-image-accordion";
 import InteractiveSelector from "@/components/ui/interactive-selector";
+import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import ExperienceTestimonials from "@/components/ui/testimonial";
 import {
   countUsableExperienceImages,
@@ -116,6 +117,23 @@ const getProjectFeaturedImage = (
     .find((value) => value && !isPortraitPlaceholderImage(value)) || "";
 };
 
+const getProjectSlug = (title: string) => {
+  const slug = title
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return slug || "project";
+};
+
+const featuredCategoryPaths: Record<PortfolioCategoryName, string> = {
+  "Graphic Design": "/portfolio/graphic-design",
+  "Video Edit": "/portfolio/video-editing",
+  Websites: "/portfolio/web-development",
+};
+
 const buildFeaturedProjectsFromPortfolio = (
   homeContent: HomeContent,
   portfolioProjects: Record<string, PortfolioProject[]>
@@ -166,15 +184,20 @@ const buildFeaturedProjectsFromPortfolio = (
       (source.categoryName === "Video Edit" ? videoLaneImage : "") ||
       (isWebsiteFrame ? webLaneImage : "") ||
       fallbackImage;
+    const title =
+      source.project?.title?.trim() || currentProject?.title || fallbackProject.title;
 
     return {
-      title: source.project?.title?.trim() || currentProject?.title || fallbackProject.title,
+      title,
       description:
         source.project?.description?.trim() ||
         currentProject?.description ||
         fallbackProject.description,
       icon: currentProject?.icon || fallbackProject.icon,
       image,
+      href: source.project
+        ? `${featuredCategoryPaths[source.categoryName]}/${getProjectSlug(title)}`
+        : currentProject?.href,
     };
   });
 
@@ -1008,10 +1031,10 @@ function AboutExperienceListSection({
                 eyebrow=""
                 title={
                   <>
-                    <span className="font-normal text-white/58">
+                    <span className="block text-base font-normal leading-tight text-white/58 sm:text-lg lg:text-xl">
                       {homeContent.aboutAccordion.eyebrow || "About Me"}.
-                    </span>{" "}
-                    <span className="font-bold text-white">
+                    </span>
+                    <span className="mt-2 block font-bold text-white">
                       {homeContent.aboutAccordion.title || aboutFullName}
                     </span>
                   </>
@@ -2221,8 +2244,6 @@ useEffect(() => {
     return () => {
       mediaQuery.removeEventListener("change", applyMotionMode);
       window.removeEventListener("resize", applyMotionMode);
-      document.documentElement.classList.remove("motion-lite");
-      document.body.classList.remove("motion-lite");
     };
   }
 
@@ -2230,8 +2251,6 @@ useEffect(() => {
   return () => {
     mediaQuery.removeListener(applyMotionMode);
     window.removeEventListener("resize", applyMotionMode);
-    document.documentElement.classList.remove("motion-lite");
-    document.body.classList.remove("motion-lite");
   };
 }, []);
 
@@ -3979,23 +3998,31 @@ const socialLinks: SocialLink[] = [
         />
       </div>
 
-      <div className="section-side-glow relative w-full bg-[linear-gradient(180deg,rgba(5,10,18,0.92),rgba(8,15,25,0.96))]">
-        <AboutExperienceListSection
-          aboutRef={aboutRef}
-          clientStoriesRef={clientStoriesRef}
-          showAbout={showAbout}
-          showClientStories={showClientStories}
-          helloVisible={helloVisible}
-          aboutFullName={aboutFullName}
-          nameText={nameText}
-          nameDone={nameDone}
-          onViewClientEdits={() => openPortfolioCategory("Video Edit", true)}
-          highlightCards={aboutHighlightCards}
-          snapshotStats={aboutSnapshotStats}
-          experienceEntries={experienceEntries}
-          experienceContentVersion={experienceContentVersion}
-          homeContent={homeContent}
-        />
+      <div className="section-side-glow relative w-full overflow-hidden bg-[linear-gradient(180deg,rgba(7,16,28,0.94),rgba(10,22,36,0.96)_34%,rgba(8,15,25,0.96))]">
+        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+          <div className="absolute left-1/2 top-[-5rem] h-[30rem] w-[82vw] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(143,220,255,0.2)_0%,rgba(84,184,255,0.09)_38%,transparent_72%)] blur-3xl" />
+          <div className="absolute left-[-8rem] top-[20rem] h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(47,125,255,0.2)_0%,rgba(47,125,255,0.07)_42%,transparent_74%)] blur-3xl" />
+          <div className="absolute right-[-9rem] top-[44rem] h-[34rem] w-[34rem] rounded-full bg-[radial-gradient(circle,rgba(143,220,255,0.18)_0%,rgba(84,184,255,0.065)_38%,transparent_74%)] blur-3xl" />
+          <div className="absolute inset-x-[8%] top-[34rem] h-px bg-gradient-to-r from-transparent via-[#8fdcff]/24 to-transparent" />
+        </div>
+        <ScrollReveal threshold={0.08} rootMargin="0px 0px -6% 0px">
+          <AboutExperienceListSection
+            aboutRef={aboutRef}
+            clientStoriesRef={clientStoriesRef}
+            showAbout={showAbout}
+            showClientStories={showClientStories}
+            helloVisible={helloVisible}
+            aboutFullName={aboutFullName}
+            nameText={nameText}
+            nameDone={nameDone}
+            onViewClientEdits={() => openPortfolioCategory("Video Edit", true)}
+            highlightCards={aboutHighlightCards}
+            snapshotStats={aboutSnapshotStats}
+            experienceEntries={experienceEntries}
+            experienceContentVersion={experienceContentVersion}
+            homeContent={homeContent}
+          />
+        </ScrollReveal>
 
         <InteractiveSelector content={featuredPortfolioContent} />
 

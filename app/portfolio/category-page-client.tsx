@@ -8,6 +8,7 @@ import { ArrowLeft, Sparkles } from "lucide-react";
 import { Hero } from "@/components/ui/hero";
 import { HomeScrollRevealSection } from "@/components/ui/motion-footer";
 import { SiteHeader } from "@/components/site-header";
+import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import {
   defaultPortfolioProjects,
   fetchPortfolioContentFromSupabase,
@@ -424,21 +425,24 @@ export default function PortfolioCategoryPage({
     <main className="min-h-screen overflow-hidden bg-[#050706] text-white">
       <SiteHeader activeSection="portfolio" />
 
-      <Hero
-        title={heroTitle}
-        subtitle={config.heroSubtitle}
-        actions={laneActions}
-        className="min-h-[58vh] rounded-none bg-[#050706] pt-20"
-        titleClassName={`max-w-5xl text-4xl font-semibold tracking-[-0.055em] sm:text-5xl md:text-6xl lg:text-7xl ${
-          config.heroLead
-            ? "text-white"
-            : "bg-gradient-to-br from-white via-slate-200 to-slate-500 bg-clip-text text-transparent"
-        }`}
-        subtitleClassName="mx-auto max-w-2xl text-sm leading-7 text-white/58 sm:text-base md:text-lg"
-        actionsClassName="mt-5 flex flex-wrap justify-center gap-3"
-      />
+      <ScrollReveal y={18} threshold={0.04} rootMargin="0px">
+        <Hero
+          title={heroTitle}
+          subtitle={config.heroSubtitle}
+          actions={laneActions}
+          className="min-h-[58vh] rounded-none bg-[#050706] pt-20"
+          titleClassName={`max-w-5xl text-4xl font-semibold tracking-[-0.055em] sm:text-5xl md:text-6xl lg:text-7xl ${
+            config.heroLead
+              ? "text-white"
+              : "bg-gradient-to-br from-white via-slate-200 to-slate-500 bg-clip-text text-transparent"
+          }`}
+          subtitleClassName="mx-auto max-w-2xl text-sm leading-7 text-white/58 sm:text-base md:text-lg"
+          actionsClassName="mt-5 flex flex-wrap justify-center gap-3"
+        />
+      </ScrollReveal>
 
       <section className="relative z-10 mx-auto max-w-[90rem] px-6 pb-24 sm:px-10 lg:px-16 xl:px-20">
+        <ScrollReveal delayMs={80}>
         <div className="relative -mt-20 mb-12 flex items-center justify-between gap-5">
           <div className="pointer-events-none absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-[#8fdcff]/0 via-[#8fdcff]/18 to-[#8fdcff]/0" />
           <Link
@@ -457,10 +461,13 @@ export default function PortfolioCategoryPage({
             <Sparkles className="h-3.5 w-3.5 text-[#8fdcff]/75" />
           </p>
         </div>
+        </ScrollReveal>
 
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:gap-7">
-          {projectCards.map((card) => (
-            <ProjectShowcaseCard key={`${card.title}-${card.year}`} card={card} />
+          {projectCards.map((card, index) => (
+            <ScrollReveal key={`${card.title}-${card.year}`} delayMs={120 + index * 80}>
+              <ProjectShowcaseCard card={card} />
+            </ScrollReveal>
           ))}
         </div>
       </section>

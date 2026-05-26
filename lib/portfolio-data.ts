@@ -52,6 +52,7 @@ export type HomeFeaturedProject = {
   description: string;
   image: string;
   icon: FeaturedProjectIcon;
+  href?: string;
 };
 
 export type HomeCreativeLane = {

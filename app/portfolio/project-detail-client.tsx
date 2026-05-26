@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowUpRight, Play } from "lucide-react";
 
 import { SiteHeader } from "@/components/site-header";
 import { HomeScrollRevealSection } from "@/components/ui/motion-footer";
+import { ScrollReveal } from "@/components/ui/scroll-reveal";
 import {
   CATEGORY_CONFIG,
   CATEGORY_PATHS,
@@ -264,8 +265,9 @@ const getProjectMedia = (
       ];
 };
 
-function ProjectMediaBlock({ item }: { item: MediaItem }) {
+function ProjectMediaBlock({ item, index = 0 }: { item: MediaItem; index?: number }) {
   return (
+    <ScrollReveal delayMs={Math.min(index * 80, 240)}>
     <section className="scroll-mt-28" id={getProjectSlug(item.label)}>
       <div className="mb-4 flex items-center justify-between gap-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/42">
@@ -301,6 +303,7 @@ function ProjectMediaBlock({ item }: { item: MediaItem }) {
         )}
       </div>
     </section>
+    </ScrollReveal>
   );
 }
 
@@ -415,7 +418,8 @@ export default function PortfolioProjectDetailPage({
         </div>
 
         <div className="relative z-10 grid gap-12 lg:grid-cols-[18rem_minmax(0,1fr)] xl:gap-16">
-          <aside className="lg:sticky lg:top-28 lg:self-start">
+          <ScrollReveal className="lg:sticky lg:top-28 lg:self-start" y={18}>
+          <aside>
             <Link
               href={CATEGORY_PATHS[category]}
               className="group inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/46 transition-colors hover:text-white"
@@ -485,48 +489,52 @@ export default function PortfolioProjectDetailPage({
               </a>
             ) : null}
           </aside>
+          </ScrollReveal>
 
           <article>
-            <h2 className="max-w-5xl text-5xl font-bold leading-[0.98] tracking-[-0.06em] text-white md:text-7xl">
-              {entry.project?.details?.title?.trim() || overviewByCategory[category]}
-            </h2>
+            <ScrollReveal y={18} delayMs={80}>
+              <h2 className="max-w-5xl text-5xl font-bold leading-[0.98] tracking-[-0.06em] text-white md:text-7xl">
+                {entry.project?.details?.title?.trim() || overviewByCategory[category]}
+              </h2>
 
-            <div className="mt-8 grid max-w-4xl gap-5 text-lg leading-8 text-white/76">
-              <p>
-                {entry.project?.details?.description?.trim() ||
-                  `${entry.title} is presented as a focused case page with the core work, project framing, and final media laid out for a closer look.`}
-              </p>
-              <p className="text-white/62">
-                {overviewByCategory[category]}
-              </p>
-            </div>
+              <div className="mt-8 grid max-w-4xl gap-5 text-lg leading-8 text-white/76">
+                <p>
+                  {entry.project?.details?.description?.trim() ||
+                    `${entry.title} is presented as a focused case page with the core work, project framing, and final media laid out for a closer look.`}
+                </p>
+                <p className="text-white/62">
+                  {overviewByCategory[category]}
+                </p>
+              </div>
+            </ScrollReveal>
 
             <div className="mt-12 grid gap-5 md:grid-cols-2">
               {featureCards.map((feature, index) => (
-                <div
-                  key={feature.title}
-                  className="rounded-[14px] border border-white/10 bg-white/[0.025] p-6 transition-colors hover:border-[#8fdcff]/24 hover:bg-white/[0.04]"
-                >
-                  <div className="flex items-start gap-4">
-                    <span className="pt-1 text-[11px] font-semibold text-[#8fdcff]">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <div>
-                      <h3 className="text-lg font-bold tracking-[-0.04em] text-white">
-                        {feature.title}
-                      </h3>
-                      <p className="mt-3 text-sm leading-6 text-white/52">
-                        {feature.description}
-                      </p>
+                <ScrollReveal key={feature.title} delayMs={120 + index * 60}>
+                  <div
+                    className="rounded-[14px] border border-white/10 bg-white/[0.025] p-6 transition-colors hover:border-[#8fdcff]/24 hover:bg-white/[0.04]"
+                  >
+                    <div className="flex items-start gap-4">
+                      <span className="pt-1 text-[11px] font-semibold text-[#8fdcff]">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <div>
+                        <h3 className="text-lg font-bold tracking-[-0.04em] text-white">
+                          {feature.title}
+                        </h3>
+                        <p className="mt-3 text-sm leading-6 text-white/52">
+                          {feature.description}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </ScrollReveal>
               ))}
             </div>
 
             <div className="mt-14 space-y-14">
-              {mediaItems.map((item) => (
-                <ProjectMediaBlock key={`${item.label}-${item.url}`} item={item} />
+              {mediaItems.map((item, index) => (
+                <ProjectMediaBlock key={`${item.label}-${item.url}`} item={item} index={index} />
               ))}
             </div>
 

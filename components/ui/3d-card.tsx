@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 
 import React, {
+  useCallback,
   createContext,
   useState,
   useContext,
@@ -28,6 +29,7 @@ export const CardContainer = ({
   const mouseRef = useRef({ x: 0, y: 0 });
   const frameRef = useRef<number | null>(null);
   const [isMouseEntered, setIsMouseEntered] = useState(false);
+  const [canTilt, setCanTilt] = useState(false);
 
   const applyTilt = () => {
     if (!containerRef.current || !rectRef.current) {
@@ -45,6 +47,7 @@ export const CardContainer = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!canTilt) return;
     if (!containerRef.current) return;
 
     const eventTarget = e.target;
@@ -60,6 +63,7 @@ export const CardContainer = ({
   };
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!canTilt) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -75,6 +79,7 @@ export const CardContainer = ({
   };
 
   const handleMouseLeave = () => {
+    if (!canTilt) return;
     if (!containerRef.current) return;
     if (frameRef.current !== null) {
       cancelAnimationFrame(frameRef.current);
@@ -86,7 +91,21 @@ export const CardContainer = ({
   };
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const pointerQuery = window.matchMedia("(pointer: fine)");
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateTiltMode = () => {
+      setCanTilt(pointerQuery.matches && !motionQuery.matches && !document.body.classList.contains("motion-lite"));
+    };
+
+    updateTiltMode();
+    pointerQuery.addEventListener("change", updateTiltMode);
+    motionQuery.addEventListener("change", updateTiltMode);
+
     return () => {
+      pointerQuery.removeEventListener("change", updateTiltMode);
+      motionQuery.removeEventListener("change", updateTiltMode);
       if (frameRef.current !== null) {
         cancelAnimationFrame(frameRef.current);
       }
@@ -106,11 +125,12 @@ export const CardContainer = ({
       >
         <div
           ref={containerRef}
-          onMouseEnter={handleMouseEnter}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
+          onMouseEnter={canTilt ? handleMouseEnter : undefined}
+          onMouseMove={canTilt ? handleMouseMove : undefined}
+          onMouseLeave={canTilt ? handleMouseLeave : undefined}
           className={cn(
-            "flex items-center justify-center relative transition-transform duration-200 ease-out will-change-transform",
+            "flex items-center justify-center relative transition-transform duration-200 ease-out",
+            canTilt && "will-change-transform",
             className
           )}
           style={{
@@ -166,23 +186,23 @@ export const CardItem = ({
   rotateX?: number | string;
   rotateY?: number | string;
   rotateZ?: number | string;
-  [key: string]: any;
-}) => {
+  [key: string]: unknown;
+} & React.HTMLAttributes<HTMLElement>) => {
   const ref = useRef<HTMLDivElement>(null);
   const [isMouseEntered] = useMouseEnter();
 
-  useEffect(() => {
-    handleAnimations();
-  }, [isMouseEntered]);
-
-  const handleAnimations = () => {
+  const handleAnimations = useCallback(() => {
     if (!ref.current) return;
     if (isMouseEntered) {
       ref.current.style.transform = `translateX(${translateX}px) translateY(${translateY}px) translateZ(${translateZ}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) rotateZ(${rotateZ}deg)`;
     } else {
       ref.current.style.transform = `translateX(0px) translateY(0px) translateZ(0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg)`;
     }
-  };
+  }, [isMouseEntered, rotateX, rotateY, rotateZ, translateX, translateY, translateZ]);
+
+  useEffect(() => {
+    handleAnimations();
+  }, [handleAnimations]);
 
   return (
     <Tag

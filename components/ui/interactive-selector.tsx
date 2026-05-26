@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { Clapperboard, Film, Layers, MonitorPlay, Sparkles } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { ArrowUpRight, Clapperboard, Film, Layers, MonitorPlay, Sparkles } from "lucide-react";
 import { defaultHomeContent, type HomeContent, type HomeFeaturedProject } from "@/lib/portfolio-data";
 
 type InteractiveSelectorOption = {
@@ -9,6 +10,7 @@ type InteractiveSelectorOption = {
   description: string;
   image: string;
   icon: HomeFeaturedProject["icon"];
+  href?: string;
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -52,10 +54,13 @@ export default function InteractiveSelector({
   );
   const [activeIndex, setActiveIndex] = useState(0);
   const [animatedOptions, setAnimatedOptions] = useState<number[]>([]);
+  const [isVisible, setIsVisible] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
 
   const frameCount = Math.max(options.length, 1);
   const maxIndex = Math.max(options.length - 1, 0);
   const safeActiveIndex = clamp(activeIndex, 0, maxIndex);
+  const activeOption = options[safeActiveIndex];
   const progress = frameCount > 0 ? ((safeActiveIndex + 1) / frameCount) * 100 : 0;
 
   const handleOptionClick = (index: number) => {
@@ -63,26 +68,64 @@ export default function InteractiveSelector({
   };
 
   useEffect(() => {
-    setActiveIndex(0);
-    setAnimatedOptions([]);
+    const node = sectionRef.current;
+    if (!node || typeof window === "undefined") return;
 
-    const timers = options.map((_, index) =>
-      window.setTimeout(() => {
-        setAnimatedOptions((currentOptions) =>
-          currentOptions.includes(index) ? currentOptions : [...currentOptions, index]
-        );
-      }, 120 * index)
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion || !("IntersectionObserver" in window)) {
+      const showTimer = window.setTimeout(() => setIsVisible(true), 0);
+      return () => window.clearTimeout(showTimer);
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setIsVisible(true);
+          observer.unobserve(node);
+        }
+      },
+      {
+        threshold: 0.16,
+        rootMargin: "0px 0px -10% 0px",
+      }
     );
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const timers: number[] = [];
+    const resetTimer = window.setTimeout(() => {
+      setActiveIndex(0);
+      setAnimatedOptions([]);
+    }, 0);
+    timers.push(resetTimer);
+
+    if (isVisible) {
+      timers.push(...options.map((_, index) =>
+        window.setTimeout(() => {
+          setAnimatedOptions((currentOptions) =>
+            currentOptions.includes(index) ? currentOptions : [...currentOptions, index]
+          );
+        }, 120 * index)
+      ));
+    }
 
     return () => {
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [options]);
+  }, [isVisible, options]);
 
   return (
     <section
-      className="section-side-glow relative bg-black px-4 py-16 text-white sm:px-6 sm:py-20 lg:px-8"
+      ref={sectionRef}
+      className={`section-side-glow relative bg-black px-4 py-16 text-white transition-[opacity,transform,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] sm:px-6 sm:py-20 lg:px-8 ${
+        isVisible ? "translate-y-0 opacity-100 blur-0" : "translate-y-8 opacity-0 blur-[1px]"
+      }`}
       aria-label="Featured projects selector"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "720px" }}
     >
       <div className="relative flex w-full flex-col items-center justify-center overflow-hidden">
         <div className="pointer-events-none absolute inset-0">
@@ -112,9 +155,22 @@ export default function InteractiveSelector({
           </div>
 
           <div className="mx-auto mt-5 max-w-5xl sm:mt-7">
-            <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.22em] text-white/48">
-              <span>Project {safeActiveIndex + 1}</span>
-              <span>{options.length} featured</span>
+            <div className="flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/48">
+              <span className="min-w-0 truncate text-white/62">
+                {activeOption?.title || `Project ${safeActiveIndex + 1}`}
+              </span>
+              <div className="flex shrink-0 items-center gap-3">
+                <span>{options.length} featured</span>
+                {activeOption?.href ? (
+                  <Link
+                    href={activeOption.href}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#8fdcff]/24 bg-[#8fdcff]/[0.08] px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#dff8ff] shadow-[0_10px_26px_rgba(84,184,255,0.12)] transition-[transform,border-color,background-color,color] duration-200 hover:-translate-y-0.5 hover:border-[#8fdcff]/46 hover:bg-[#8fdcff]/[0.14] hover:text-white"
+                  >
+                    View
+                    <ArrowUpRight className="h-3 w-3" />
+                  </Link>
+                ) : null}
+              </div>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
               <div
@@ -146,7 +202,7 @@ export default function InteractiveSelector({
                     opacity: hasAnimated ? 1 : 0,
                     transform: hasAnimated ? "translateX(0)" : "translateX(-42px)",
                     zIndex: isActive ? 10 : 1,
-                    willChange: "flex-grow, transform, opacity",
+                    willChange: hasAnimated ? "auto" : "transform, opacity",
                   }}
                   onClick={() => handleOptionClick(index)}
                   aria-pressed={isActive}

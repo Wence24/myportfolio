@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { MotionMode } from "@/components/motion-mode";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="16x16" href="/logo.png" />
       </head>
       <body className="antialiased font-codenso">
+        <MotionMode />
         <div aria-hidden="true" className="site-background">
           <div className="site-background__base" />
           <div className="site-background__aurora site-background__aurora--primary" />
