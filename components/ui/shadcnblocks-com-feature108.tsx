@@ -201,7 +201,7 @@ const Feature108 = ({
         <Tabs value={activeValue} onValueChange={setActiveValue} className="mt-8">
           <TabsList
             ref={tabsListRef}
-            className="relative mx-auto flex w-full max-w-4xl flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center md:gap-4"
+            className="relative mx-auto flex w-full max-w-4xl flex-col items-stretch justify-start gap-3 overflow-x-auto rounded-full pb-1 sm:flex-row sm:items-center md:gap-4"
           >
             <div
               aria-hidden="true"
@@ -218,7 +218,7 @@ const Feature108 = ({
                   tabTriggerRefs.current[tab.value] = node;
                 }}
                 value={tab.value}
-                className="group relative z-10 flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full border border-[#8fdcff]/16 bg-[#061424]/60 px-4 py-3 text-sm font-semibold text-white/66 outline-none shadow-[0_0_24px_rgba(84,184,255,0.08)] transition-[border-color,background-color,color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#8fdcff]/34 hover:bg-[#0b2236]/74 hover:text-white hover:shadow-[0_0_34px_rgba(84,184,255,0.18)] data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none"
+                className="group relative z-10 flex min-h-12 min-w-[11rem] flex-1 items-center justify-center gap-2 rounded-full border border-[#8fdcff]/16 bg-[#061424]/60 px-4 py-3 text-sm font-semibold text-white/66 outline-none shadow-[0_0_24px_rgba(84,184,255,0.08)] transition-[border-color,background-color,color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#8fdcff]/34 hover:bg-[#0b2236]/74 hover:text-white hover:shadow-[0_0_34px_rgba(84,184,255,0.18)] data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none"
               >
                 <span className="text-[#8fdcff]">{tab.icon}</span>
                 {tab.label}

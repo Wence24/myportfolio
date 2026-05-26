@@ -376,7 +376,6 @@ export default function PortfolioCategoryPage({
 
   const projectCards = useMemo(() => {
     const mappedCards = (projectsByCategory[category] || [])
-      .slice(0, 3)
       .map((project, index): ProjectCard => {
         const fallback = config.fallbackCards[index % config.fallbackCards.length];
 

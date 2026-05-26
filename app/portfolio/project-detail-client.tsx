@@ -175,7 +175,7 @@ const getProjectEntries = (
     }));
   }
 
-  return storedProjects.slice(0, 3).map((project, index) => {
+  return storedProjects.map((project, index) => {
     const fallback = config.fallbackCards[index % config.fallbackCards.length];
     const title = project.title || fallback.title;
 

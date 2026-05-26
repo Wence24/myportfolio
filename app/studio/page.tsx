@@ -5,15 +5,21 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  Activity,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   Cloud,
   Database,
+  Gauge,
+  HardDrive,
   Image as ImageIcon,
   LogOut,
   Plus,
+  RefreshCw,
   Save,
+  ShieldCheck,
+  Sparkles,
   Trash2,
   UploadCloud,
   Video,
@@ -43,6 +49,7 @@ import {
   savePortfolioContentToSupabase,
   sanitizeExperienceImage,
   TESTIMONIALS_STORAGE_KEY,
+  TESTIMONIALS_UPDATED_EVENT,
   uploadPortfolioAssetToCloudinary,
   type CreativeExperienceEntry,
   type FeaturedProjectIcon,
@@ -57,9 +64,47 @@ import {
   type Testimonial,
 } from "@/lib/portfolio-data";
 
-type StudioTab = "home" | "about" | "lanes" | "experience" | "portfolio" | "stories";
+type StudioTab =
+  | "dashboard"
+  | "home"
+  | "about"
+  | "lanes"
+  | "experience"
+  | "portfolio"
+  | "stories";
 type VideoAspectRatio = "landscape" | "portrait";
 type ConnectionState = "checking" | "connected" | "missing" | "error";
+type StudioHealthStatus = "healthy" | "attention" | "limited" | "missing" | "error" | "checking";
+
+type UsageMetric = {
+  usage?: number;
+  limit?: number;
+  used_percent?: number;
+};
+
+type StudioHealth = {
+  checkedAt?: string;
+  cloudinary?: {
+    configured?: boolean;
+    status?: StudioHealthStatus;
+    detail?: string;
+    storage?: UsageMetric | null;
+    bandwidth?: UsageMetric | null;
+    credits?: UsageMetric | null;
+    objects?: UsageMetric | null;
+  };
+  supabase?: {
+    configured?: boolean;
+    status?: StudioHealthStatus;
+    detail?: string;
+    bucket?: string;
+    contentBytes?: number;
+    updatedAt?: string | null;
+  };
+  website?: {
+    status?: "healthy" | "attention";
+  };
+};
 
 const STUDIO_AUTH_KEY = "portfolio-studio-auth";
 const DEFAULT_STUDIO_EMAIL = "aiakosedt@gmail.com";
@@ -117,6 +162,122 @@ const parseTagInput = (value: string) =>
     .split(",")
     .map((tag) => tag.trim())
     .filter(Boolean);
+
+const estimateByteSize = (value: unknown) =>
+  new Blob([JSON.stringify(value ?? null)]).size;
+
+const formatBytes = (bytes?: number | null) => {
+  if (typeof bytes !== "number" || Number.isNaN(bytes)) return "Unavailable";
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let size = bytes / 1024;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+  return `${size >= 10 ? size.toFixed(1) : size.toFixed(2)} ${units[unitIndex]}`;
+};
+
+const formatUsageMetric = (metric?: UsageMetric | null) => {
+  if (!metric) return "Unavailable";
+  const hasUsage = typeof metric.usage === "number";
+  const hasLimit = typeof metric.limit === "number" && metric.limit > 0;
+  if (hasUsage && hasLimit) {
+    return `${formatBytes(metric.usage)} / ${formatBytes(metric.limit)}`;
+  }
+  if (hasUsage) return formatBytes(metric.usage);
+  if (typeof metric.used_percent === "number") return `${metric.used_percent.toFixed(1)}% used`;
+  return "Unavailable";
+};
+
+const getUsageTone = (percent?: number) => {
+  if (typeof percent !== "number") return "neutral";
+  if (percent >= 90) return "danger";
+  if (percent >= 75) return "warn";
+  return "healthy";
+};
+
+const getMetricPercent = (metric?: UsageMetric | null) => {
+  if (!metric) return undefined;
+  if (typeof metric.used_percent === "number") return metric.used_percent;
+  if (
+    typeof metric.usage === "number" &&
+    typeof metric.limit === "number" &&
+    metric.limit > 0
+  ) {
+    return (metric.usage / metric.limit) * 100;
+  }
+  return undefined;
+};
+
+const getProjectTotals = (projects: PortfolioProjects) =>
+  categories.reduce(
+    (totals, category) => ({
+      ...totals,
+      [category.key]: projects[category.key]?.length || 0,
+      all: totals.all + (projects[category.key]?.length || 0),
+    }),
+    {
+      all: 0,
+      "Video Edit": 0,
+      "Graphic Design": 0,
+      Websites: 0,
+    } as Record<PortfolioCategory | "all", number>
+  );
+
+const cleanStringList = (items: string[] | undefined) =>
+  Array.from(new Set((items || []).map((item) => item.trim()).filter(Boolean)));
+
+const optimizeProjects = (projects: PortfolioProjects): PortfolioProjects => ({
+  "Graphic Design": (projects["Graphic Design"] || []).map((project) => ({
+    ...project,
+    title: project.title.trim(),
+    description: project.description.trim(),
+    image: project.image.trim(),
+    designLink: project.designLink.trim(),
+    tags: cleanStringList(project.tags),
+    details: project.details
+      ? {
+          ...project.details,
+          title: project.details.title.trim(),
+          description: project.details.description.trim(),
+          heroImage: project.details.heroImage.trim(),
+          galleryImages: cleanStringList(project.details.galleryImages),
+        }
+      : project.details,
+  })),
+  "Video Edit": (projects["Video Edit"] || []).map((project) => ({
+    ...project,
+    title: project.title.trim(),
+    description: project.description.trim(),
+    image: project.image.trim(),
+    designLink: project.designLink.trim(),
+    videoCategory: project.videoCategory?.trim() || "",
+    videoParentLabel: project.videoParentLabel?.trim() || "",
+    videoUrl: project.videoUrl?.trim() || "",
+    videoUrls: cleanStringList(project.videoUrls),
+    videoPosterUrls: cleanStringList(project.videoPosterUrls),
+    tags: cleanStringList(project.tags),
+  })),
+  Websites: (projects.Websites || []).map((project) => ({
+    ...project,
+    title: project.title.trim(),
+    description: project.description.trim(),
+    image: project.image.trim(),
+    designLink: project.designLink.trim(),
+    tags: cleanStringList(project.tags),
+    details: project.details
+      ? {
+          ...project.details,
+          title: project.details.title.trim(),
+          description: project.details.description.trim(),
+          heroImage: project.details.heroImage.trim(),
+          galleryImages: cleanStringList(project.details.galleryImages),
+        }
+      : project.details,
+  })),
+});
 
 const normalizeProjects = (value: unknown): PortfolioProjects => {
   if (!value || typeof value !== "object") return emptyProjects;
@@ -438,6 +599,46 @@ function ConnectionBadge({
   );
 }
 
+function HealthCard({
+  label,
+  value,
+  detail,
+  tone = "neutral",
+  icon,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "healthy" | "warn" | "danger" | "neutral";
+  icon: React.ReactNode;
+}) {
+  const toneClass =
+    tone === "healthy"
+      ? "border-[#8ef0d2]/18 bg-[#8ef0d2]/[0.055]"
+      : tone === "warn"
+        ? "border-[#ffd166]/22 bg-[#ffd166]/[0.065]"
+        : tone === "danger"
+          ? "border-[#ff8fa3]/24 bg-[#ff8fa3]/[0.07]"
+          : "border-white/10 bg-white/[0.035]";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/20 text-[#8fdcff]">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/42">
+            {label}
+          </p>
+          <p className="mt-1 truncate text-lg font-semibold text-white">{value}</p>
+        </div>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-white/54">{detail}</p>
+    </div>
+  );
+}
+
 function EditorTabs({
   items,
   activeIndex,
@@ -631,7 +832,7 @@ export default function StudioPage() {
   const [loginEmail, setLoginEmail] = useState(DEFAULT_STUDIO_EMAIL);
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [activeTab, setActiveTab] = useState<StudioTab>("home");
+  const [activeTab, setActiveTab] = useState<StudioTab>("dashboard");
   const [activeCategory, setActiveCategory] = useState<PortfolioCategory>("Video Edit");
   const [activeFeaturedProjectIndex, setActiveFeaturedProjectIndex] = useState(0);
   const [activeAboutItemIndex, setActiveAboutItemIndex] = useState(0);
@@ -645,6 +846,9 @@ export default function StudioPage() {
     useState<CreativeExperienceEntry[]>(getInitialExperienceEntries);
   const [testimonials, setTestimonials] = useState<Testimonial[]>(getInitialTestimonials);
   const [statusMessage, setStatusMessage] = useState("");
+  const [studioHealth, setStudioHealth] = useState<StudioHealth | null>(null);
+  const [isHealthChecking, setIsHealthChecking] = useState(true);
+  const [isOptimizing, setIsOptimizing] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{
     cloudinary: ConnectionState;
     supabase: ConnectionState;
@@ -677,6 +881,38 @@ export default function StudioPage() {
   useEffect(() => {
     testimonialsRef.current = testimonials;
   }, [testimonials]);
+
+  const refreshStudioHealth = async () => {
+    setIsHealthChecking(true);
+    try {
+      const response = await fetch("/api/studio/health", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Health check failed.");
+      }
+      const health = (await response.json()) as StudioHealth;
+      setStudioHealth(health);
+    } catch (error) {
+      setStudioHealth({
+        cloudinary: {
+          status: "error",
+          detail: error instanceof Error ? error.message : "Health check failed.",
+        },
+        supabase: {
+          status: "error",
+          detail: "Health check failed.",
+        },
+        website: {
+          status: "attention",
+        },
+      });
+    } finally {
+      setIsHealthChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshStudioHealth();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -772,6 +1008,23 @@ export default function StudioPage() {
     () => categories.find((category) => category.key === activeCategory)?.label || activeCategory,
     [activeCategory]
   );
+  const projectTotals = useMemo(() => getProjectTotals(projects), [projects]);
+  const localContentBytes = useMemo(
+    () =>
+      estimateByteSize({
+        projects,
+        homeContent,
+        experienceEntries,
+        testimonials,
+      }),
+    [experienceEntries, homeContent, projects, testimonials]
+  );
+  const localStoragePercent = Math.min((localContentBytes / (5 * 1024 * 1024)) * 100, 100);
+  const cloudinaryStoragePercent = getMetricPercent(studioHealth?.cloudinary?.storage);
+  const websiteIsHealthy =
+    connectionStatus.cloudinary !== "error" &&
+    connectionStatus.supabase !== "error" &&
+    studioHealth?.website?.status !== "attention";
 
   const markStatus = (message: string) => {
     setStatusMessage(message);
@@ -821,6 +1074,61 @@ export default function StudioPage() {
     window.localStorage.setItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY, updatedAt);
     window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
     await syncToSupabase({ nextProjects });
+  };
+
+  const optimizeWebsite = async () => {
+    setIsOptimizing(true);
+    try {
+      const optimizedProjects = optimizeProjects(projectsRef.current);
+      const optimizedHomeContent = normalizeHomeContent(homeContentRef.current);
+      const optimizedExperienceEntries = normalizeExperienceEntries(
+        experienceEntriesRef.current.map((entry) => ({
+          ...entry,
+          role: entry.role.trim(),
+          client: entry.client.trim(),
+          period: entry.period.trim(),
+          summary: entry.summary.trim(),
+          tags: cleanStringList(entry.tags),
+          image: sanitizeExperienceImage(entry.image),
+        }))
+      );
+      const optimizedTestimonials = normalizeTestimonials(testimonialsRef.current);
+      const updatedAt = new Date().toISOString();
+
+      setProjects(optimizedProjects);
+      projectsRef.current = optimizedProjects;
+      window.localStorage.setItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(optimizedProjects));
+      window.localStorage.setItem(PORTFOLIO_CONTENT_UPDATED_AT_KEY, updatedAt);
+      window.dispatchEvent(new Event(PORTFOLIO_UPDATED_EVENT));
+
+      setHomeContent(optimizedHomeContent);
+      homeContentRef.current = optimizedHomeContent;
+      window.localStorage.setItem(HOME_CONTENT_STORAGE_KEY, JSON.stringify(optimizedHomeContent));
+      window.localStorage.setItem(HOME_CONTENT_UPDATED_AT_KEY, updatedAt);
+      window.dispatchEvent(new Event(HOME_CONTENT_UPDATED_EVENT));
+
+      setExperienceEntries(optimizedExperienceEntries);
+      experienceEntriesRef.current = optimizedExperienceEntries;
+      window.localStorage.setItem(EXPERIENCE_STORAGE_KEY, JSON.stringify(optimizedExperienceEntries));
+      window.localStorage.setItem(EXPERIENCE_CONTENT_UPDATED_AT_KEY, updatedAt);
+      window.dispatchEvent(new Event(EXPERIENCE_UPDATED_EVENT));
+
+      setTestimonials(optimizedTestimonials);
+      testimonialsRef.current = optimizedTestimonials;
+      window.localStorage.setItem(TESTIMONIALS_STORAGE_KEY, JSON.stringify(optimizedTestimonials));
+      window.dispatchEvent(new Event(TESTIMONIALS_UPDATED_EVENT));
+
+      await syncToSupabase({
+        nextProjects: optimizedProjects,
+        nextHomeContent: optimizedHomeContent,
+        nextExperienceEntries: optimizedExperienceEntries,
+        nextTestimonials: optimizedTestimonials,
+      });
+      await refreshStudioHealth();
+      markStatus("Website data optimized.");
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
   const persistExperienceEntries = async (nextEntries: CreativeExperienceEntry[]) => {
@@ -1055,6 +1363,7 @@ export default function StudioPage() {
         <aside className="min-w-0 lg:sticky lg:top-28 lg:self-start">
           <nav className="flex gap-2 overflow-x-auto rounded-[22px] border border-white/10 bg-white/[0.045] p-2 backdrop-blur-xl lg:grid lg:overflow-visible">
             {[
+              ["dashboard", "Dashboard"],
               ["home", "Home Page"],
               ["about", "About Me"],
               ["lanes", "Creative Lanes"],
@@ -1079,6 +1388,151 @@ export default function StudioPage() {
         </aside>
 
         <div className="space-y-6">
+          {activeTab === "dashboard" ? (
+            <>
+              <SectionCard
+                eyebrow="Studio"
+                title="Website Health"
+                action={
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void refreshStudioHealth()}
+                      disabled={isHealthChecking}
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/62 transition hover:border-white/22 hover:text-white disabled:opacity-50"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${isHealthChecking ? "animate-spin" : ""}`} />
+                      Refresh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void optimizeWebsite()}
+                      disabled={isOptimizing}
+                      className="inline-flex items-center gap-2 rounded-full border border-[#8fdcff]/24 bg-[#8fdcff]/[0.08] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#dff8ff] transition hover:border-[#8fdcff]/44 hover:bg-[#8fdcff]/[0.12] disabled:opacity-50"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      {isOptimizing ? "Optimizing" : "Optimize website"}
+                    </button>
+                  </div>
+                }
+              >
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <HealthCard
+                    label="Website Status"
+                    value={websiteIsHealthy ? "Healthy" : "Needs attention"}
+                    detail={
+                      websiteIsHealthy
+                        ? "Core data, Studio state, and provider checks look usable."
+                        : "One provider check failed or could not be reached."
+                    }
+                    tone={websiteIsHealthy ? "healthy" : "warn"}
+                    icon={<ShieldCheck className="h-5 w-5" />}
+                  />
+                  <HealthCard
+                    label="Portfolio Projects"
+                    value={`${projectTotals.all} total`}
+                    detail={`${projectTotals["Video Edit"]} video, ${projectTotals["Graphic Design"]} graphic, ${projectTotals.Websites} web projects.`}
+                    tone={projectTotals.all > 0 ? "healthy" : "warn"}
+                    icon={<Activity className="h-5 w-5" />}
+                  />
+                  <HealthCard
+                    label="Local Studio Data"
+                    value={formatBytes(localContentBytes)}
+                    detail={`${localStoragePercent.toFixed(1)}% of the common 5 MB browser storage budget used by editable content.`}
+                    tone={getUsageTone(localStoragePercent)}
+                    icon={<HardDrive className="h-5 w-5" />}
+                  />
+                  <HealthCard
+                    label="Last Health Check"
+                    value={
+                      studioHealth?.checkedAt
+                        ? new Date(studioHealth.checkedAt).toLocaleTimeString()
+                        : isHealthChecking
+                          ? "Checking"
+                          : "Not checked"
+                    }
+                    detail="Refresh this after uploading or syncing content."
+                    tone={isHealthChecking ? "neutral" : "healthy"}
+                    icon={<Gauge className="h-5 w-5" />}
+                  />
+                </div>
+              </SectionCard>
+
+              <SectionCard eyebrow="Storage" title="Provider Usage">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-black/18 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#8fdcff]/72">
+                          Cloudinary
+                        </p>
+                        <h3 className="mt-1 text-xl font-semibold text-white">
+                          {connectionStatus.cloudinary === "connected"
+                            ? "Upload ready"
+                            : "Check configuration"}
+                        </h3>
+                      </div>
+                      <Cloud className="h-5 w-5 text-[#8fdcff]" />
+                    </div>
+                    <div className="mt-5 space-y-3">
+                      <HealthCard
+                        label="Storage"
+                        value={formatUsageMetric(studioHealth?.cloudinary?.storage)}
+                        detail={
+                          studioHealth?.cloudinary?.detail ||
+                          connectionStatus.cloudinaryDetail
+                        }
+                        tone={getUsageTone(cloudinaryStoragePercent)}
+                        icon={<HardDrive className="h-5 w-5" />}
+                      />
+                      <HealthCard
+                        label="Bandwidth"
+                        value={formatUsageMetric(studioHealth?.cloudinary?.bandwidth)}
+                        detail="Shown when Cloudinary Admin API keys are available."
+                        tone={getUsageTone(getMetricPercent(studioHealth?.cloudinary?.bandwidth))}
+                        icon={<Activity className="h-5 w-5" />}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/18 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#8fdcff]/72">
+                          Supabase
+                        </p>
+                        <h3 className="mt-1 text-xl font-semibold text-white">
+                          {connectionStatus.supabase === "connected"
+                            ? "Content row healthy"
+                            : "Check connection"}
+                        </h3>
+                      </div>
+                      <Database className="h-5 w-5 text-[#8fdcff]" />
+                    </div>
+                    <div className="mt-5 space-y-3">
+                      <HealthCard
+                        label="Content Payload"
+                        value={formatBytes(studioHealth?.supabase?.contentBytes)}
+                        detail={studioHealth?.supabase?.detail || connectionStatus.supabaseDetail}
+                        tone={
+                          studioHealth?.supabase?.status === "healthy" ? "healthy" : "warn"
+                        }
+                        icon={<HardDrive className="h-5 w-5" />}
+                      />
+                      <HealthCard
+                        label="Asset Bucket"
+                        value={studioHealth?.supabase?.bucket || "portfolio-assets"}
+                        detail="Supabase quota remaining is not exposed to this app unless a provider quota API is added."
+                        tone="neutral"
+                        icon={<Database className="h-5 w-5" />}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </SectionCard>
+            </>
+          ) : null}
+
           {activeTab === "home" ? (
             <>
               <SectionCard
