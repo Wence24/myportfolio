@@ -300,6 +300,43 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputClass} ${props.className || ""}`} />;
 }
 
+function ToolBadgesInput({
+  tags,
+  placeholder,
+  onChange,
+}: {
+  tags: string[];
+  placeholder?: string;
+  onChange: (tags: string[]) => void;
+}) {
+  const normalizedValue = tags.join(", ");
+  const [draftValue, setDraftValue] = useState(normalizedValue);
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setDraftValue(normalizedValue);
+    }
+  }, [isFocused, normalizedValue]);
+
+  return (
+    <TextInput
+      value={draftValue}
+      placeholder={placeholder}
+      onFocus={() => setIsFocused(true)}
+      onChange={(event) => {
+        const nextValue = event.target.value;
+        setDraftValue(nextValue);
+        onChange(parseTagInput(nextValue));
+      }}
+      onBlur={(event) => {
+        setIsFocused(false);
+        setDraftValue(parseTagInput(event.target.value).join(", "));
+      }}
+    />
+  );
+}
+
 function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...props} className={`${textareaClass} ${props.className || ""}`} />;
 }
@@ -2251,13 +2288,14 @@ export default function StudioPage() {
                           label="Tool badges"
                           hint="Comma-separated badges shown after the video group badge, for example: Adobe Premiere Pro, After Effects, CapCut."
                         >
-                          <TextInput
-                            value={(project.tags || []).join(", ")}
+                          <ToolBadgesInput
+                            key={`${activeCategory}-${index}-tool-badges`}
+                            tags={project.tags || []}
                             placeholder={defaultProjectTags[activeCategory].join(", ")}
-                            onChange={(event) =>
+                            onChange={(tags) =>
                               updateProjectAt(index, (item) => ({
                                 ...item,
-                                tags: parseTagInput(event.target.value),
+                                tags,
                               }))
                             }
                           />
