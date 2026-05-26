@@ -3999,12 +3999,6 @@ const socialLinks: SocialLink[] = [
       </div>
 
       <div className="section-side-glow relative w-full overflow-hidden bg-[linear-gradient(180deg,rgba(7,16,28,0.94),rgba(10,22,36,0.96)_34%,rgba(8,15,25,0.96))]">
-        <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
-          <div className="absolute left-1/2 top-[-5rem] h-[30rem] w-[82vw] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(143,220,255,0.2)_0%,rgba(84,184,255,0.09)_38%,transparent_72%)] blur-3xl" />
-          <div className="absolute left-[-8rem] top-[20rem] h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgba(47,125,255,0.2)_0%,rgba(47,125,255,0.07)_42%,transparent_74%)] blur-3xl" />
-          <div className="absolute right-[-9rem] top-[44rem] h-[34rem] w-[34rem] rounded-full bg-[radial-gradient(circle,rgba(143,220,255,0.18)_0%,rgba(84,184,255,0.065)_38%,transparent_74%)] blur-3xl" />
-          <div className="absolute inset-x-[8%] top-[34rem] h-px bg-gradient-to-r from-transparent via-[#8fdcff]/24 to-transparent" />
-        </div>
         <ScrollReveal threshold={0.08} rootMargin="0px 0px -6% 0px">
           <AboutExperienceListSection
             aboutRef={aboutRef}

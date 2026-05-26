@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { MotionMode } from "@/components/motion-mode";
+import { ScrollGlowField } from "@/components/scroll-glow-field";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -31,6 +32,7 @@ export default function RootLayout({
           <div className="site-background__vignette" />
           <div className="site-background__frame" />
         </div>
+        <ScrollGlowField />
         <div className="site-shell">{children}</div>
       </body>
     </html>
